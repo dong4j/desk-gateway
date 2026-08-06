@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Desk Gateway — 登录</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <h1 class="brand">Desk Gateway</h1>
+      <p class="sub">局域网控制 · 默认密码 desk-gateway · 请勿映射公网</p>
+      <form id="login">
+        <label>密码
+          <input type="password" name="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit">进入</button>
+      </form>
+      <p id="err" class="err" hidden></p>
+    </div>
+  </div>
+  <script>
+    document.getElementById('login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = new FormData(e.target).get('password');
+      const err = document.getElementById('err');
+      const r = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (!r.ok) {
+        err.hidden = false;
+        err.textContent = '密码错误';
+        return;
+      }
+      const { token } = await r.json();
+      sessionStorage.setItem('desk_token', token);
+      location.href = '/';
+    });
+  </script>
+</body>
+</html>

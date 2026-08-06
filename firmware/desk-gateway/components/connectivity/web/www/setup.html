@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Desk Gateway 配网</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card" style="width:min(460px,94vw)">
+      <h1 class="brand">Desk Gateway</h1>
+      <p class="sub">连接到家里的 2.4GHz WiFi</p>
+      <form id="f">
+        <label>WiFi 名称 (SSID)
+          <input name="ssid" required maxlength="32" autocomplete="off" />
+        </label>
+        <label>WiFi 密码
+          <input name="password" type="password" maxlength="64" />
+        </label>
+        <button type="submit">连接并保存</button>
+      </form>
+      <p id="msg" class="hint"></p>
+    </div>
+  </div>
+  <script>
+    document.getElementById('f').onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const msg = document.getElementById('msg');
+      msg.textContent = '正在保存…';
+      try {
+        const r = await fetch('/api/v1/setup/wifi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ssid: fd.get('ssid'),
+            password: fd.get('password') || ''
+          })
+        });
+        const j = await r.json();
+        if (!r.ok || !j.ok) {
+          msg.textContent = '失败: ' + (j.err || r.status);
+          return;
+        }
+        msg.textContent = '已保存。请切回家里 WiFi，在路由器中找板子 IP 后打开控制页。';
+      } catch (_) {
+        msg.textContent = '若热点已断开，通常已在切网：连回家里 WiFi 后查找板子 IP 即可。';
+      }
+    };
+  </script>
+</body>
+</html>

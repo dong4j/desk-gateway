@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Desk Gateway</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="page">
+    <header class="top">
+      <h1 class="brand">Desk Gateway</h1>
+      <div class="top-meta">
+        <span id="meta">—</span>
+        <span id="stateChip" class="pill">idle</span>
+        <span id="simBadge" class="pill pill-sim" hidden>SIM</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <!-- 左：桌子 + 竖向高度条 -->
+      <section class="viz-card" aria-hidden="true">
+        <svg id="desk" class="desk-svg" viewBox="0 0 280 200">
+          <rect class="floor" x="24" y="178" width="232" height="6" rx="2" />
+          <rect class="leg" x="78" y="75" width="11" height="103" rx="2" />
+          <rect class="leg" x="191" y="75" width="11" height="103" rx="2" />
+          <rect id="top" class="topboard" x="40" y="60" width="200" height="16" rx="4" />
+          <rect class="monitor" x="112" y="28" width="56" height="28" rx="3" />
+        </svg>
+        <div class="rail-v" aria-hidden="true">
+          <div id="railFill" class="rail-fill"></div>
+        </div>
+      </section>
+
+      <!-- 右：读数 + 控制 -->
+      <section class="control">
+        <p class="label">Height</p>
+        <p id="height" class="height">—</p>
+        <p class="unit">centimetres</p>
+        <p id="stateHint" class="hint">按住下方按钮升降，松手即停。</p>
+
+        <div class="pads">
+          <button type="button" id="up" class="btn btn-fill hold">按住升</button>
+          <button type="button" id="stop" class="btn btn-ghost">停</button>
+          <button type="button" id="down" class="btn btn-outline hold">按住降</button>
+        </div>
+
+        <div class="row">
+          <button type="button" id="p1" class="btn btn-soft">档位 1</button>
+          <button type="button" id="p4" class="btn btn-soft">档位 4</button>
+          <label class="lock">
+            <input type="checkbox" id="lock" />
+            童锁
+          </label>
+        </div>
+
+        <details class="settings">
+          <summary>设置 · 改密码</summary>
+          <form id="pwForm" class="pw-form">
+            <input type="password" name="password" placeholder="新密码（至少 4 位）"
+                   required minlength="4" autocomplete="new-password" />
+            <button type="submit">保存</button>
+          </form>
+          <p id="pwMsg" class="hint"></p>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

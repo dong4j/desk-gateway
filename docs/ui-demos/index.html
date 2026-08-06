@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Desk Gateway · UI Demo 选择</title>
+  <style>
+    :root { font-family: "Segoe UI", "PingFang SC", sans-serif; }
+    body { margin: 0; background: #0b0d10; color: #e8eaed; min-height: 100vh; }
+    main { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+    h1 { font-size: 1.75rem; margin: 0 0 0.5rem; }
+    p { color: #9aa3af; line-height: 1.6; }
+    .grid { display: grid; gap: 1rem; margin-top: 2rem; }
+    @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } }
+    a.card {
+      display: block; padding: 1.25rem 1.35rem; border-radius: 14px;
+      border: 1px solid #2a313c; background: #141820; color: inherit;
+      text-decoration: none; transition: border-color .15s, transform .15s;
+    }
+    a.card:hover { border-color: #6ea8fe; transform: translateY(-2px); }
+    a.card strong { display: block; font-size: 1.15rem; margin-bottom: 0.35rem; }
+    a.card span { color: #9aa3af; font-size: 0.92rem; line-height: 1.5; }
+    .tag { display: inline-block; margin-top: 0.75rem; font-size: 0.75rem;
+      padding: 0.2rem 0.5rem; border-radius: 999px; background: #1e2630; color: #9ec5fe; }
+    code { background: #1e2630; padding: 0.1rem 0.35rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Desk Gateway UI Demo</h1>
+    <p>
+      下面 4 套都是<strong>静态预览</strong>（假数据、可点按钮看交互感），不进固件。
+      选中你喜欢的风格后告诉我编号（A/B/C/D），再接到真 Web。
+      请用<strong>电脑浏览器全宽</strong>打开对比；手机也可看响应式。
+    </p>
+    <div class="grid">
+      <a class="card" href="./a-home-assistant.html" target="_blank">
+        <strong>A · Home Assistant 风</strong>
+        <span>浅色卡片、侧栏信息、偏智能家居后台。宽屏左右分栏。</span>
+        <div class="tag">浅色 · 实用 · 熟悉</div>
+      </a>
+      <a class="card" href="./b-shadcn-zinc.html" target="_blank">
+        <strong>B · Shadcn / Zinc 风</strong>
+        <span>深色 zinc、细边框、圆角控件，接近 shadcn + Tailwind 观感（CDN 模拟，非真 React）。</span>
+        <div class="tag">深色 · 现代 · 开发者向</div>
+      </a>
+      <a class="card" href="./c-dashboard.html" target="_blank">
+        <strong>C · 宽屏仪表盘</strong>
+        <span>大屏优先：高度 KPI + 示意图 + 控制区三栏，像运维/设备控制台。</span>
+        <div class="tag">宽屏 · 信息密度高</div>
+      </a>
+      <a class="card" href="./d-soft-minimal.html" target="_blank">
+        <strong>D · 柔和极简（已选 · 已改）</strong>
+        <span>桌子在左 + 竖向高度条；右为读数与控制。宽屏双栏。</span>
+        <div class="tag">已选中</div>
+      </a>
+    </div>
+    <p style="margin-top:2rem;font-size:0.9rem">
+      本地打开：在目录 <code>docs/ui-demos</code> 下用浏览器打开 <code>index.html</code>，
+      或 <code>npx serve docs/ui-demos</code>。
+    </p>
+  </main>
+</body>
+</html>

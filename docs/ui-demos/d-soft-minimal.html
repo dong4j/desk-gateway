@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo D · 柔和极简（桌子在左 · 竖条）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: "Source Sans 3", "PingFang SC", sans-serif; }
+    .display { font-family: "Fraunces", "Songti SC", serif; }
+  </style>
+</head>
+<body class="min-h-screen bg-[#f7f3ec] text-[#1c1915]">
+  <div class="mx-auto max-w-5xl px-6 py-10 lg:py-16">
+    <header class="mb-12 flex flex-wrap items-baseline justify-between gap-4">
+      <h1 class="display text-4xl font-semibold tracking-tight md:text-5xl">Desk Gateway</h1>
+      <div class="flex items-center gap-3 text-sm text-[#6f675c]">
+        <span id="state">idle</span>
+        <span class="rounded-full bg-[#efe6d8] px-2 py-0.5 text-[#8a6a2f]">SIM</span>
+      </div>
+    </header>
+
+    <!-- 左：桌子+竖条；右：高度与控制 -->
+    <div class="grid items-center gap-12 lg:grid-cols-2">
+      <div class="relative order-1">
+        <div class="absolute -inset-6 rounded-[2rem] bg-[#efe6d8]/70"></div>
+        <div class="relative flex items-stretch gap-5 rounded-[2rem] bg-[#efece4] p-8 md:p-10">
+          <svg class="h-64 w-full flex-1" viewBox="0 0 280 200" aria-hidden="true">
+            <rect x="24" y="178" width="232" height="6" rx="2" fill="#d6cec2"/>
+            <rect x="78" y="75" width="11" height="103" rx="2" fill="#a39a8c"/>
+            <rect x="191" y="75" width="11" height="103" rx="2" fill="#a39a8c"/>
+            <rect id="top" x="40" y="60" width="200" height="16" rx="4" fill="#c4a484"/>
+            <rect x="112" y="28" width="56" height="28" rx="3" fill="#e7e0d4" stroke="#cfc6b8"/>
+          </svg>
+          <!-- 竖向高度条 -->
+          <div class="flex w-3 flex-col justify-end self-stretch overflow-hidden rounded-full bg-[#e0d8cb]">
+            <div id="rail" class="w-full rounded-full bg-[#1c1915]" style="height:45%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="order-2">
+        <p class="text-sm uppercase tracking-[0.22em] text-[#8a8276]">Height</p>
+        <p id="height" class="display mt-2 text-7xl font-semibold leading-none tracking-tight md:text-8xl">95.0</p>
+        <p class="mt-2 text-lg text-[#8a8276]">centimetres</p>
+        <p id="hint" class="mt-6 max-w-sm text-[#6f675c]">按住下方按钮升降，松手即停。</p>
+
+        <div class="mt-10 flex max-w-md gap-3">
+          <button id="up" class="hold flex-1 rounded-full bg-[#1c1915] px-6 py-4 text-white transition hover:bg-black">按住升</button>
+          <button id="stop" class="rounded-full border border-[#d6cec2] px-5 py-4 text-[#6f675c] hover:bg-white">停</button>
+          <button id="down" class="hold flex-1 rounded-full border border-[#1c1915] px-6 py-4 hover:bg-white">按住降</button>
+        </div>
+        <div class="mt-4 flex max-w-md gap-3">
+          <button data-preset="750" class="flex-1 rounded-full border border-[#d6cec2] py-3 text-sm hover:bg-white">档位 1</button>
+          <button data-preset="1150" class="flex-1 rounded-full border border-[#d6cec2] py-3 text-sm hover:bg-white">档位 4</button>
+          <label class="flex items-center gap-2 px-2 text-sm text-[#6f675c]">
+            <input type="checkbox" class="rounded border-[#cfc6b8]" /> 童锁
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="./demo-logic.js"></script>
+</body>
+</html>

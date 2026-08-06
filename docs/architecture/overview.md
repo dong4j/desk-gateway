@@ -1,0 +1,89 @@
+# Desk Gateway 架构总览
+
+> 精简给人读的版本。完整定稿见  
+> [`docs/superpowers/specs/2026-08-06-desk-gateway-platform-design.md`](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md)。
+
+## 一句话
+
+Desk Gateway 是一套跑在 ESP32-S3 上的**升降桌智能平台**：厂商差异收进 **Desk Driver**，Web / 串口 / **BLE 外设** / 未来 HA·Matter 共用 **desk_core**。
+
+## 分层
+
+```text
+Web UI + REST/SSE + UART + BLE 外设（OLED/旋钮）
+              │
+         desk_core          ← 急停、超时、统一命令、童锁
+              │
+        desk_driver API
+              │
+   yourdesk_v1 / loctek* / jiecang* / …
+```
+
+## 当前焦点
+
+| 层 | 状态 |
+|---|---|
+| `yourdesk_v1`（I²C Slave 模拟面板） | Phase1 已有最小实现，将迁入 Driver |
+| `desk_core` + Driver 框架 | 设计已定，待实现 |
+| WiFi + Web（局域网、密码、现代化 UI、升降动效） | 设计已定，待实现 |
+| BLE / Loctek / Jiecang | BLE = 外设总线（文档已定）；厂商驱动 stub |
+| 双 RJ45 中间人 | Phase 2 |
+| HA / Matter / Siri / OTA | 更后 |
+| 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](./ecosystem-xiaomi-huawei.md) |
+
+## 仓库形状（目标）
+
+```text
+firmware/desk-gateway/
+  components/
+    desk_core/
+    desk_driver/
+    drivers/yourdesk_v1|loctek|jiecang
+    connectivity/wifi|web|ble
+docs/architecture/          ← 本目录
+docs/superpowers/specs/     ← 设计定稿
+```
+
+## Web（本阶段）
+
+- **仅局域网**；简单 Bearer 密码登录  
+- 控制：升 / 降 / 停 / 已支持档位 / **童锁**  
+- UI：品牌 + 升降桌示意图；`moving_up/down` 时示意图实时升降；有高度则按 mm 映射，无高度则按命令做相对动效  
+- 状态：SSE 优先，失败则短轮询；含 `child_lock`  
+
+## 童锁与仲裁
+
+- 童锁 ON：**原厂面板不能控桌**；Web 仍可控制并解锁（Phase 1 预埋状态；Phase 2 MITM 真屏蔽）  
+- 童锁 OFF：面板优先于无线  
+- 优先级：急停 > 童锁 >（未锁时）面板优先 > 无线  
+
+## 待逆向（协议）
+
+- 原厂面板：**同时按住上+下约 5 秒 → 重置**（已确认有此操作，`DR` 未知；见协议笔记）
+
+## BLE 外设总线（摘要）
+
+- Gateway = **GATT Server**；OLED + 无限旋钮等 = Client  
+- Notify：高度 / 运动状态 / 童锁；Write：升 / 降 / 停  
+- 与 Web 同走 `desk_core`；**板载**仍无旋钮无屏  
+- 详情：[ble-accessory-profile.md](./ble-accessory-profile.md)
+
+## 小米 / 华为生态（摘要）
+
+| 目标 | 额外硬件？ |
+|---|---|
+| 米家 / 智慧生活 **原生上架** | **通常要** 各自认证 Wi‑Fi 模组 + 合作认证 |
+| 手机 App 当 Matter 控制器添加本设备 | **一般不要**换主控（ESP32 上跑 Matter） |
+| 详情 | [ecosystem-xiaomi-huawei.md](./ecosystem-xiaomi-huawei.md) |
+
+## 相关文档
+
+| 文档 | 用途 |
+|---|---|
+| [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) | 实现依据 |
+| [小米/华为生态调研](./ecosystem-xiaomi-huawei.md) | 模组 vs Matter |
+| [BLE 外设 Profile](./ble-accessory-profile.md) | 旋钮/OLED 配件总线 |
+| [需求](../0-requirements.md) | 做什么、阶段门禁 |
+| [主控板](../2-esp32-s3-n16r8-platform.md) | YD-ESP32-S3 N16R8 |
+| [协议逆向](../3-protocol-reverse-notes.md) | yourdesk_v1 契约 |
+| [Upsy Desky](https://github.com/tjhorner/upsy-desky) | 参考产品，非协议照搬 |

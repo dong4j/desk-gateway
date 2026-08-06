@@ -1,0 +1,60 @@
+menu "Desk Gateway"
+
+    config DESK_I2C_SCL_GPIO
+        int "I2C SCL (CLK) GPIO"
+        default 4
+
+    config DESK_I2C_SDA_GPIO
+        int "I2C SDA (DAT) GPIO"
+        default 5
+
+    config DESK_I2C_PORT
+        int "I2C port number"
+        range 0 1
+        default 0
+
+    config DESK_MOTION_TIMEOUT_MS
+        int "Max continuous up/down hold (ms)"
+        range 1000 60000
+        default 15000
+
+    config DESK_GOTO_HOLD_MS
+        int "Preset goto hold (ms)"
+        range 100 10000
+        default 2000
+
+    config DESK_SAVE_HOLD_MS
+        int "Preset save hold (ms)"
+        range 4000 10000
+        default 4500
+
+    config DESK_WEB_DEFAULT_PASSWORD
+        string "Default Web password (change after first login)"
+        default "desk-gateway"
+
+    config DESK_SIM_HEIGHT
+        bool "Simulate height when driver has no digit sniff"
+        default y
+        help
+            RJ45/真桌未接或协议尚未嗅探高度时，按升/降在本地推算高度供 Web 演示。
+            真高度可用后关闭本选项；切勿把 sim 高度当成实测值。
+
+    config DESK_SIM_HEIGHT_MM_MIN
+        int "Sim height min (mm)"
+        depends on DESK_SIM_HEIGHT
+        range 500 1500
+        default 700
+
+    config DESK_SIM_HEIGHT_MM_MAX
+        int "Sim height max (mm)"
+        depends on DESK_SIM_HEIGHT
+        range 500 2000
+        default 1200
+
+    config DESK_SIM_HEIGHT_SPEED_MM_S
+        int "Sim height speed (mm/s)"
+        depends on DESK_SIM_HEIGHT
+        range 5 80
+        default 25
+
+endmenu

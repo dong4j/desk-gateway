@@ -1,0 +1,27 @@
+# Third-party notices
+
+This repository’s **original** code is under the MIT License (see [LICENSE](./LICENSE)).
+
+It builds on and/or redistributes ideas and dependencies that remain under their own terms:
+
+## ESP-IDF
+
+- Project: [Espressif IoT Development Framework](https://github.com/espressif/esp-idf)
+- License: Apache License 2.0
+- Not vendored in this repo; install separately to build the firmware.
+
+## cJSON (via ESP Component Registry)
+
+- Dependency: `espressif/cjson` (see `firmware/desk-gateway/components/connectivity/web/idf_component.yml`)
+- Upstream: [DaveGamble/cJSON](https://github.com/DaveGamble/cJSON) (MIT)
+- Fetched at build time into `managed_components/` (gitignored).
+
+## Protocol / product inspiration
+
+- [Upsy Desky](https://github.com/tjhorner/upsy-desky) — open standing-desk bridge concepts (UART-oriented). Desk Gateway targets a different physical/protocol path (I²C panel emulation / future MITM) for the desks documented here.
+
+## Optional tooling (not vendored)
+
+- Protocol capture hardware: **[nanoDLA](https://github.com/wuxx/nanoDLA)** (open-source FX2 logic analyzer; use with PulseView / `fx2lafw`). Not required to build the firmware.
+
+If you add new third-party code, update this file and keep license headers intact.

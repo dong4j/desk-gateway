@@ -1,0 +1,27 @@
+# ESP-IDF / 构建产物
+build/
+sdkconfig
+sdkconfig.old
+dependencies.lock
+managed_components/
+.cache/
+
+# 编辑器 / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+*.code-workspace
+
+# Python / 抓包临时
+__pycache__/
+*.pyc
+.venv/
+.tmp_*/
+
+# 本地密钥
+.env
+credentials.json
+*.pem
+
+captures/

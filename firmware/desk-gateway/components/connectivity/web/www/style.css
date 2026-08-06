@@ -1,0 +1,349 @@
+/**
+ * Desk Gateway Web — Demo D 柔和极简
+ * 左桌子+竖条，右高度与控制；宽屏双栏，手机单列。
+ */
+:root {
+  --bg: #f7f3ec;
+  --fg: #1c1915;
+  --muted: #6f675c;
+  --soft: #8a8276;
+  --line: #d6cec2;
+  --wash: #efe6d8;
+  --card: #efece4;
+  --oak: #c4a484;
+  --leg: #a39a8c;
+  --sim: #8a6a2f;
+  --danger: #b54a3a;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Songti SC", "Source Han Serif SC", serif;
+  --font-ui: "Avenir Next", "PingFang SC", "Segoe UI", "Helvetica Neue", sans-serif;
+  --radius: 999px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--fg);
+  font-family: var(--font-ui);
+  background: var(--bg);
+}
+
+.banner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0.7rem 1rem;
+  text-align: center;
+  background: #5a2e22;
+  color: #ffe8e0;
+  font-size: 0.9rem;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 2.5rem;
+}
+.brand {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.top-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius);
+  background: var(--wash);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.pill-sim { color: var(--sim); }
+body.is-moving .pill:first-of-type,
+body.is-moving #stateChip {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.layout {
+  display: grid;
+  gap: 2.5rem;
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .layout {
+    grid-template-columns: 1.05fr 1fr;
+    gap: 3rem;
+  }
+}
+
+.viz-card {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  padding: 1.75rem 1.5rem;
+  border-radius: 2rem;
+  background: var(--card);
+}
+.viz-card::before {
+  content: "";
+  position: absolute;
+  inset: -0.85rem;
+  border-radius: 2.4rem;
+  background: color-mix(in srgb, var(--wash) 70%, transparent);
+  z-index: -1;
+}
+.desk-svg {
+  flex: 1;
+  width: 100%;
+  height: auto;
+  max-height: 280px;
+  --lift: 0px;
+}
+.floor { fill: var(--line); }
+.leg {
+  fill: var(--leg);
+  transform-origin: bottom;
+  transform: scaleY(calc(1 + var(--lift) / 180));
+  transition: transform 0.18s linear;
+}
+.topboard {
+  fill: var(--oak);
+  transform: translateY(calc(-1 * var(--lift)));
+  transition: transform 0.18s linear;
+}
+.monitor {
+  fill: #e7e0d4;
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+/* 竖向高度条 */
+.rail-v {
+  width: 0.7rem;
+  flex-shrink: 0;
+  align-self: stretch;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: var(--radius);
+  background: #e0d8cb;
+  overflow: hidden;
+}
+.rail-fill {
+  width: 100%;
+  height: 45%;
+  border-radius: var(--radius);
+  background: var(--fg);
+  transition: height 0.18s linear;
+}
+
+.control .label {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+.height {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(3.8rem, 10vw, 5.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+body.is-moving .height { color: #5c4a28; }
+.unit {
+  margin: 0.4rem 0 0;
+  font-size: 1.1rem;
+  color: var(--soft);
+}
+.hint {
+  margin: 1.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  max-width: 22rem;
+}
+
+.pads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.75rem;
+  max-width: 28rem;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  max-width: 28rem;
+}
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.95rem 1.35rem;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.btn:active,
+.btn.active { transform: scale(0.98); }
+.hold {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.btn-fill {
+  flex: 1;
+  min-width: 6.5rem;
+  background: var(--fg);
+  color: #f7f3ec;
+}
+.btn-fill:hover { background: #000; }
+.btn-fill.active {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fg) 18%, transparent);
+}
+.btn-outline {
+  flex: 1;
+  min-width: 6.5rem;
+  background: transparent;
+  border-color: var(--fg);
+  color: var(--fg);
+}
+.btn-outline:hover { background: #fff; }
+.btn-outline.active {
+  background: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+}
+.btn-ghost:hover { background: #fff; }
+.btn-soft {
+  flex: 1;
+  background: transparent;
+  border-color: var(--line);
+  color: var(--fg);
+  padding: 0.75rem 1rem;
+  font-size: 0.92rem;
+}
+.btn-soft:hover { background: #fff; }
+
+.lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  user-select: none;
+}
+.lock input { accent-color: var(--fg); }
+
+.settings {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+  max-width: 28rem;
+}
+.settings summary { cursor: pointer; list-style: none; }
+.settings summary::-webkit-details-marker { display: none; }
+.pw-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.pw-form input {
+  flex: 1;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--fg);
+  font-family: var(--font-ui);
+}
+.pw-form button {
+  padding: 0.7rem 1rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--fg);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+/* 登录 / SoftAP */
+.auth-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+.auth-card {
+  width: min(420px, 94vw);
+  padding: 2rem;
+  border-radius: 1.5rem;
+  background: var(--card);
+}
+.auth-card .brand {
+  font-size: 2rem;
+}
+.sub { color: var(--muted); margin: 0.5rem 0 0; }
+.auth-card label {
+  display: grid;
+  gap: 0.4rem;
+  margin: 1.25rem 0;
+  color: var(--muted);
+}
+.auth-card input {
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--fg);
+  font-size: 1rem;
+}
+.auth-card button {
+  width: 100%;
+  padding: 0.9rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.err { color: var(--danger); margin-top: 0.75rem; }

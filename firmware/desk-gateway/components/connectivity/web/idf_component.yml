@@ -1,0 +1,3 @@
+# web 组件依赖：IDF 6 起 json/cJSON 已迁到 Component Manager
+dependencies:
+  espressif/cjson: "^1.7.19"

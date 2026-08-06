@@ -1,0 +1,249 @@
+# ESP32-S3 N16R8 主控选型与开发板说明
+
+| 项 | 内容 |
+|---|---|
+| 文档编号 | DG-HW-001 |
+| 版本 | 0.1 |
+| 日期 | 2026-08-05 |
+| 状态 | 草案 |
+| 对应阶段 | Phase 1 / Phase 2 |
+| 前置文档 | [需求文档](./0-requirements.md) |
+
+本文冻结 Desk Gateway 的 **主控选型**：使用 **ESP32-S3 N16R8**，开发板采用源地（VCC-GND）**YD-ESP32-S3**。
+
+官方仓库：
+
+- https://github.com/vcc-gnd/YD-ESP32-S3
+
+---
+
+## 1. 选型结论
+
+| 项 | 选择 |
+|---|---|
+| SoC / 模组规格 | ESP32-S3，Flash **16MB**，PSRAM **8MB**（N16R8） |
+| 开发板 | YD-ESP32-S3（源地 / VCC-GND Studio） |
+| 用途 | Phase 1 模拟面板验证；Phase 2 智能网关主控原型 |
+| 供电（网关侧） | USB-C 独立供电（与需求文档一致） |
+| 本地人机 | 无旋钮、无屏幕（纯网关）；板载 RGB 仅作状态指示 |
+
+不选更小容量型号的原因：后续要跑 WiFi + BLE + 本地 Web + 协议桥接日志，N16R8 的 Flash/PSRAM 余量更从容；硬件引脚与同系列小板兼容，不会把方案锁死在“超大内存专用脚位”之外的奇怪差异上（N16R8 的 Octal PSRAM 占用脚见下文）。
+
+---
+
+## 2. 开发板概况（YD-ESP32-S3）
+
+YD-ESP32-S3 是搭载 **ESP32-S3-WROOM-1** 的入门级核心板，板载天线，两侧排针引出可用 GPIO，适合面包板与飞线验证。
+
+### 2.1 板上关键部件
+
+| 部件 | 说明 |
+|---|---|
+| ESP32-S3-WROOM-1 | Wi-Fi + BLE MCU 模组 |
+| 双 Type-C | ① USB 转 UART（CH343P）；② ESP32-S3 原生 USB（GPIO19/20） |
+| 5V→3.3V LDO | 约 1A，含无线专用供电设计 |
+| Boot / Reset | Boot=GPIO0；可配合 Reset 进下载模式 |
+| WS2812 RGB | 由 **GPIO48** 驱动，可做网关状态灯 |
+| PWR LED | 上电常亮，不可控 |
+| TX/RX LED | 挂在 UART0（GPIO43/44）活动指示 |
+
+### 2.2 本项目锁定的存储规格
+
+同一 PCB 有多款 Flash/PSRAM 组合。本项目明确使用：
+
+| 变体 | Flash | PSRAM |
+|---|---|---|
+| **YD-ESP32-S3-N16R8（选用）** | 16MB | 8MB（Octal） |
+| YD-ESP32-S3-N8R2 | 8MB | 2MB |
+| YD-ESP32-S3-N8R8 | 8MB | 8MB |
+
+下单与写固件配置时核对模组丝印 / 卖家规格，避免买成 N8R2 却按 N16R8 编译。
+
+### 2.3 N16R8 不可占用脚
+
+N16R8 使用 **8 线 SPI Flash/PSRAM** 时，下列脚已用于模组内部通信，**外部电路禁止使用**：
+
+| GPIO | 状态 |
+|---|---|
+| GPIO35 | 内部占用 |
+| GPIO36 | 内部占用 |
+| GPIO37 | 内部占用 |
+
+排针上即使能看到这些编号，也不要接到 CLK/DAT 或其它外设。
+
+---
+
+## 3. 供电方式
+
+开发板可用：
+
+1. USB 转 UART 口供电（推荐日常开发）
+2. ESP32-S3 USB 口供电
+3. 排针 5V + GND
+4. 排针 3V3 + GND
+
+与 Desk Gateway 需求对齐：
+
+- **验证阶段**：用 Type-C USB 供电即可。
+- **成品网关**：盒子对外 USB-C 独立供电；**不以桌子 RJ45 的 3.3V 作为主供电**。
+- ESP32 与桌子总线共地（GND 相连），但 3.3V 电源域是否与面板共用，放到硬件设计里单独论证；Phase 1 飞线时优先 **共地、不回灌 3.3V 进主机**。
+
+---
+
+## 4. 与升降桌总线的接线原则
+
+面板通信预期为 **3.3V 同步串行**：`GND` / `CLK` / `DAT`（`3.3V` 为面板供电，分析仪与 MCU 监听时不接其电源脚）。
+
+### 4.1 Phase 1（模拟面板 → 主机）
+
+```text
+YD-ESP32-S3                 升降桌主机
+─────────────               ─────────
+GND  ─────────────────────  GND
+GPIOx (CLK) ─────────────── CLK   （方向依逆向结果：出或入）
+GPIOy (DAT) ─────────────── DAT   （可能双向半双工）
+3V3  × 不接到主机供电
+USB-C ── 电脑供电 / 调试
+```
+
+约束：
+
+1. 先完成 [逻辑分析仪抓包文档](./1-protocol-capture-with-logic-analyzer.md) 的电压确认。
+2. 未确认协议前，GPIO 默认输入 / 高阻，固件上电不得驱动运动命令。
+3. 建议在 CLK/DAT 上预留串联电阻（如 22–100Ω）与 ESD 位置，Phase 1 可用简易飞线，Phase 2 做成正式保护。
+
+### 4.2 Phase 2（主动中间人）
+
+```text
+原厂面板 ── RJ45 PANEL ── ESP32 桥接 ── RJ45 DESK ── 主机
+                              │
+                           WiFi/BLE/USB-C
+```
+
+此时需要 **两组** CLK/DAT（面板侧 + 主机侧），GPIO 预算大约：
+
+| 信号 | 数量 | 备注 |
+|---|---|---|
+| CLK_PANEL / DAT_PANEL | 2 | 面板侧 |
+| CLK_DESK / DAT_DESK | 2 | 主机侧 |
+| 状态 RGB | 1 | GPIO48 可用 |
+| 预留 | 若干 | 后续电平转换控制脚等 |
+
+N16R8 可用 GPIO 足够；具体引脚表在《硬件设计》冻结，本文只定主控与禁脚。
+
+### 4.3 推荐优先选用的 GPIO（草案，未冻结）
+
+避开：USB 占用的 19/20（若要用原生 USB）、Strapping 相关脚、35/36/37、以及开发期想保留的 UART0（43/44）。
+
+Phase 1 建议优先从下列里挑：
+
+| 候选 | 原因 |
+|---|---|
+| GPIO1, GPIO2 | 普通 RTC GPIO，好飞线 |
+| GPIO4, GPIO5, GPIO6, GPIO7 | 常用，外设灵活 |
+| GPIO10–GPIO14 | 数量够，注意与部分 Flash 信号复用名，但不等于 N16R8 内部那组 35–37 |
+| GPIO41, GPIO42 | 远离 USB |
+
+正式引脚分配以原理图为准；改脚只改板级配置，不改协议层。
+
+---
+
+## 5. 软件与工具链
+
+### 5.1 推荐工具链
+
+Phase 1 固件：主工程见 [`firmware/desk-gateway/`](../firmware/desk-gateway/)（平台 + Web）。历史最小实现 [`firmware/phase1-panel-slave/`](../firmware/phase1-panel-slave/) 已停止演进。总览：[architecture/overview.md](./architecture/overview.md)。
+
+| 用途 | 选择 | 说明 |
+|---|---|---|
+| 主固件 | **ESP-IDF**（优先）或 Arduino-ESP32 | 协议时序、双端桥接更适合 IDF |
+| 烧录口 | CH343 USB-UART Type-C | 需安装沁恒 CH343 驱动 |
+| 原生 USB | 第二个 Type-C | 可用于 USB JTAG / CDC，按需 |
+| 状态指示 | GPIO48 WS2812 | 配网、运动中、面板抢占、错误码 |
+
+官方入门：
+
+- ESP-IDF：https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32s3/get-started/index.html
+- Arduino-ESP32：https://docs.espressif.com/projects/arduino-esp32/en/latest/getting_started.html
+
+板厂资料包（驱动、原理图、尺寸图等）：见仓库 README 中的源地下载链接。
+
+### 5.2 编译 / 烧录注意点
+
+1. 目标芯片选 **ESP32-S3**。
+2. Flash 尺寸按 **16MB** 配置；PSRAM 按 **Octal 8MB** 启用（与 N16R8 匹配）。
+3. 进入下载模式：按住 **Boot**，点一下 **Reset**，再松开 Boot。
+4. 使用乐鑫 Flash Download Tool 时，按板厂说明选择 ESP32-S3 / USART，注意起始地址等参数与模组匹配。
+5. 串口监视默认走 CH343 对应 COM/tty；确认设备管理器里出现 CH343 字样后再排故。
+
+### 5.3 固件能力与板型的对应
+
+| 需求能力 | 板型是否覆盖 |
+|---|---|
+| WiFi STA + 本地 Web/REST | 是 |
+| BLE 控制入口 | 是 |
+| 协议位时序模拟 / 桥接 | 是（GPIO + 可选 RMT/SPI/I2C 外设） |
+| 双 RJ45 中间人 | 板本身无 RJ45，需自制底板 / 杜邦验证 |
+| 板载屏幕/旋钮 | 不需要（MVP 纯网关） |
+
+---
+
+## 6. 在本项目中的角色
+
+```text
+Phase 0  逻辑分析仪抓包（不依赖本板发令）
+    ↓
+Phase 1  本板 = 模拟面板
+         验证：up / down / stop / preset
+    ↓
+Phase 2  本板 = 网关 MCU 原型
+         双 RJ45 转接板 + 透传 + 注入 + WiFi/BLE
+    ↓
+量产可选  仍用 ESP32-S3-WROOM-1-N16R8 模组，重新画成品 PCB
+```
+
+Phase 1 成功标准见需求文档；本板只是载体，**不能替代协议门禁**。
+
+---
+
+## 7. 风险与注意事项
+
+| 风险 | 应对 |
+|---|---|
+| 买到山寨 YD 板（驱动弱、LDO 差、模组杂） | 认准 VCC-GND / 源地渠道；仓库 README 有仿冒说明 |
+| 误用 GPIO35/36/37 | 原理图与固件 pinmap 双重禁止 |
+| 未共地导致通信怪异 | 主机 GND 与开发板 GND 必须连接 |
+| 上电即输出错误电平导致误动作 | 默认输入；显式 init 后再发协议帧 |
+| Flash/PSRAM 配置与实物不符 | 启动日志确认；`esp_chip_info` / 菜单配置核对 |
+| 原生 USB 与 UART 口搞混 | 文档与外壳丝印区分 “UART” / “USB” |
+
+---
+
+## 8. 决策记录
+
+| 决策 | 结论 | 日期 |
+|---|---|---|
+| 网关主控 | ESP32-S3 N16R8 | 2026-08-05 |
+| 开发板 | YD-ESP32-S3（https://github.com/vcc-gnd/YD-ESP32-S3） | 2026-08-05 |
+| 工具链倾向 | ESP-IDF 优先 | 2026-08-05 |
+| 板载人机 | 仅 RGB 状态灯，无旋钮屏幕 | 2026-08-05 |
+
+---
+
+## 9. 参考
+
+- 开发板仓库：https://github.com/vcc-gnd/YD-ESP32-S3
+- 源地站点：http://www.vcc-gnd.com
+- CH343 驱动：http://www.wch-ic.com/products/CH343.html
+- [需求文档](./0-requirements.md)
+- [逻辑分析仪抓包](./1-protocol-capture-with-logic-analyzer.md)
+- [协议逆向笔记](./3-protocol-reverse-notes.md)
+- [Upsy Desky](https://github.com/tjhorner/upsy-desky)（产品思路参考；默认 UART 协议不直接套用）
+
+---
+
+## 10. 修订历史
+
+| 版本 | 日期 | 说明 |
+|---|---|---|
+| 0.1 | 2026-08-05 | 首版：冻结 YD-ESP32-S3 N16R8 为项目主控 |
