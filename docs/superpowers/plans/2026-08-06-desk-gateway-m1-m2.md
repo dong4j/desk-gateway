@@ -1,5 +1,9 @@
 # Desk Gateway M1+M2 Implementation Plan
 
+> **历史计划说明（2026-08-09）**：M1/M2 代码已落地并通过编译，但真机验收仍开放。
+> 本文保留原始任务与勾选状态作为实施记录；Task 8 的同步 SSE 方案已撤回，当前产品使用 250ms 短轮询，
+> 现行契约以平台设计和架构总览为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 将现有 Phase1 固件演进为平台工程 `firmware/desk-gateway/`：可插拔 `desk_driver` + 统一 `desk_core`（含童锁/超时），默认驱动 `yourdesk_v1`，并交付局域网 WiFi + 带认证的现代化 Web（REST/SSE、升降示意图动效）。

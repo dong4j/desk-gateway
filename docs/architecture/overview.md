@@ -10,7 +10,7 @@ Desk Gateway 是一套跑在 ESP32-S3 上的**升降桌智能平台**：厂商�
 ## 分层
 
 ```text
-Web UI + REST/SSE + UART + BLE 外设（OLED/旋钮）
+Web UI + REST/短轮询 + UART + BLE 外设（OLED/旋钮）
               │
          desk_core          ← 急停、超时、统一命令、童锁
               │
@@ -19,16 +19,20 @@ Web UI + REST/SSE + UART + BLE 外设（OLED/旋钮）
    yourdesk_v1 / loctek* / jiecang* / …
 ```
 
-## 当前焦点
+## 当前状态
+
+> 截至 2026-08-09：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
+> 不代表真机验收完成；硬件结论以 [`bringup-checklist.md`](../bringup-checklist.md) 为准。
 
 | 层 | 状态 |
 |---|---|
-| `yourdesk_v1`（I²C Slave 模拟面板） | Phase1 已有最小实现，将迁入 Driver |
-| `desk_core` + Driver 框架 | 设计已定，待实现 |
-| WiFi + Web（局域网、密码、现代化 UI、升降动效） | 设计已定，待实现 |
-| BLE / Loctek / Jiecang | BLE = 外设总线（文档已定）；厂商驱动 stub |
-| 双 RJ45 中间人 | Phase 2 |
-| HA / Matter / Siri / OTA | 更后 |
+| `yourdesk_v1`（I²C Slave 模拟面板） | 已迁入 Driver；键通道代码已实现，待真桌验证 |
+| `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位与童锁状态 |
+| WiFi + Web（局域网、密码、UI、升降动效） | 已实现；状态使用 250ms 短轮询，待板端/UI 验收 |
+| 高度 | 当前为显式标记的 SIM 高度；真实 digit 嗅探尚未接入 |
+| BLE / Loctek / Jiecang | BLE 仅有设计文档；Loctek / Jiecang 为 stub |
+| 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | Phase 2，未实现 |
+| HA / Matter / Siri / OTA | Phase 3+，未实现 |
 | 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](./ecosystem-xiaomi-huawei.md) |
 
 ## 仓库形状（目标）
@@ -49,11 +53,11 @@ docs/superpowers/specs/     ← 设计定稿
 - **仅局域网**；简单 Bearer 密码登录  
 - 控制：升 / 降 / 停 / 已支持档位 / **童锁**  
 - UI：品牌 + 升降桌示意图；`moving_up/down` 时示意图实时升降；有高度则按 mm 映射，无高度则按命令做相对动效  
-- 状态：SSE 优先，失败则短轮询；含 `child_lock`  
+- 状态：鉴权后的 `GET /api/v1/desk/status` 每 250ms 短轮询；含 `child_lock`  
 
 ## 童锁与仲裁
 
-- 童锁 ON：**原厂面板不能控桌**；Web 仍可控制并解锁（Phase 1 预埋状态；Phase 2 MITM 真屏蔽）  
+- 童锁 ON 的终局语义是**原厂面板不能控桌**；当前 Phase 1 只有状态/API/UI，Phase 2 MITM 才真屏蔽  
 - 童锁 OFF：面板优先于无线  
 - 优先级：急停 > 童锁 >（未锁时）面板优先 > 无线  
 

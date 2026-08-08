@@ -9,12 +9,13 @@ Thanks for your interest in contributing.
 1. Open an issue for bugs or proposals when the change is non-trivial.
 2. Fork the repo and create a topic branch.
 3. Keep diffs focused — avoid unrelated refactors.
-4. For firmware changes, build with ESP-IDF (`esp32s3`) before opening a PR.
+4. For firmware changes, activate ESP-IDF and run `./scripts/check-firmware.sh` before opening a PR.
 5. Document protocol discoveries in `docs/` (what was verified vs unknown).
 
 ## Development notes
 
 - Main firmware: `firmware/desk-gateway/`
+- Repeatable compile check: `./scripts/check-firmware.sh` (ESP-IDF 6.0.2 in CI)
 - Do not commit `build/`, `sdkconfig`, `managed_components/`, or secrets
 - Prefer SoftAP provisioning over fragile serial input for Wi‑Fi setup
 - Never invent unverified key codes (e.g. unknown presets)

@@ -14,6 +14,9 @@
 - **Wi‑Fi + SoftAP 配网** 与带密码的 **局域网 Web**
 - **SIM 高度：** 尚无 digit 嗅探时供界面演示
 
+> 当前主固件已通过 ESP-IDF 6.0.2 编译，但真机升降、停止和板端 Web 仍需按验收清单验证；
+> Phase 2 双 RJ45 中间人、原面板仲裁和童锁真屏蔽尚未实现。
+
 ## 硬件
 
 | 项 | 建议 |
@@ -42,6 +45,12 @@ idf.py -p 串口 flash monitor
 ```
 
 macOS 若用 Espressif Install Manager，先激活 IDF（例如 alias：`get-idf`）。
+
+只做可重复编译检查时，可使用独立临时构建目录，避免旧 `build/` 缓存影响：
+
+```bash
+./scripts/check-firmware.sh
+```
 
 ### Wi‑Fi（推荐 SoftAP）
 

@@ -1,0 +1,21 @@
+name: Firmware Check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-main-firmware:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.0.2
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build ESP32-S3 firmware
+        shell: bash
+        run: ./scripts/check-firmware.sh

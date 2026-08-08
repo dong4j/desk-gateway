@@ -1,6 +1,6 @@
 /**
  * @file desk_web.h
- * @brief 局域网 HTTP：认证 + REST + SSE + 静态页
+ * @brief 局域网 HTTP：认证 + REST + 状态短轮询 + 静态页
  */
 #pragma once
 

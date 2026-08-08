@@ -40,7 +40,7 @@ Desk Gateway **盒子本体**仍可不带旋钮/屏（纯网关），但平台�
 
 | 通道 | 关系 |
 |---|---|
-| Web REST/SSE | **同一 `desk_core`**；语义对齐（up/down/stop/status/child_lock） |
+| Web REST/短轮询 | **同一 `desk_core`**；语义对齐（up/down/stop/status/child_lock） |
 | 原厂面板 | 童锁 ON 时面板失效；**BLE 外设仍可控制**（与 Web 同级） |
 | Matter / 米家 / 华为 | 生态轨；外设总线是 **本地配件轨**，互不替代 |
 | 盒子本地旋钮/屏 | MVP **不做**；外设是可选配件，不是把旋钮焊进网关 |
@@ -57,7 +57,7 @@ Desk Gateway **盒子本体**仍可不带旋钮/屏（纯网关），但平台�
 | 外设 → Gateway（Write） | `stop`、`hold_up`、`hold_down`、`goto_preset(n)`（caps 允许时）、可选 `set_child_lock` |
 | 发现 | 广播名如 `DeskGateway`；Service UUID 实现期分配并写入本文件修订版 |
 
-推送节奏：状态变化立即 Notify；静止可 1–2s 心跳（与 Web SSE 同哲学）。无高度时外设 UI 可显示「—」或仅动画态，与 Web 动效策略一致。
+推送节奏：BLE 状态变化立即 Notify；静止可 1–2s 心跳。Web 当前独立使用短轮询。无高度时外设 UI 可显示「—」或仅动画态，与 Web 动效策略一致。
 
 ## 5. 交互建议（给旋钮类配件的参考，非强制）
 

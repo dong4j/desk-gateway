@@ -8,7 +8,8 @@
 | 对应决策 | 方案 B + 板载 Web（局域网 + 简单认证 + 现代化 UI / 升降动效） |
 | 前置 | [需求文档](../../0-requirements.md)、[协议笔记](../../3-protocol-reverse-notes.md) |
 
-本文是实现前的**架构定稿**。审阅通过后再改 `firmware/` 与配套说明；未批准前不改代码。
+本文最初是实现前的**架构定稿**。截至 2026-08-09，M1/M2 代码已落地并通过编译，
+但真机门禁仍未完成；当前状态以[架构总览](../../architecture/overview.md)和[验收清单](../../bringup-checklist.md)为准。
 
 ---
 
@@ -57,7 +58,7 @@
 │                     Desk Gateway 平台                         │
 │                                                             │
 │   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────────┐ │
-│   │ Web UI   │  │ REST/SSE │  │ UART CLI │  │ BLE Accessory API  │ │
+│   │ Web UI   │  │REST/轮询 │  │ UART CLI │  │ BLE Accessory API  │ │
 │   │ (静态页) │  │ (+认证)  │  │          │  │ 旋钮/OLED 等外设   │ │
 │   └────┬─────┘  └────┬─────┘  └────┬─────┘  └─────────┬──────────┘ │
 │        └─────────────┴───────┬─────┴──────────────────┘            │
@@ -172,7 +173,7 @@ desk-gateway/
 1. 持有当前选中的 `desk_driver` 实例。  
 2. 暴露线程安全 API：`desk_core_up/down/stop/goto/save/set_child_lock/get_status/…`。  
 3. 运动超时、异常默认 `stop`。  
-4. 向 UI 层提供**可订阅的状态快照**（供 SSE / 轮询）：至少含 `status`、`height_mm`（可空）、`caps`、`child_lock`、`uptime`。  
+4. 向 UI 层提供状态快照（当前供短轮询）：至少含 `status`、`height_mm`（可空）、`caps`、`child_lock`、`uptime`。  
 5. 童锁状态机 + Phase 2 面板仲裁（见下）。
 
 串口 CLI 与 Web 必须调用同一套 core API，保证任一侧 `stop` 立即生效。
@@ -183,7 +184,7 @@ desk-gateway/
 |---|---|
 | 语义 | **开启后原厂控制面板不能控桌**；Web / UART（及未来 BLE）仍可升降、停止、**关闭童锁** |
 | 状态 | `child_lock: bool`，默认 **false**；持久化 NVS |
-| API | `POST /api/v1/desk/child-lock` `{ "enabled": true\|false }`；`status` / SSE 带 `child_lock` |
+| API | `POST /api/v1/desk/child-lock` `{ "enabled": true\|false }`；`status` 带 `child_lock` |
 | UI | 控制台显式开关 + 锁定态提示（如「面板已锁定」） |
 | Phase 1 | 面板常拔掉：仍实现状态 / API / UI；对面板无实际屏蔽对象，属功能预埋 |
 | Phase 2 | MITM：**丢弃 / 不转发**面板侧运动类键意图；童锁 ON 时面板不得打断网关运动 |
@@ -247,9 +248,8 @@ desk-gateway/
 | POST | `/api/v1/desk/preset/{n}/save` | 保存档位 |
 | POST | `/api/v1/desk/child-lock` | 开关童锁 `{ "enabled": bool }` |
 | GET | `/api/v1/desk/status` | 状态快照 JSON |
-| GET | `/api/v1/desk/events` | **SSE** 状态流（动效用） |
 
-SSE 事件示例：
+状态示例：
 
 ```json
 {
@@ -262,7 +262,8 @@ SSE 事件示例：
 }
 ```
 
-推送频率：状态变化立即推；静止时可心跳 1–2s。客户端以 SSE 驱动示意图；SSE 失败时回退 `GET /status` 每 250ms 轮询。
+客户端每 250ms 请求一次 `GET /status` 驱动示意图。当前不提供同步 SSE 长连接，
+避免 ESP-IDF HTTP server handler 长时间占用 server task、影响急停等控制请求；未来如恢复 SSE，必须使用异步请求生命周期并验证控制并发。
 
 ### 6.4 Web UI / UX
 
@@ -312,11 +313,14 @@ SSE 事件示例：
 
 ## 8. 分阶段交付（本设计覆盖的实现范围）
 
+> 当前证据：M1/M2 代码已实现且编译通过；M1/M2 涉及串口、浏览器和真桌的退出标准仍未验收。
+> M3 只有 Loctek/Jiecang stub，BLE 组件尚未实现。
+
 | 里程碑 | 内容 | 退出标准 |
 |---|---|---|
 | **M0 文档** | 本文 + architecture overview + requirements 同步 | 你审阅通过 |
 | **M1 骨架** | 目录重组、`desk_driver` + `desk_core`、迁入 `yourdesk_v1`、串口仍可用 | 串口 up/down/stop 与现 Phase1 等价 |
-| **M2 WiFi+Web** | STA、认证、REST、SSE、UI 动效、**童锁状态/API/UI** | 局域网可升降停；童锁可开关并进 status；动效随 status |
+| **M2 WiFi+Web** | STA、认证、REST、短轮询、UI 动效、**童锁状态/API/UI** | 局域网可升降停；童锁可开关并进 status；动效随 status |
 | **M3 stubs** | loctek/jiecang 空壳；**ble Accessory GATT 雏形或完整 stub 接口** | 编译可选；有 BLE 时可用调试器订阅 status |
 | **Phase 2** | 双 RJ45 + 面板仲裁 + **童锁真正屏蔽面板**；BLE 外设联调 | 锁 ON 后面板无效；锁 OFF 后面板优先；旋钮类可升降 |
 
@@ -356,16 +360,15 @@ Phase 2 中间人、生态接入的其余部分仍按需求文档。
 
 ---
 
-## 10. 开放问题（不阻塞 M0；实现前可再定）
+## 10. 开放问题
 
-1. SoftAP 配网是否与 M2 同船，还是串口配网足够先上 Web。  
-2. 行程 min/max mm 默认值（有高度后映射用）。  
-3. 默认密码文案与是否强制首登改密的严格程度。  
-4. 原厂「重置」确切副作用（清什么）——以抓包后更新协议笔记为准。  
-5. Matter 设备类型选型（Window Covering vs 其他）及米家/华为 App 实测支持度。  
-6. 是否规划「米家版 / 华为版」独立硬件 SKU（双模组成本）。
+1. 行程 min/max mm 默认值（有真实高度后映射用）。  
+2. 默认密码文案与是否强制首登改密的严格程度。  
+3. 原厂「重置」确切副作用（清什么）——以抓包后更新协议笔记为准。  
+4. Matter 设备类型选型（Window Covering vs 其他）及米家/华为 App 实测支持度。  
+5. 是否规划「米家版 / 华为版」独立硬件 SKU（双模组成本）。
 
-**已拍板**：整体分层与目录；Web 局域网；简单认证；UI 现代化 + 桌子示意图实时动效；方案 B + 真 Web；**童锁屏蔽原厂面板**；上+下 5s 重置先文档后逆向；**米家/华为进生态目标，默认先走 Matter，原生上架需模组**；**BLE 为 OLED/旋钮等外设总线**（Gateway=GATT Server）。
+**已拍板**：整体分层与目录；Web 局域网；SoftAP 配网；简单认证；短轮询状态；UI 现代化 + 桌子示意图实时动效；方案 B + 真 Web；**童锁屏蔽原厂面板**；上+下 5s 重置先文档后逆向；**米家/华为进生态目标，默认先走 Matter，原生上架需模组**；**BLE 为 OLED/旋钮等外设总线**（Gateway=GATT Server）。
 
 ---
 

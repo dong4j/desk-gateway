@@ -1,6 +1,9 @@
 /**
  * @file desk_web.c
- * @brief Bearer 认证 + REST/SSE + 嵌入静态资源
+ * @brief Bearer 认证 + REST + 嵌入静态资源
+ *
+ * 状态由前端短轮询获取。ESP-IDF HTTP handler 在 server task 中执行，
+ * 不在同步 handler 内维持长连接，避免状态流阻塞急停等控制请求。
  *
  * JSON 通过 Component Manager 依赖 espressif/cjson（IDF 6 已移出内置 json）。
  */
@@ -263,42 +266,6 @@ static esp_err_t handler_cmd(httpd_req_t *req)
     return send_cjson(req, err == ESP_OK ? 200 : 400, o);
 }
 
-static esp_err_t handler_events(httpd_req_t *req)
-{
-    if (!authed(req)) {
-        cJSON *e = cJSON_CreateObject();
-        cJSON_AddStringToObject(e, "error", "unauthorized");
-        return send_cjson(req, 401, e);
-    }
-    httpd_resp_set_type(req, "text/event-stream");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
-    httpd_resp_set_hdr(req, "Connection", "keep-alive");
-
-    desk_status_t last = (desk_status_t)-1;
-    for (int i = 0; i < 600; i++) {
-        desk_core_snapshot_t s = desk_core_snapshot();
-        bool changed = (s.status != last);
-        last = s.status;
-        if (changed || (i % 2) == 0) {
-            cJSON *snap = snapshot_json();
-            char *body = cJSON_PrintUnformatted(snap);
-            cJSON_Delete(snap);
-            if (!body) {
-                break;
-            }
-            char frame[320];
-            int n = snprintf(frame, sizeof(frame), "data: %s\n\n", body);
-            free(body);
-            if (httpd_resp_send_chunk(req, frame, n) != ESP_OK) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-    httpd_resp_send_chunk(req, NULL, 0);
-    return ESP_OK;
-}
-
 static esp_err_t send_embed(httpd_req_t *req, const char *type,
                             const uint8_t *start, const uint8_t *end)
 {
@@ -395,7 +362,6 @@ esp_err_t desk_web_start(void)
         {.uri = "/api/v1/auth/login", .method = HTTP_POST, .handler = handler_login},
         {.uri = "/api/v1/auth/password", .method = HTTP_POST, .handler = handler_password},
         {.uri = "/api/v1/desk/status", .method = HTTP_GET, .handler = handler_status},
-        {.uri = "/api/v1/desk/events", .method = HTTP_GET, .handler = handler_events},
         {.uri = "/api/v1/desk/*", .method = HTTP_POST, .handler = handler_cmd},
     };
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {

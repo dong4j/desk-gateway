@@ -14,6 +14,10 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 - **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
 - **SIM height** for UI demo when digit sniffing is not available yet
 
+> The main firmware builds with ESP-IDF 6.0.2, but real-desk motion, stop safety,
+> and on-device Web behavior still require the hardware checklist. Phase 2 MITM,
+> panel arbitration, and effective panel lockout are not implemented.
+
 ## Hardware
 
 | Item | Recommendation |
@@ -42,6 +46,12 @@ idf.py -p PORT flash monitor
 ```
 
 On macOS with Espressif Install Manager, activate your IDF env first (example alias: `get-idf`).
+
+For a repeatable compile-only check that avoids stale local `build/` caches:
+
+```bash
+./scripts/check-firmware.sh
+```
 
 ### Wi‑Fi (SoftAP — recommended)
 
