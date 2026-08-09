@@ -2,7 +2,12 @@
 
 Thanks for your interest in contributing.
 
-**中文说明：** 欢迎提 Issue / PR。改固件前请先在本地 `idf.py build`；协议相关改动请附上抓包或复现步骤。行为准则以互相尊重为准。
+**中文说明：** 欢迎提 Issue / PR。提交前请先阅读 [SUPPORT.md](./SUPPORT.md)
+并选择正确模板；改固件前请运行 `./scripts/check-firmware.sh`；协议相关改动请附上抓包或复现步骤。
+
+Participation in this project is governed by the
+[Code of Conduct](./CODE_OF_CONDUCT.md). Potential vulnerabilities must follow
+[SECURITY.md](./SECURITY.md) and must not be disclosed in a public issue.
 
 ## How to contribute
 
@@ -10,7 +15,8 @@ Thanks for your interest in contributing.
 2. Fork the repo and create a topic branch.
 3. Keep diffs focused — avoid unrelated refactors.
 4. For firmware changes, activate ESP-IDF and run `./scripts/check-firmware.sh` before opening a PR.
-5. Document protocol discoveries in `docs/` (what was verified vs unknown).
+5. Complete the pull request template, including automated and hardware verification boundaries.
+6. Document protocol discoveries in `docs/` (what was verified vs unknown).
 
 ## Development notes
 

@@ -1,0 +1,26 @@
+name: Private contact request
+description: Request a private channel for a security or conduct report without publishing details.
+title: "[Private contact request]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form only to request a private reporting channel. Do **not** include incident details, vulnerabilities, logs, captures, credentials, or proof-of-concept material in this public issue.
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Request type
+      options:
+        - Security vulnerability
+        - Code of Conduct incident
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Privacy check
+      options:
+        - label: This issue contains no sensitive or technical incident details; I will wait for a private contact method before sharing them.
+          required: true

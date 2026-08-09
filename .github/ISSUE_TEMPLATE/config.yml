@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Support guide
+    url: https://github.com/dong4j/desk-gateway/blob/main/SUPPORT.md
+    about: Choose the correct channel and collect the required diagnostic evidence.
+  - name: Security policy
+    url: https://github.com/dong4j/desk-gateway/security/policy
+    about: Report potential vulnerabilities without publishing sensitive details.

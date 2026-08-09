@@ -102,7 +102,9 @@ NOTICE                        第三方声明
 
 ## 参与贡献
 
-见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+提交 Issue 或 PR 前，请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md) 和
+[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)，并通过
+[SUPPORT.md](./SUPPORT.md) 确认问题渠道和所需证据。
 
 ## 安全说明
 

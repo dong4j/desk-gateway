@@ -6,15 +6,32 @@ This project is early-stage. Security fixes are applied on a best-effort basis t
 
 ## Reporting a vulnerability
 
-Please **do not** open a public issue for vulnerabilities that could put users at risk (e.g. auth bypass on the LAN Web UI).
+Please **do not** open a public issue or attach exploit details for
+vulnerabilities that could put users at risk. Relevant examples include:
 
-Prefer contacting the maintainer privately (GitHub Security Advisory if enabled, or the maintainer’s contact on their GitHub profile).
+- Authentication bypass or unauthorized desk control on the LAN Web UI
+- Exposed credentials, secrets, or private network data
+- Protocol behavior that can cause uncontrolled or unexpectedly prolonged motion
+- A bypass of stop, timeout, or other motion-safety controls
+
+Private vulnerability reporting is not currently enabled for this repository.
+Use a private contact method published on the
+[maintainer's GitHub profile](https://github.com/dong4j) for an initial report.
+If no private contact method is available, open the `Private contact request`
+issue form **without technical details**, logs, captures, or proof-of-concept
+material. A private channel can then be agreed upon.
 
 Include:
 
 - Affected commit / tag if known
-- Reproduction steps
+- Minimal reproduction steps and required hardware
 - Impact (e.g. unauthenticated control on LAN)
+- Whether the issue has been verified on real hardware or only in simulation
+- Suggested remediation or disclosure constraints, if any
+
+This is an early-stage project, so reports are handled on a best-effort basis
+without a guaranteed response or remediation time. Please allow the maintainer
+to investigate and coordinate disclosure before publishing details.
 
 ## Hardening expectations (users)
 

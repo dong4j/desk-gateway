@@ -103,7 +103,10 @@ NOTICE                     Third-party attributions
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md). Bug reports and PRs are welcome.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) and
+[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). Before opening an issue, use the
+[support guide](./SUPPORT.md) to choose the correct channel and collect the
+required evidence.
 
 ## Security
 

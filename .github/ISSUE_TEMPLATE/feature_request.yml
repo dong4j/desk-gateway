@@ -1,0 +1,72 @@
+name: Feature request
+description: Propose a focused capability, driver, integration, or documentation improvement.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem before prescribing an implementation. Protocol and hardware proposals must separate verified behavior from assumptions.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Proposed area
+      options:
+        - Firmware / desk_core
+        - New or updated desk driver
+        - Wi-Fi / provisioning
+        - LAN Web UI
+        - Hardware design
+        - BLE / Matter / Home Assistant integration
+        - Build / documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Who is affected, and what cannot be done safely or reliably today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the observable result and the minimum useful scope. Implementation details are optional.
+    validations:
+      required: true
+
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware and protocol context
+      description: For desk-specific work, include controller / handset models, captures, known command bytes, and what has been verified on real hardware.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Note current workarounds or a simpler approach, if any.
+
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety impact
+      description: Explain any effect on movement, stop behavior, timeouts, arbitration, authentication, or LAN exposure. Write "None" when not applicable.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched the roadmap and existing issues for the same request.
+          required: true
+        - label: I have clearly separated hardware-verified facts from assumptions.
+          required: true
+        - label: I agree to follow the repository Code of Conduct.
+          required: true

@@ -1,0 +1,96 @@
+name: Bug report
+description: Report a reproducible firmware, Web UI, hardware, protocol, or documentation defect.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Desk Gateway. Read the [support guide](https://github.com/dong4j/desk-gateway/blob/main/SUPPORT.md) first.
+
+        Do not disclose vulnerabilities, credentials, or private network data here. Follow the [security policy](https://github.com/dong4j/desk-gateway/security/policy) for security reports. Keep a physical stop or power-disconnect path available during motion testing.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Firmware / desk_core
+        - Desk driver / reverse-engineered protocol
+        - Wi-Fi / provisioning
+        - LAN Web UI
+        - Hardware / wiring
+        - Build / documentation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Firmware version or commit
+      description: Provide the tag or full commit SHA. State "unknown" only if the device cannot report it.
+      placeholder: e.g. 3269faa or v0.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Hardware and environment
+      description: Include ESP32 board, desk controller / handset model, driver, ESP-IDF version, wiring, and relevant configuration changes.
+      placeholder: |
+        ESP32 board:
+        Desk controller / handset:
+        Driver:
+        ESP-IDF version:
+        Wiring / power:
+        Configuration changes:
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Give the smallest repeatable sequence, including whether SIM height or real hardware was used.
+      placeholder: |
+        1. Flash ...
+        2. Connect ...
+        3. Send ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Explain what happened, including whether motion stopped safely.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs and hardware evidence
+      description: Attach sanitized serial logs, build output, logic-analyzer captures, screenshots, or photos. Mark verified facts separately from assumptions.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety and submission checks
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This report does not disclose a security vulnerability or private credentials.
+          required: true
+        - label: I understand that motion-related reproduction requires supervision and a physical stop or power-disconnect path.
+          required: true
+        - label: I agree to follow the repository Code of Conduct.
+          required: true
