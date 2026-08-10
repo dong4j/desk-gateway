@@ -10,11 +10,12 @@
 
 - **Phase 1 — 模拟面板：** ESP32 作为 I²C Slave（地址 `0x24`）实现 `yourdesk_v1`
 - **可插拔驱动：** `yourdesk_v1` 已实现；Loctek / Jiecang 为 stub
-- **desk_core：** 按住升/降、停止、档位 1/4、童锁（NVS）、运动超时
+- **desk_core：** 按住升/降与停止已真机通过；档位 1/4 命令路径和童锁状态（NVS）已实现但尚未验收
 - **Wi‑Fi + SoftAP 配网** 与带密码的 **局域网 Web**
-- **SIM 高度：** 尚无 digit 嗅探时供界面演示
+- **高度解码：** TM1650 完整段码表已通过测试；GPIO 总线嗅探因真机影响控桌而默认关闭
 
-> 当前主固件已通过 ESP-IDF 6.0.2 编译，但真机升降、停止和板端 Web 仍需按验收清单验证；
+> 当前主固件已通过 ESP-IDF 6.0.2 编译。2026-08-10 补回原厂面板上的两只外部上拉后，
+> Web 按住升/降与松手停止已通过真机验证；档位、超时/重启安全、童锁状态流和真实高度仍待验收。
 > Phase 2 双 RJ45 中间人、原面板仲裁和童锁真屏蔽尚未实现。
 
 ## 硬件
@@ -24,7 +25,11 @@
 | 开发板 | YD-ESP32-S3 N16R8（或兼容 ESP32-S3） |
 | 供电 | ESP32 用 USB-C；**不要**用桌子 3.3V 给 MCU 供电 |
 | 地 | 与主机共地 |
-| I²C（yourdesk_v1） | SCL → GPIO4，SDA → GPIO5 |
+| I²C（yourdesk_v1） | RJ45 pin 2 / 白线 CLK → GPIO4；pin 4 / 黑线 DAT → GPIO5 |
+| 上拉 | RJ45 pin 1 / 红线 3.3V 分别经 **2 kΩ（可用 2.2 kΩ）** 接 CLK、DAT |
+
+红线只作为两个上拉电阻的电源端，**不得直接连接 ESP32 的 `3V3`**。拔掉原厂面板也会移除面板上
+实测为 `1.99 kΩ` 的两只上拉，因此 ESP32 替代面板时必须补回。
 
 接线与验收：[docs/bringup-checklist.md](./docs/bringup-checklist.md)
 
@@ -94,7 +99,7 @@ NOTICE                        第三方声明
 
 ## 路线图
 
-- [ ] 真实高度 digit 嗅探（关闭 `CONFIG_DESK_SIM_HEIGHT`）
+- [ ] 用多地址 I²C Slave 替换已否决的 GPIO 嗅探，实现真实高度
 - [ ] Phase 2 双 RJ45 MITM + 童锁真正屏蔽面板
 - [ ] BLE 配件（OLED / 旋钮）
 - [ ] Matter / Home Assistant

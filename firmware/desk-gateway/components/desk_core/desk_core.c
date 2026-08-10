@@ -151,7 +151,7 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
     (void)load_child_lock();
 #if CONFIG_DESK_SIM_HEIGHT
     sim_init();
-    ESP_LOGW(TAG, "SIM height ON (demo only; not real desk digit)");
+    ESP_LOGI(TAG, "SIM height fallback compiled; height-capable drivers bypass it");
 #endif
 
     esp_err_t err = desk_driver_register(drv);
@@ -287,10 +287,14 @@ desk_core_snapshot_t desk_core_snapshot(void)
         }
     }
 #if CONFIG_DESK_SIM_HEIGHT
-    sim_advance(s.status);
-    s.height_mm = s_sim_mm;
-    s.height_known = true;
-    s.height_sim = true;
+    bool driver_has_height = drv->get_caps && drv->get_caps().height;
+    /* A height-capable driver must report unknown rather than fabricate a fallback. */
+    if (!driver_has_height) {
+        sim_advance(s.status);
+        s.height_mm = s_sim_mm;
+        s.height_known = true;
+        s.height_sim = true;
+    }
 #endif
     return s;
 }

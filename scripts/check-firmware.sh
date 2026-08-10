@@ -20,6 +20,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Catch protocol-table regressions before paying the cost of a full IDF build.
+"${SCRIPT_DIR}/check-height-decoder.sh"
+
 if command -v idf.py >/dev/null 2>&1; then
     IDF_CMD=(idf.py)
 elif [[ -n "${IDF_PATH:-}" && -f "${IDF_PATH}/tools/idf.py" ]]; then

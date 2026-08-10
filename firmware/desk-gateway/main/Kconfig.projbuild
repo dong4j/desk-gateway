@@ -13,6 +13,14 @@ menu "Desk Gateway"
         range 0 1
         default 0
 
+    config DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
+        bool "Enable experimental yourdesk_v1 GPIO height sniffer"
+        default n
+        help
+            当前 GPIO 边沿嗅探会与同引脚上的硬件 I2C Slave 竞争，并且无法为
+            0x34-0x37 digit 地址提供 ACK。真机已观察到升降链路回归，因此默认关闭。
+            仅用于协议实验；正常控桌固件不得启用。
+
     config DESK_MOTION_TIMEOUT_MS
         int "Max continuous up/down hold (ms)"
         range 1000 60000

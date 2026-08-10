@@ -21,15 +21,15 @@ Web UI + REST/短轮询 + UART + BLE 外设（OLED/旋钮）
 
 ## 当前状态
 
-> 截至 2026-08-09：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
+> 截至 2026-08-10：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
 > 不代表真机验收完成；硬件结论以 [`bringup-checklist.md`](../bringup-checklist.md) 为准。
 
 | 层 | 状态 |
 |---|---|
-| `yourdesk_v1`（I²C Slave 模拟面板） | 已迁入 Driver；键通道代码已实现，待真桌验证 |
+| `yourdesk_v1`（I²C Slave 模拟面板） | 键通道已真机验证；实验性 GPIO 高度嗅探因干扰控桌而默认关闭 |
 | `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位与童锁状态 |
 | WiFi + Web（局域网、密码、UI、升降动效） | 已实现；状态使用 250ms 短轮询，待板端/UI 验收 |
-| 高度 | 当前为显式标记的 SIM 高度；真实 digit 嗅探尚未接入 |
+| 高度 | 完整 0–9 经验字模已锁定；真实总线接入待软件多地址 Slave，稳定版仅提供明确标记的 SIM |
 | BLE / Loctek / Jiecang | BLE 仅有设计文档；Loctek / Jiecang 为 stub |
 | 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | Phase 2，未实现 |
 | HA / Matter / Siri / OTA | Phase 3+，未实现 |

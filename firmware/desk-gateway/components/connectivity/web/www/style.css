@@ -80,6 +80,7 @@ body {
   font-size: 0.78rem;
 }
 .pill-sim { color: var(--sim); }
+[hidden] { display: none !important; }
 body.is-moving .pill:first-of-type,
 body.is-moving #stateChip {
   background: var(--fg);

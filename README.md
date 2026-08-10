@@ -10,12 +10,14 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 
 - **Phase 1 — panel emulation:** ESP32 acts as I²C slave (panel @ `0x24`) for `yourdesk_v1`
 - **Pluggable drivers:** `yourdesk_v1` implemented; Loctek / Jiecang stubs
-- **desk_core:** hold up/down, stop, presets 1/4, child-lock flag (NVS), motion timeout
+- **desk_core:** hold up/down and stop; preset 1/4 command paths and child-lock flag (NVS) are implemented but not yet hardware-accepted
 - **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
-- **SIM height** for UI demo when digit sniffing is not available yet
+- **Height decoder:** the complete TM1650 segment map is tested; GPIO bus sniffing is experimental and disabled after a real-desk control regression
 
-> The main firmware builds with ESP-IDF 6.0.2, but real-desk motion, stop safety,
-> and on-device Web behavior still require the hardware checklist. Phase 2 MITM,
+> The main firmware builds with ESP-IDF 6.0.2. On 2026-08-10, Web hold-to-move
+> UP/DOWN and release-to-stop passed on the real desk after restoring the panel's
+> two external pull-ups. Presets, the timeout/power-cycle safety cases, real
+> height sniffing, and the child-lock state flow still require hardware acceptance. Phase 2 MITM,
 > panel arbitration, and effective panel lockout are not implemented.
 
 ## Hardware
@@ -25,7 +27,12 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 | Board | YD-ESP32-S3 N16R8 (or compatible ESP32-S3) |
 | Power | USB-C to the ESP32 — **do not** power the MCU from the desk 3.3V rail |
 | Ground | Shared GND with the desk host |
-| I²C (yourdesk_v1) | SCL → GPIO4, SDA → GPIO5 |
+| I²C (yourdesk_v1) | RJ45 pin 2 / white CLK → GPIO4; pin 4 / black DAT → GPIO5 |
+| Pull-ups | RJ45 pin 1 / red 3.3V → **2 kΩ (2.2 kΩ acceptable)** → CLK, and another → DAT |
+
+The red 3.3V wire is only the pull-up source. **Never connect it directly to the
+ESP32 3V3 pin.** Removing the original panel also removes its two measured
+`1.99 kΩ` pull-ups; a replacement ESP32 setup must restore them.
 
 Wiring checklist: [docs/bringup-checklist.md](./docs/bringup-checklist.md)
 
@@ -95,7 +102,7 @@ NOTICE                     Third-party attributions
 
 ## Roadmap
 
-- [ ] Real height digit sniffing (disable `CONFIG_DESK_SIM_HEIGHT`)
+- [ ] Replace the rejected GPIO sniffer with a multi-address I²C slave for real height
 - [ ] Phase 2 dual‑RJ45 MITM + true panel blocking under child lock
 - [ ] BLE accessory profile (OLED / knob)
 - [ ] Matter / Home Assistant integrations

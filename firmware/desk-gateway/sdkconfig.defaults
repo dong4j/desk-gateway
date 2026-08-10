@@ -15,5 +15,11 @@ CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 
+# 高度嗅探 GPIO ISR 会在 Flash cache 暂停期间运行；其 gpio_get_level 依赖必须驻留 IRAM。
+CONFIG_GPIO_CTRL_FUNC_IN_IRAM=y
+
+# 真机已证实 GPIO 边沿嗅探会干扰 0x24 控桌应答；稳定固件默认关闭实验路径。
+# CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL is not set
+
 # RJ45 未接时用本地高度演示；真嗅探可用后 menuconfig 关掉
 CONFIG_DESK_SIM_HEIGHT=y
