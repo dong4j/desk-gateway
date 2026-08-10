@@ -73,16 +73,17 @@
 - [ ] 约 15s 超时自动停（可不松手验证一次）
 - [ ] 档位 1 / 4 goto 有协议动作（当前点击无效果，待排查保持时长与总线应答）
 - [ ] 童锁开关写入 status，重启后 NVS 状态仍保留
-- [ ] 真实高度来自 digit `0x34–0x37`，Web 不显示 `SIM`
+- [x] 真实高度来自 digit `0x34–0x37`，API 返回 `height_mm` 且 Web 不显示 `SIM`
 
 2026-08-10 真机已经否决“硬件 `0x24` Slave + 同引脚 GPIO 边沿嗅探”：启用后控桌失效且没有
-高度帧。稳定固件必须保持 `CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL=n`，启动应见：
+高度帧。旧实验开关必须保持关闭；当前默认使用统一软件多地址 Slave，启动应见：
 
 ```text
-I (...) yourdesk_v1: experimental GPIO height sniffer disabled
+I (...) yourdesk_soft_i2c: software I2C addrs=0x24,0x34-0x37 SCL=4 SDA=5
 ```
 
-此时 Web 若显示高度，必须同时显示 `SIM`；真实高度仍待软件多地址 I²C Slave。
+真机执行升/降和停止后，串口连续解出 `64–80 cm`；停止超过 7 秒仍保持
+`height_known=1`，HTTP 状态实测 `height_mm=800`、`status=idle` 且无 SIM 回退。
 
 Phase 1 原厂面板已拔掉，没有可被童锁屏蔽的面板；只能验证 Web/API 状态和 NVS 持久化。
 “童锁 ON 后原厂面板不能控桌”必须等 Phase 2 MITM 才能验收。
@@ -128,11 +129,11 @@ Phase 1 原厂面板已拔掉，没有可被童锁屏蔽的面板；只能验证
 | 根因 2 | 控制盒很可能在 `0x34–0x37` 地址 NACK 后终止写入，纯监听无法得到段码 data |
 | 结论 | 当前 GPIO 被动嗅探方案 **NO-GO**，不能进入稳定固件 |
 | 恢复 | 实验开关默认关闭；不安装 GPIO ISR、不创建高度任务、Driver 不声明真实高度能力 |
-| 后续 | 设计统一软件 I²C Slave，同时 ACK `0x24` 与 `0x34–0x37` |
+| 后续 | 已实现统一软件 I²C Slave，同时 ACK `0x24` 与 `0x34–0x37`；真机升降与高度通过 |
 
 ## D. 验收通过后再排期
 
-- [ ] 软件多地址 I²C Slave：同时处理键通道与 digit 高度通道
+- [x] 软件多地址 I²C Slave：同时处理键通道与 digit 高度通道
 - [ ] Phase 2 双 RJ45 MITM
 - [ ] BLE 配件 / Matter（按需）
 

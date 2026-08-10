@@ -47,7 +47,7 @@ directly to their GPIOs. Power the ESP32 independently over USB.
 
 Acceptance checklist: [docs/bringup-checklist.md](../../docs/bringup-checklist.md)
 
-## Height status (GPIO approach rejected on hardware)
+## Height status
 
 The complete panel-specific `0–9` segment map and its golden-vector decoder are
 kept and tested. The first integration attempted to sample writes to 7-bit
@@ -63,10 +63,11 @@ address NACK and provided no height data. Stable builds therefore leave
 I (...) yourdesk_v1: experimental GPIO height sniffer disabled
 ```
 
-With the driver no longer claiming real-height support, `desk_core` may provide
-the explicitly marked SIM value when `CONFIG_DESK_SIM_HEIGHT=y`. Real height
-now requires one software I²C state machine that can ACK `0x24` and
-`0x34–0x37`; ESP32-S3's hardware slave exposes only one address.
+The replacement is one host-tested software I²C state machine that ACKs `0x24`
+and `0x34–0x37`. Real-desk testing on 2026-08-10 confirmed that movement still
+works while digit frames decode through `64–80 cm`; after stopping, the API kept
+the last valid value (`height_mm=800`) without SIM fallback. This path is now
+enabled by default with `CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS=y`.
 
 If the rejected experimental listener is enabled for protocol work,
 `CONFIG_GPIO_CTRL_FUNC_IN_IRAM=y` remains mandatory and is enforced at compile

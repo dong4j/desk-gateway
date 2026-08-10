@@ -15,11 +15,20 @@ menu "Desk Gateway"
 
     config DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
         bool "Enable experimental yourdesk_v1 GPIO height sniffer"
+        depends on !DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
         default n
         help
             当前 GPIO 边沿嗅探会与同引脚上的硬件 I2C Slave 竞争，并且无法为
             0x34-0x37 digit 地址提供 ACK。真机已观察到升降链路回归，因此默认关闭。
             仅用于协议实验；正常控桌固件不得启用。
+
+    config DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+        bool "Enable yourdesk_v1 software multi-address I2C slave"
+        default y
+        help
+            使用 GPIO 中断同时应答 0x24 按键地址与 0x34-0x37 高度数码管地址。
+            该模式用于真实高度真机验收；启用后不会创建硬件 I2C Slave，也不能
+            同时启用旧的只读 GPIO 高度嗅探。
 
     config DESK_MOTION_TIMEOUT_MS
         int "Max continuous up/down hold (ms)"
@@ -42,7 +51,7 @@ menu "Desk Gateway"
 
     config DESK_SIM_HEIGHT
         bool "Simulate height when driver has no digit sniff"
-        default y
+        default n
         help
             RJ45/真桌未接或协议尚未嗅探高度时，按升/降在本地推算高度供 Web 演示。
             真高度可用后关闭本选项；切勿把 sim 高度当成实测值。

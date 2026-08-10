@@ -8,16 +8,17 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 
 ## Features (current)
 
-- **Phase 1 — panel emulation:** ESP32 acts as I²C slave (panel @ `0x24`) for `yourdesk_v1`
+- **Phase 1 — panel emulation:** software I²C slave serves key address `0x24` and height digits `0x34–0x37`
 - **Pluggable drivers:** `yourdesk_v1` implemented; Loctek / Jiecang stubs
 - **desk_core:** hold up/down and stop; preset 1/4 command paths and child-lock flag (NVS) are implemented but not yet hardware-accepted
 - **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
-- **Height decoder:** the complete TM1650 segment map is tested; GPIO bus sniffing is experimental and disabled after a real-desk control regression
+- **Real height:** TM1650 digit writes are decoded and exposed by UART/Web without SIM fallback
 
 > The main firmware builds with ESP-IDF 6.0.2. On 2026-08-10, Web hold-to-move
 > UP/DOWN and release-to-stop passed on the real desk after restoring the panel's
-> two external pull-ups. Presets, the timeout/power-cycle safety cases, real
-> height sniffing, and the child-lock state flow still require hardware acceptance. Phase 2 MITM,
+> two external pull-ups. The unified multi-address software slave then passed
+> real-desk movement and `64–80 cm` height tracking. Presets, timeout/power-cycle
+> safety, and the child-lock state flow still require hardware acceptance. Phase 2 MITM,
 > panel arbitration, and effective panel lockout are not implemented.
 
 ## Hardware
@@ -102,7 +103,7 @@ NOTICE                     Third-party attributions
 
 ## Roadmap
 
-- [ ] Replace the rejected GPIO sniffer with a multi-address I²C slave for real height
+- [x] Replace the rejected GPIO sniffer with a multi-address I²C slave for real height
 - [ ] Phase 2 dual‑RJ45 MITM + true panel blocking under child lock
 - [ ] BLE accessory profile (OLED / knob)
 - [ ] Matter / Home Assistant integrations
