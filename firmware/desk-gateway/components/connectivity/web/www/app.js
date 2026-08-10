@@ -23,8 +23,10 @@
   const upButton = document.getElementById('up');
   const p1Button = document.getElementById('p1');
   const p4Button = document.getElementById('p4');
+  const restartButton = document.getElementById('restartButton');
   let failStreak = 0;
   let lastStatus = {};
+  let restarting = false;
 
   const STATE_HINT = {
     idle: '按住下方按钮升降，松手即停。',
@@ -211,7 +213,7 @@
     const requestedCm = (maxHeightMm / 10).toFixed(1);
     try {
       await api('/api/v1/desk/max-height', 'POST', { max_height_mm: maxHeightMm });
-      msg.textContent = `已保存 ${requestedCm} cm，重启后仍生效`;
+      msg.textContent = `已保存 ${requestedCm} cm，当前已生效`;
       await tick();
     } catch (_) {
       msg.textContent = '保存失败，请检查高度范围或网络';
@@ -231,7 +233,29 @@
     }
   };
 
+  restartButton.onclick = async () => {
+    if (!window.confirm('确定要重启 ESP32 吗？桌子会先停止，重启后需要重新登录。')) {
+      return;
+    }
+    const msg = document.getElementById('restartMsg');
+    restartButton.disabled = true;
+    try {
+      await api('/api/v1/system/restart', 'POST');
+      restarting = true;
+      msg.textContent = '设备正在重启，稍后将返回登录页…';
+      showBanner('ESP32 正在重启，请稍候');
+      window.setTimeout(() => {
+        sessionStorage.removeItem('desk_token');
+        location.href = '/login.html';
+      }, 4000);
+    } catch (_) {
+      restartButton.disabled = false;
+      msg.textContent = '重启失败，请检查设备状态或网络';
+    }
+  };
+
   async function tick() {
+    if (restarting) return;
     try {
       applyStatus(await api('/api/v1/desk/status'));
     } catch (_) {

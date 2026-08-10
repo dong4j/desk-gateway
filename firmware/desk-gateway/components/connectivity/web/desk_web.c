@@ -17,6 +17,7 @@
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_random.h"
+#include "esp_system.h"
 #include "nvs.h"
 #include "sdkconfig.h"
 
@@ -34,6 +35,7 @@ static const char *NVS_PASS = "password";
 static httpd_handle_t s_server;
 static char s_token[33];
 static char s_password[64];
+static bool s_restart_pending;
 
 /* EMBED_FILES 用路径 www/xxx，但符号只取文件名：_binary_<name_with_underscores>_* */
 extern const uint8_t www_login_html_start[] asm("_binary_login_html_start");
@@ -248,6 +250,40 @@ static esp_err_t handler_status(httpd_req_t *req)
     return send_cjson(req, 200, snapshot_json());
 }
 
+/** 给 HTTP 响应留出发送时间，再执行芯片软重启。 */
+static void restart_task(void *arg)
+{
+    (void)arg;
+    vTaskDelay(pdMS_TO_TICKS(800));
+    ESP_LOGW(TAG, "restarting by authenticated Web request");
+    esp_restart();
+}
+
+static esp_err_t handler_restart(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        cJSON *e = cJSON_CreateObject();
+        cJSON_AddStringToObject(e, "error", "unauthorized");
+        return send_cjson(req, 401, e);
+    }
+
+    esp_err_t err = s_restart_pending ? ESP_ERR_INVALID_STATE : desk_core_stop();
+    if (err == ESP_OK) {
+        /* HTTP server 串行处理 handler，pending 可阻止倒计时内重复创建任务。 */
+        s_restart_pending = true;
+        if (xTaskCreate(restart_task, "web_restart", 2048, NULL,
+                        tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+            s_restart_pending = false;
+            err = ESP_ERR_NO_MEM;
+        }
+    }
+
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "ok", err == ESP_OK);
+    cJSON_AddStringToObject(o, "err", esp_err_to_name(err));
+    return send_cjson(req, err == ESP_OK ? 200 : 400, o);
+}
+
 static esp_err_t handler_cmd(httpd_req_t *req)
 {
     if (!authed(req)) {
@@ -407,6 +443,7 @@ esp_err_t desk_web_start(void)
         {.uri = "/api/v1/auth/login", .method = HTTP_POST, .handler = handler_login},
         {.uri = "/api/v1/auth/password", .method = HTTP_POST, .handler = handler_password},
         {.uri = "/api/v1/desk/status", .method = HTTP_GET, .handler = handler_status},
+        {.uri = "/api/v1/system/restart", .method = HTTP_POST, .handler = handler_restart},
         {.uri = "/api/v1/desk/*", .method = HTTP_POST, .handler = handler_cmd},
     };
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {

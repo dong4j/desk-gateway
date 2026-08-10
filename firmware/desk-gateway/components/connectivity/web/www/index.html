@@ -156,7 +156,7 @@
               <button type="submit">保存</button>
             </div>
           </form>
-          <p class="settings-note">固件按最坏上升速度提前停止；显示帧短暂中断不会打断升降。</p>
+          <p class="settings-note">保存后立即生效，断电或重启后仍会保留；固件会按最坏上升速度提前停止。</p>
           <p id="maxHeightMsg" class="hint"></p>
 
           <form id="pwForm" class="settings-form settings-divider">
@@ -168,6 +168,15 @@
             </div>
           </form>
           <p id="pwMsg" class="hint"></p>
+
+          <div class="settings-form settings-divider">
+            <label>设备维护</label>
+            <div class="settings-row">
+              <button type="button" id="restartButton" class="settings-danger-button">重启 ESP32</button>
+            </div>
+            <p class="settings-note">重启前会先停止桌子，设备重新联网后需要再次登录。</p>
+          </div>
+          <p id="restartMsg" class="hint"></p>
         </details>
       </section>
     </div>
