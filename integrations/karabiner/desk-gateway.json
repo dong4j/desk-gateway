@@ -1,0 +1,102 @@
+{
+  "title": "Desk Gateway 档位与旋钮控制",
+  "rules": [
+    {
+      "description": "⌃⌥⇧ + 1/2/3 控制 Desk Gateway 档位",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "1",
+            "modifiers": {
+              "mandatory": ["right_control", "right_option", "right_shift"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/scripts/desk-preset.sh 1"
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "2",
+            "modifiers": {
+              "mandatory": ["right_control", "right_option", "right_shift"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/scripts/desk-preset.sh stop"
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "3",
+            "modifiers": {
+              "mandatory": ["right_control", "right_option", "right_shift"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/scripts/desk-preset.sh 4"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": "F17/F18 旋转升降，F16 立即停止",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f18",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/scripts/desk-preset.sh up"
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f17",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/scripts/desk-preset.sh down"
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f16",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/scripts/desk-preset.sh stop"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

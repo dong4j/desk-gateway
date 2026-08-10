@@ -1,6 +1,6 @@
 /**
  * @file desk_web.c
- * @brief Bearer 认证 + REST + 嵌入静态资源
+ * @brief Bearer / X-Desk-Key 认证 + REST + 嵌入静态资源
  *
  * 状态由前端短轮询获取。ESP-IDF HTTP handler 在 server task 中执行，
  * 不在同步 handler 内维持长连接，避免状态流阻塞急停等控制请求。
@@ -13,6 +13,7 @@
 #include "desk_wifi.h"
 
 #include "cJSON.h"
+#include "esp_app_desc.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_random.h"
@@ -91,6 +92,16 @@ static void mint_token(void)
 
 static bool authed(httpd_req_t *req)
 {
+    /*
+     * 本地自动化直接复用当前登录密码，避免每次档位切换先申请一个会刷新
+     * Web 会话的 Bearer token。X-Desk-Key 与 Bearer 对全部已认证接口等价。
+     */
+    char desk_key[sizeof(s_password)] = {0};
+    if (httpd_req_get_hdr_value_str(req, "X-Desk-Key", desk_key, sizeof(desk_key)) == ESP_OK &&
+        strcmp(desk_key, s_password) == 0) {
+        return true;
+    }
+
     char hdr[96] = {0};
     if (httpd_req_get_hdr_value_str(req, "Authorization", hdr, sizeof(hdr)) != ESP_OK) {
         return false;
@@ -136,6 +147,14 @@ static const char *status_str(desk_status_t st)
 static cJSON *snapshot_json(void)
 {
     desk_core_snapshot_t s = desk_core_snapshot();
+    const esp_app_desc_t *app = esp_app_get_description();
+    char build_id[9] = {0};
+    if (app) {
+        /* 编译时间在增量构建时可能不变，短 ELF 哈希用于精确区分固件。 */
+        snprintf(build_id, sizeof(build_id), "%02x%02x%02x%02x",
+                 app->app_elf_sha256[0], app->app_elf_sha256[1],
+                 app->app_elf_sha256[2], app->app_elf_sha256[3]);
+    }
     cJSON *o = cJSON_CreateObject();
     cJSON_AddStringToObject(o, "status", status_str(s.status));
     if (s.height_known) {
@@ -149,6 +168,10 @@ static cJSON *snapshot_json(void)
     cJSON_AddBoolToObject(o, "upward_blocked", s.upward_blocked);
     cJSON_AddNumberToObject(o, "max_height_mm", s.max_height_mm);
     cJSON_AddStringToObject(o, "driver", s.driver ? s.driver : "none");
+    /* 读取当前运行镜像的元数据，页面显示值可以直接用于确认烧录结果。 */
+    cJSON_AddStringToObject(o, "build_date", app ? app->date : "");
+    cJSON_AddStringToObject(o, "build_time", app ? app->time : "");
+    cJSON_AddStringToObject(o, "build_id", build_id);
     cJSON_AddNumberToObject(o, "ts_ms", (double)esp_log_timestamp());
     return o;
 }
@@ -234,7 +257,11 @@ static esp_err_t handler_cmd(httpd_req_t *req)
     }
     const char *uri = req->uri;
     esp_err_t err = ESP_ERR_NOT_FOUND;
-    if (strstr(uri, "/desk/up")) {
+    if (strcmp(uri, "/api/v1/desk/jog/up") == 0) {
+        err = desk_core_jog_up();
+    } else if (strcmp(uri, "/api/v1/desk/jog/down") == 0) {
+        err = desk_core_jog_down();
+    } else if (strstr(uri, "/desk/up")) {
         err = desk_core_hold_up();
     } else if (strstr(uri, "/desk/down")) {
         err = desk_core_hold_down();

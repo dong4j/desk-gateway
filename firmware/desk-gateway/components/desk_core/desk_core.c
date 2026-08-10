@@ -19,9 +19,24 @@ static const char *NVS_NS = "desk_core";
 static const char *NVS_KEY_LOCK = "child_lock";
 static const char *NVS_KEY_MAX_HEIGHT = "max_height_mm";
 
+/*
+ * 单次旋转只进入待命；窗口内第二个同方向事件才启动。运动后如果事件流
+ * 中断，短租约会快速停止桌子，不必等普通控制使用的 15 秒超时。
+ */
+#define DESK_JOG_START_WINDOW_MS 350U
+#define DESK_JOG_LEASE_MS 200U
+
+typedef enum {
+    DESK_JOG_NONE = 0,
+    DESK_JOG_UP,
+    DESK_JOG_DOWN,
+} desk_jog_direction_t;
+
 static esp_timer_handle_t s_hold_timer;
 static bool s_child_lock;
 static int s_max_height_mm = CONFIG_DESK_MAX_HEIGHT_MM;
+static desk_jog_direction_t s_jog_pending_direction;
+static uint32_t s_jog_last_event_ms;
 
 #if CONFIG_DESK_SIM_HEIGHT
 static int s_sim_mm;
@@ -88,11 +103,13 @@ static void cancel_hold_timer(void)
 static void hold_timer_cb(void *arg)
 {
     (void)arg;
+    bool was_jog = s_jog_pending_direction != DESK_JOG_NONE;
+    s_jog_pending_direction = DESK_JOG_NONE;
     const desk_driver_t *drv = desk_driver_get_active();
     if (drv && drv->stop) {
         (void)drv->stop();
     }
-    ESP_LOGW(TAG, "hold timeout -> stop");
+    ESP_LOGW(TAG, "%s", was_jog ? "jog event gap -> stop" : "hold timeout -> stop");
 }
 
 static void arm_hold_ms(uint32_t ms)
@@ -221,6 +238,7 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
 esp_err_t desk_core_stop(void)
 {
     cancel_hold_timer();
+    s_jog_pending_direction = DESK_JOG_NONE;
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->stop) {
         return ESP_ERR_INVALID_STATE;
@@ -228,7 +246,7 @@ esp_err_t desk_core_stop(void)
     return drv->stop();
 }
 
-esp_err_t desk_core_hold_up(void)
+static esp_err_t hold_up_for_ms(uint32_t timeout_ms)
 {
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->hold_up) {
@@ -248,6 +266,11 @@ esp_err_t desk_core_hold_up(void)
         (void)drv->stop();
         return ESP_ERR_INVALID_STATE;
     }
+    if (drv->get_status && drv->get_status() == DESK_STATUS_MOVING_UP) {
+        /* 重复旋转只刷新租约；重复发送 UP 会重置驱动的高度同步状态。 */
+        arm_hold_ms(timeout_ms);
+        return ESP_OK;
+    }
     /*
      * An unknown height is expected after boot because the controller may not
      * refresh its display while idle. The driver permits only a bounded UP
@@ -255,7 +278,7 @@ esp_err_t desk_core_hold_up(void)
      */
     esp_err_t err = drv->hold_up();
     if (err == ESP_OK) {
-        arm_hold_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+        arm_hold_ms(timeout_ms);
 #if CONFIG_DESK_SIM_HEIGHT
         s_sim_last_us = esp_timer_get_time();
 #endif
@@ -263,15 +286,20 @@ esp_err_t desk_core_hold_up(void)
     return err;
 }
 
-esp_err_t desk_core_hold_down(void)
+static esp_err_t hold_down_for_ms(uint32_t timeout_ms)
 {
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->hold_down) {
         return ESP_ERR_NOT_SUPPORTED;
     }
+    if (drv->get_status && drv->get_status() == DESK_STATUS_MOVING_DOWN) {
+        /* 旋钮重复事件延长运动时，保留当前高度解码状态。 */
+        arm_hold_ms(timeout_ms);
+        return ESP_OK;
+    }
     esp_err_t err = drv->hold_down();
     if (err == ESP_OK) {
-        arm_hold_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+        arm_hold_ms(timeout_ms);
 #if CONFIG_DESK_SIM_HEIGHT
         s_sim_last_us = esp_timer_get_time();
 #endif
@@ -279,8 +307,78 @@ esp_err_t desk_core_hold_down(void)
     return err;
 }
 
+esp_err_t desk_core_hold_up(void)
+{
+    s_jog_pending_direction = DESK_JOG_NONE;
+    return hold_up_for_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+}
+
+esp_err_t desk_core_hold_down(void)
+{
+    s_jog_pending_direction = DESK_JOG_NONE;
+    return hold_down_for_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+}
+
+/**
+ * 将离散旋钮事件转换成类似长按的运动：首次事件只待命，连续事件启动并续租。
+ */
+static esp_err_t jog_event(desk_jog_direction_t direction)
+{
+    const desk_driver_t *drv = desk_driver_get_active();
+    if (!drv || !drv->get_status) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000ULL);
+    desk_status_t status = drv->get_status();
+    desk_status_t expected_status = direction == DESK_JOG_UP
+                                        ? DESK_STATUS_MOVING_UP
+                                        : DESK_STATUS_MOVING_DOWN;
+
+    if (status == expected_status) {
+        s_jog_pending_direction = direction;
+        s_jog_last_event_ms = now_ms;
+        return direction == DESK_JOG_UP
+                   ? hold_up_for_ms(DESK_JOG_LEASE_MS)
+                   : hold_down_for_ms(DESK_JOG_LEASE_MS);
+    }
+
+    if (status == DESK_STATUS_MOVING_UP || status == DESK_STATUS_MOVING_DOWN ||
+        status == DESK_STATUS_GOTO_PRESET) {
+        /* 反向旋转先立即停下；新方向仍需第二个事件才能启动。 */
+        esp_err_t stop_err = desk_core_stop();
+        if (stop_err != ESP_OK) {
+            return stop_err;
+        }
+    }
+
+    uint32_t elapsed_ms = now_ms - s_jog_last_event_ms;
+    bool should_start = s_jog_pending_direction == direction &&
+                        elapsed_ms <= DESK_JOG_START_WINDOW_MS;
+    s_jog_pending_direction = direction;
+    s_jog_last_event_ms = now_ms;
+
+    if (!should_start) {
+        return ESP_OK;
+    }
+    return direction == DESK_JOG_UP
+               ? hold_up_for_ms(DESK_JOG_LEASE_MS)
+               : hold_down_for_ms(DESK_JOG_LEASE_MS);
+}
+
+esp_err_t desk_core_jog_up(void)
+{
+    return jog_event(DESK_JOG_UP);
+}
+
+esp_err_t desk_core_jog_down(void)
+{
+    return jog_event(DESK_JOG_DOWN);
+}
+
 esp_err_t desk_core_goto_preset(uint8_t n)
 {
+    s_jog_pending_direction = DESK_JOG_NONE;
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->goto_preset) {
         return ESP_ERR_NOT_SUPPORTED;

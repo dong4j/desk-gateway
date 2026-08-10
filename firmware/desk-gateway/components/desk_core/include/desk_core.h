@@ -32,6 +32,10 @@ esp_err_t desk_core_init(const desk_driver_t *drv);
 esp_err_t desk_core_stop(void);
 esp_err_t desk_core_hold_up(void);
 esp_err_t desk_core_hold_down(void);
+/** Submit an upward rotary event; continuous events start and maintain motion. */
+esp_err_t desk_core_jog_up(void);
+/** Submit a downward rotary event; continuous events start and maintain motion. */
+esp_err_t desk_core_jog_down(void);
 esp_err_t desk_core_goto_preset(uint8_t n);
 esp_err_t desk_core_save_preset(uint8_t n);
 esp_err_t desk_core_set_child_lock(bool enabled);

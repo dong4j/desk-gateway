@@ -22,9 +22,11 @@ extern "C" {
  * Configure CLK/DAT and start the software multi-address I2C slave.
  *
  * digit_queue must accept yourdesk_soft_i2c_digit_event_t values and remain
- * valid for the adapter lifetime.
+ * valid for the adapter lifetime. mirror_digit_queue may be NULL; when set it
+ * receives the same events for asynchronous forwarding to the original panel.
  */
 esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
+                                    QueueHandle_t mirror_digit_queue,
                                     uint8_t initial_dr);
 
 /** Update the key byte returned by the next 0x24 read transaction. */

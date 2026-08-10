@@ -22,6 +22,7 @@ static const char *TAG = "yourdesk_soft_i2c";
 
 static DRAM_ATTR yourdesk_soft_i2c_sm_t s_sm;
 static DRAM_ATTR QueueHandle_t s_digit_queue;
+static DRAM_ATTR QueueHandle_t s_mirror_digit_queue;
 static DRAM_ATTR bool s_drive_sda_low;
 static DRAM_ATTR bool s_ignore_own_sda_edge;
 static portMUX_TYPE s_sm_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -67,6 +68,14 @@ static void IRAM_ATTR scl_edge_isr(void *arg)
         BaseType_t higher_priority_task_woken = pdFALSE;
         (void)xQueueSendFromISR(s_digit_queue, &event,
                                 &higher_priority_task_woken);
+        if (s_mirror_digit_queue) {
+            BaseType_t mirror_task_woken = pdFALSE;
+            (void)xQueueSendFromISR(s_mirror_digit_queue, &event,
+                                    &mirror_task_woken);
+            if (mirror_task_woken == pdTRUE) {
+                higher_priority_task_woken = pdTRUE;
+            }
+        }
         if (higher_priority_task_woken == pdTRUE) {
             portYIELD_FROM_ISR();
         }
@@ -98,6 +107,7 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
 }
 
 esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
+                                    QueueHandle_t mirror_digit_queue,
                                     uint8_t initial_dr)
 {
     ESP_RETURN_ON_FALSE(digit_queue, ESP_ERR_INVALID_ARG, TAG,
@@ -124,6 +134,7 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
                         "release DAT");
 
     s_digit_queue = digit_queue;
+    s_mirror_digit_queue = mirror_digit_queue;
     s_drive_sda_low = false;
     s_ignore_own_sda_edge = false;
     yourdesk_soft_i2c_sm_init(&s_sm, initial_dr);

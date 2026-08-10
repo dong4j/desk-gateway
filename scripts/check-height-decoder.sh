@@ -38,3 +38,10 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${DRIVER_DIR}/test/yourdesk_preset_logic_test.c" \
     -o "${TEST_DIR}/preset-logic-test"
 "${TEST_DIR}/preset-logic-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${DRIVER_DIR}" \
+    "${DRIVER_DIR}/yourdesk_panel_arbiter.c" \
+    "${DRIVER_DIR}/test/yourdesk_panel_arbiter_test.c" \
+    -o "${TEST_DIR}/panel-arbiter-test"
+"${TEST_DIR}/panel-arbiter-test"

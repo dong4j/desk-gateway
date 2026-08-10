@@ -118,7 +118,9 @@ TM1650 手册常用 **8-bit 写地址**（已含 R/W=0）；PulseView I²C decod
 
 ### 2.7 事务边界：Repeated Start 与 分开的 START–STOP
 
-键轮询常见形态是 **写后 Repeated Start 再读**（中间无 STOP）。抓包中也可能出现 **写完整 STOP 后再 START 读**，或 digit 每次独立 `S … P`。
+解析器应兼容写后 Repeated Start 和写完整 STOP 后再 START 两种边界；但本桌
+`idle_12mhz_full.sr` 的原始采样明确是后者，硬件代理必须以该 STOP 分隔波形为准，不能把
+解析兼容能力误写成面板实测行为。digit 写仍是每次独立 `S … P`。
 
 **解码器必须两种都接受**：以「完整地址 + 数据 + ACK 语义」为准，不以「必须 Sr」为硬条件。
 本控制盒在读完单字节 `DR` 后实测使用 **ACK + STOP**，不是常见的 NACK + STOP；解析器不得把
@@ -439,13 +441,13 @@ DIG_ADDRS  = {ADDR_DIG1, ADDR_DIG2, ADDR_DIG3, ADDR_DIG4}
 
 ### 8.2 解析一笔键轮询事务
 
-**合法键轮询**（两种边界等价）：
+**合法键轮询解析**（两种边界均可解析；本桌硬件实测采用形态 B）：
 
 ```text
-形态 A（常见，Repeated Start）：
+形态 A（解析兼容，Repeated Start）：
   S  AW:24  ACK  DW:01  ACK  Sr  AR:24  ACK  DR:xx  ACK  P
 
-形态 B（分开 START–STOP，亦须接受）：
+形态 B（本桌实测，分开 START–STOP）：
   S  AW:24  ACK  DW:01  ACK  P
   S  AR:24  ACK  DR:xx  ACK  P
 ```
@@ -1012,13 +1014,13 @@ ESP32 内部待回传字节改变，不能证明控制盒已经发起 `0x24` 轮
 
 ### 14.2 静置单次读写放大
 
-完整一笔：
+`idle_12mhz_full.sr` 中一次完整轮询实际由两笔事务组成：
 
-1. `S` → `Address write: 24` → `AC` → `Data write: 01` → `AC`
-2. `S`（Repeated Start）→ `Address read: 24` → `AC` → `Data read: 2E` → `AC` → `P`
-3. 下一笔再次 `S` → `Address write: 24` → …
+1. `S` → `Address write: 24` → `AC` → `Data write: 01` → `AC` → `P`
+2. 约 `29 us` 后重新 `S` → `Address read: 24` → `AC` → `Data read: 2E` → `AC` → `P`
+3. 约 `95 us` 后进入下一轮；SCL 周期约 `104.4 us`，完整轮询约 `3.727 ms`
 
-> 注：解码器亦须接受写与读之间 **分开 STOP 再 START** 的形态（见 §2.7 / §8.2）。
+> 注：解析器仍可接受 Repeated Start，但当前硬件代理必须复刻上述实测 STOP 分隔时序。
 
 ![静置 I²C 放大](./images/idle-i2c-zoom.png)
 

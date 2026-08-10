@@ -18,6 +18,7 @@
   const stateChip = document.getElementById('stateChip');
   const stateHint = document.getElementById('stateHint');
   const maxHeightBadge = document.getElementById('maxHeightBadge');
+  const firmwareBuildBadge = document.getElementById('firmwareBuildBadge');
   const maxHeightInput = document.getElementById('maxHeight');
   const upButton = document.getElementById('up');
   const p1Button = document.getElementById('p1');
@@ -113,14 +114,25 @@
     if (s.height_known && typeof s.height_mm === 'number') {
       const t = Math.min(1, Math.max(0, (s.height_mm - 700) / 500));
       desk.style.setProperty('--lift', (t * 42).toFixed(1) + 'px');
+      // The inner columns extend by the same distance that the complete upper
+      // assembly rises, keeping both feet visually anchored to the floor.
+      desk.style.setProperty('--extension', (1 + t * 42 / 68).toFixed(3));
       railFill.style.height = (12 + t * 76).toFixed(1) + '%';
       heightEl.textContent = (s.height_mm / 10).toFixed(1);
     } else {
+      desk.style.setProperty('--lift', '0px');
+      desk.style.setProperty('--extension', '1');
       heightEl.textContent = '—';
       railFill.style.height = '12%';
     }
     simBadge.hidden = !s.height_sim;
     meta.textContent = s.driver || '';
+    const buildDate = typeof s.build_date === 'string' ? s.build_date.trim() : '';
+    const buildTime = typeof s.build_time === 'string' ? s.build_time.trim() : '';
+    const buildId = typeof s.build_id === 'string' ? s.build_id.trim() : '';
+    firmwareBuildBadge.textContent = buildDate && buildTime
+      ? `构建 ${buildDate} ${buildTime}${buildId ? ` · ${buildId}` : ''}`
+      : '构建时间未知';
     lock.checked = !!s.child_lock;
     if (typeof s.max_height_mm === 'number') {
       const maxCm = (s.max_height_mm / 10).toFixed(1);

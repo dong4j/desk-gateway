@@ -47,6 +47,47 @@ directly to their GPIOs. Power the ESP32 independently over USB.
 
 Acceptance checklist: [docs/bringup-checklist.md](../../docs/bringup-checklist.md)
 
+## Wiring (yourdesk_v1, Phase 2 original-panel proxy)
+
+The two RJ45 sockets on the breakout are independent. Keep controller CLK/DAT
+on the existing software-slave bus, and connect the original panel CLK/DAT to a
+second ESP32 hardware-master bus:
+
+| Signal | Left socket / controller side | Right socket / original panel side |
+|--------|-------------------------------|------------------------------------|
+| pin 1 / red / 3.3V | controller red; existing 2 kΩ pull-ups remain here | jumper directly to left pin 1 |
+| pin 2 / white / CLK | GPIO4 | GPIO6 |
+| pin 3 / green / GND | ESP32 GND | jumper directly to left pin 3 |
+| pin 4 / black / DAT | GPIO5 | GPIO7 |
+
+Do **not** jumper left pin 2 to right pin 2 or left pin 4 to right pin 4: that
+would bypass the ESP32 transaction proxy. Do not add another pair of pull-ups on
+the panel side; the original panel already measured approximately `1.99 kΩ` from
+3.3V to CLK and DAT. The red jumper only carries the controller's 3.3V to power
+the original panel and must still not connect to ESP32 `3V3`.
+
+With `CONFIG_DESK_YOURDESK_PANEL_PROXY=y`, the controller side remains the
+multi-address slave on GPIO4/5. GPIO6/7 poll the original panel as an I2C master,
+forward controller digit writes to its display, and cache panel key responses
+for the next controller poll. A physical panel key takes priority over Web
+movement; a panel timeout/disconnect is published as idle so motion cannot stay
+latched. Child-lock filtering is not part of this first proxy version.
+
+The original `idle_12mhz_full.sr` capture uses two STOP-separated transactions
+at about `9.6 kHz`: write `0x48/0x01`, wait about `29 us`, then read `0x49/DR`
+and finish with controller `ACK + STOP`; the next write begins about `95 us`
+later. The ESP-IDF 6 new Master API instead combines write/read and enforces
+standard `NACK + STOP`. The panel-side proxy therefore uses the isolated legacy
+command-link API to reproduce the confirmed waveform exactly. This is an
+intentional ESP-IDF 6 compatibility constraint; migration to ESP-IDF 7 requires
+a new panel-specific Master implementation rather than silently changing the
+transaction boundaries or ACK.
+
+The original panel preset keys are intentionally **not accepted as safe-height
+validated yet**. Until their complete key/hold sequence has been captured on the
+new topology, first hardware acceptance is limited to short UP, DOWN, release,
+display mirroring, and disconnect-stop tests.
+
 ## Height status
 
 The complete panel-specific `0–9` segment map and its golden-vector decoder are

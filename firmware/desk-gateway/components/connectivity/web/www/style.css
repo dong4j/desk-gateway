@@ -97,16 +97,16 @@ body.is-moving #stateChip {
     grid-template-columns: 1.05fr 1fr;
     gap: 3rem;
   }
+  /* Keep the visualization anchored when the settings column grows. */
+  .viz-card { align-self: start; }
 }
 
 .viz-card {
   position: relative;
-  display: flex;
-  align-items: stretch;
-  gap: 1rem;
-  padding: 1.75rem 1.5rem;
+  padding: 1.25rem 1.25rem 1rem;
   border-radius: 2rem;
   background: var(--card);
+  overflow: hidden;
 }
 .viz-card::before {
   content: "";
@@ -116,50 +116,232 @@ body.is-moving #stateChip {
   background: color-mix(in srgb, var(--wash) 70%, transparent);
   z-index: -1;
 }
+.viz-card::after {
+  content: "";
+  position: absolute;
+  width: 15rem;
+  height: 15rem;
+  right: -8rem;
+  top: -9rem;
+  border: 1px solid color-mix(in srgb, var(--oak) 32%, transparent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.viz-heading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.1rem 0.25rem 0;
+  color: var(--soft);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.viz-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  letter-spacing: 0.1em;
+}
+.viz-live i {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--oak);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--oak) 16%, transparent);
+}
+body.is-moving .viz-live i {
+  background: var(--fg);
+  animation: live-pulse 1.2s ease-out infinite;
+}
+@keyframes live-pulse {
+  50% { box-shadow: 0 0 0 7px transparent; }
+}
+.viz-stage {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  min-height: 280px;
+}
 .desk-svg {
   flex: 1;
   width: 100%;
   height: auto;
-  max-height: 280px;
+  max-height: 300px;
   --lift: 0px;
+  --extension: 1;
+  overflow: visible;
 }
-.floor { fill: var(--line); }
-.leg {
-  fill: var(--leg);
-  transform-origin: bottom;
-  transform: scaleY(calc(1 + var(--lift) / 180));
+.desk-guides path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--line) 56%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 3 8;
+}
+.desk-shadow {
+  fill: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+.floor-line {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.leg-shell {
+  fill: #aaa296;
+  stroke: color-mix(in srgb, var(--fg) 10%, transparent);
+  stroke-width: 1;
+}
+.desk-foot {
+  fill: none;
+  stroke: #91887a;
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+.leg-extension {
+  fill: #8e867a;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  transform: scaleY(var(--extension));
   transition: transform 0.18s linear;
 }
-.topboard {
-  fill: var(--oak);
+.desk-upper {
   transform: translateY(calc(-1 * var(--lift)));
   transition: transform 0.18s linear;
 }
-.monitor {
-  fill: #e7e0d4;
-  stroke: var(--line);
-  stroke-width: 1.5;
+.desk-frame { fill: #8e867a; }
+.topboard-shadow {
+  fill: color-mix(in srgb, var(--fg) 10%, transparent);
+  transform: translateY(3px);
+}
+.topboard {
+  fill: var(--oak);
+  stroke: color-mix(in srgb, var(--fg) 10%, transparent);
+  stroke-width: 1;
+}
+.topboard-highlight {
+  fill: none;
+  stroke: color-mix(in srgb, #fff 54%, transparent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.device-frame {
+  fill: #81796f;
+  stroke: #6e675f;
+  stroke-width: 1;
+}
+.device-screen { fill: #303635; }
+.screen-off { fill: #252726; }
+.screen-warm { fill: #4e4743; }
+.screen-paper { fill: #ddd8ce; }
+.device-stand,
+.laptop-stand {
+  fill: none;
+  stroke: #81796f;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.laptop-base { fill: #a49c91; }
+.screen-light { fill: #c1a47f; }
+.screen-code,
+.screen-grid,
+.screen-dashboard {
+  fill: none;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+.code-cool { stroke: #7fa59d; }
+.code-warm { stroke: #c69365; }
+.code-light { stroke: #d5a06d; }
+.screen-grid {
+  stroke: #6d8f89;
+  stroke-width: 0.65;
+  opacity: 0.66;
+}
+.screen-dashboard {
+  stroke: #8a8175;
+  stroke-width: 0.9;
+}
+.keyboard { fill: #71675f; }
+.keyboard-keys,
+.macro-keys {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.keys-cream { stroke: #eee1c4; }
+.keys-color { stroke: #c56f4f; }
+.macro-pad { fill: #6e665e; }
+.macro-keys { stroke: #c89a68; }
+.desk-mouse {
+  fill: #b7a28d;
+  stroke: #8b7b6b;
+  stroke-width: 0.8;
 }
 
 /* 竖向高度条 */
 .rail-v {
-  width: 0.7rem;
+  width: 2rem;
   flex-shrink: 0;
-  align-self: stretch;
-  min-height: 200px;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.35rem 0 1.7rem;
+}
+.rail-label {
+  color: var(--soft);
+  font-size: 0.54rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.rail-track {
+  position: relative;
+  width: 3px;
+  flex: 1;
+  min-height: 190px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   border-radius: var(--radius);
-  background: #e0d8cb;
-  overflow: hidden;
+  background: var(--line);
 }
 .rail-fill {
+  position: relative;
   width: 100%;
   height: 45%;
   border-radius: var(--radius);
-  background: var(--fg);
+  background: #8e867a;
   transition: height 0.18s linear;
+}
+.rail-fill::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 11px;
+  height: 11px;
+  border: 3px solid var(--card);
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--fg) 24%, transparent);
+  transform: translate(-50%, -50%);
+}
+body.is-moving .rail-fill::before {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--oak) 30%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk-upper,
+  .leg-extension,
+  .rail-fill { transition: none; }
+  body.is-moving .viz-live i { animation: none; }
 }
 
 .control .label {

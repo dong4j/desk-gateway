@@ -16,22 +16,111 @@
         <span id="meta">—</span>
         <span id="stateChip" class="pill">idle</span>
         <span id="maxHeightBadge" class="pill">上限 102.0 cm</span>
+        <span id="firmwareBuildBadge" class="pill">构建时间 —</span>
         <span id="simBadge" class="pill pill-sim" hidden>SIM</span>
       </div>
     </header>
 
     <div class="layout">
-      <!-- 左：桌子 + 竖向高度条 -->
+      <!-- 左：与真实高度同步的桌体结构图 -->
       <section class="viz-card" aria-hidden="true">
-        <svg id="desk" class="desk-svg" viewBox="0 0 280 200">
-          <rect class="floor" x="24" y="178" width="232" height="6" rx="2" />
-          <rect class="leg" x="78" y="75" width="11" height="103" rx="2" />
-          <rect class="leg" x="191" y="75" width="11" height="103" rx="2" />
-          <rect id="top" class="topboard" x="40" y="60" width="200" height="16" rx="4" />
-          <rect class="monitor" x="112" y="28" width="56" height="28" rx="3" />
-        </svg>
-        <div class="rail-v" aria-hidden="true">
-          <div id="railFill" class="rail-fill"></div>
+        <div class="viz-heading">
+          <span>Desk profile</span>
+          <span class="viz-live"><i></i>Live position</span>
+        </div>
+
+        <div class="viz-stage">
+          <svg id="desk" class="desk-svg" viewBox="0 0 340 250">
+            <g class="desk-guides">
+              <path d="M28 70H312" />
+              <path d="M28 120H312" />
+              <path d="M28 170H312" />
+            </g>
+
+            <ellipse class="desk-shadow" cx="170" cy="229" rx="126" ry="8" />
+            <path class="floor-line" d="M28 226H312" />
+
+            <!-- 下段立柱和桌脚固定在地面。 -->
+            <g class="desk-base">
+              <rect class="leg-shell" x="76" y="157" width="30" height="69" rx="6" />
+              <rect class="leg-shell" x="234" y="157" width="30" height="69" rx="6" />
+              <path class="desk-foot" d="M55 226H126" />
+              <path class="desk-foot" d="M213 226H284" />
+            </g>
+
+            <!-- 上段立柱从固定底座向上伸长。 -->
+            <g class="desk-extensions">
+              <rect class="leg-extension" x="83" y="103" width="16" height="68" rx="4" />
+              <rect class="leg-extension" x="241" y="103" width="16" height="68" rx="4" />
+            </g>
+
+            <!-- 桌板、横梁和显示器必须作为一个整体移动。 -->
+            <g class="desk-upper">
+              <rect class="desk-frame" x="72" y="105" width="196" height="12" rx="4" />
+              <rect class="topboard-shadow" x="40" y="104" width="260" height="18" rx="6" />
+              <rect class="topboard" x="36" y="98" width="268" height="17" rx="6" />
+              <path class="topboard-highlight" d="M47 103H293" />
+
+              <!-- 照片中的多屏工作台：后排双屏、左侧笔记本和前排双屏。 -->
+              <g class="workstation">
+                <g class="laptop-left">
+                  <rect class="device-frame" x="43" y="57" width="62" height="35" rx="4" />
+                  <rect class="device-screen screen-off" x="47" y="61" width="54" height="27" rx="2" />
+                  <path class="laptop-base" d="M37 96H112L104 91H45Z" />
+                  <path class="laptop-stand" d="M53 97V104M96 97V104" />
+                </g>
+
+                <g class="monitor-main">
+                  <rect class="device-frame" x="102" y="43" width="108" height="49" rx="4" />
+                  <rect class="device-screen" x="106" y="47" width="100" height="41" rx="2" />
+                  <path class="screen-code code-cool" d="M111 53H154M111 58H173M111 63H145M111 68H188M111 73H164M111 78H194M111 83H151" />
+                  <path class="screen-code code-warm" d="M158 53H194M177 58H199M149 63H181M168 73H197" />
+                  <path class="device-stand" d="M156 92V101M141 102H171" />
+                  <rect class="screen-light" x="112" y="41" width="88" height="3" rx="1.5" />
+                </g>
+
+                <g class="monitor-right" transform="rotate(-2 250 70)">
+                  <rect class="device-frame" x="207" y="49" width="84" height="42" rx="4" />
+                  <rect class="device-screen" x="211" y="53" width="76" height="34" rx="2" />
+                  <path class="screen-grid" d="M216 58H282M216 64H282M216 70H282M216 76H282M222 56V83M236 56V83M250 56V83M264 56V83M278 56V83" />
+                  <path class="device-stand" d="M249 91V101M236 102H262" />
+                  <rect class="screen-light" x="214" y="47" width="70" height="3" rx="1.5" />
+                </g>
+
+                <g class="front-screen front-screen-main">
+                  <rect class="device-frame" x="119" y="70" width="71" height="31" rx="3" />
+                  <rect class="device-screen screen-warm" x="123" y="74" width="63" height="23" rx="2" />
+                  <path class="screen-code code-light" d="M128 79H154M128 84H176M128 89H163M128 94H172" />
+                  <path class="laptop-base" d="M113 104H196L188 99H121Z" />
+                </g>
+
+                <g class="front-screen front-screen-right">
+                  <rect class="device-frame" x="218" y="71" width="59" height="30" rx="3" />
+                  <rect class="device-screen screen-paper" x="222" y="75" width="51" height="22" rx="2" />
+                  <path class="screen-dashboard" d="M226 79H240V88H226ZM244 79H269M244 83H265M244 87H261M226 92H269" />
+                  <path class="laptop-base" d="M213 104H282L275 99H220Z" />
+                </g>
+
+                <!-- 彩色键盘、宏键盘和鼠标让缩略图保留真实桌面的辨识度。 -->
+                <g class="desk-controls">
+                  <rect class="keyboard" x="91" y="91" width="83" height="9" rx="2" />
+                  <path class="keyboard-keys keys-cream" d="M96 94H101M105 94H110M114 94H119M123 94H128M132 94H137M141 94H146M150 94H155M159 94H168" />
+                  <path class="keyboard-keys keys-color" d="M98 97H106M110 97H118M122 97H130M134 97H142M146 97H154M158 97H166" />
+                  <rect class="macro-pad" x="181" y="91" width="25" height="11" rx="2" />
+                  <path class="macro-keys" d="M185 94H189M193 94H197M201 94H203M185 98H189M193 98H197M201 98H203" />
+                  <ellipse class="desk-mouse" cx="294" cy="98" rx="8" ry="4" />
+                </g>
+              </g>
+            </g>
+          </svg>
+
+          <div class="rail-v">
+            <span class="rail-label">Max</span>
+            <div class="rail-track">
+              <div id="railFill" class="rail-fill"></div>
+            </div>
+            <span class="rail-label">Min</span>
+          </div>
         </div>
       </section>
 
@@ -43,14 +132,14 @@
         <p id="stateHint" class="hint">按住下方按钮升降，松手即停。</p>
 
         <div class="pads">
-          <button type="button" id="up" class="btn btn-fill hold">按住升</button>
+          <button type="button" id="up" class="btn btn-fill hold">Day day UP</button>
           <button type="button" id="stop" class="btn btn-ghost">停</button>
-          <button type="button" id="down" class="btn btn-outline hold">按住降</button>
+          <button type="button" id="down" class="btn btn-outline hold">Sit sit DOWN</button>
         </div>
 
         <div class="row">
-          <button type="button" id="p1" class="btn btn-soft">档位 1 · 64 cm</button>
-          <button type="button" id="p4" class="btn btn-soft" disabled>档位 4 · 102 cm</button>
+          <button type="button" id="p1" class="btn btn-soft">请坐 · 64 cm</button>
+          <button type="button" id="p4" class="btn btn-soft" disabled>起立 · 102 cm</button>
           <label class="lock">
             <input type="checkbox" id="lock" />
             童锁
