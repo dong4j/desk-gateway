@@ -30,6 +30,35 @@ static void expect_height(uint8_t dig1, uint8_t dig2, uint8_t dig3,
     assert(height_mm == expected_mm);
 }
 
+/** Ensure fragments from adjacent refreshes cannot be combined into a height. */
+static void expect_malformed_order_rejected(void)
+{
+    tm1650_height_decoder_t decoder;
+    tm1650_height_decoder_reset(&decoder);
+    int height_mm = -1;
+
+    assert(tm1650_height_decoder_feed(&decoder, 0x36, 0xC5, &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_decoder_feed(&decoder, 0x34, 0x00, &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_decoder_feed(&decoder, 0x35, 0xDB, &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_decoder_feed(&decoder, 0x37, 0xC5, &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(height_mm == -1);
+
+    /* A fresh, correctly ordered DIG3 must recover without reinitialization. */
+    assert(tm1650_height_decoder_feed(&decoder, 0x36, 0xC5, &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_decoder_feed(&decoder, 0x35, 0xDB, &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_decoder_feed(&decoder, 0x34, 0x00, &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_decoder_feed(&decoder, 0x37, 0xC5, &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 640);
+}
+
 /** Verify the full 0-9 map plus the four named capture anchors. */
 int main(void)
 {
@@ -48,6 +77,7 @@ int main(void)
     expect_height(0x00, 0xDF, 0x9E, 0x9E, 820);
     expect_height(0x44, 0x5F, 0x9E, 0x9E, 1020);
     expect_height(0x44, 0x9E, 0x44, 0x44, 1210);
+    expect_malformed_order_rejected();
 
     puts("tm1650 height golden vectors: OK");
     return 0;

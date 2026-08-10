@@ -1,0 +1,65 @@
+/**
+ * @file yourdesk_preset_logic_test.c
+ * @brief Host regression vectors for fixed-height preset control.
+ */
+#include "yourdesk_preset_logic.h"
+
+#include <assert.h>
+#include <stdio.h>
+
+int main(void)
+{
+    assert(yourdesk_preset_target_mm(1) == 640);
+    assert(yourdesk_preset_target_mm(4) == 1020);
+    assert(yourdesk_preset_target_mm(2) == -1);
+    assert(yourdesk_preset_bootstrap_direction(1) == YOURDESK_PRESET_DOWN);
+    assert(yourdesk_preset_bootstrap_direction(4) == YOURDESK_PRESET_STOP);
+    assert(yourdesk_preset_limit_target_mm(1020, 900) == 900);
+    assert(yourdesk_preset_limit_target_mm(640, 900) == 640);
+    assert(!yourdesk_max_height_reached(1009, 1020, 10));
+    assert(yourdesk_max_height_reached(1010, 1020, 10));
+    assert(!yourdesk_up_latch_can_clear(
+        1010, 1020, 10, YOURDESK_PRESET_DOWN));
+    assert(yourdesk_up_latch_can_clear(
+        1000, 1020, 10, YOURDESK_PRESET_DOWN));
+    assert(!yourdesk_up_latch_can_clear(
+        1000, 1020, 10, YOURDESK_PRESET_STOP));
+
+    assert(yourdesk_preset_direction(700, 1020, 5) == YOURDESK_PRESET_UP);
+    assert(yourdesk_preset_direction(800, 640, 5) == YOURDESK_PRESET_DOWN);
+    assert(yourdesk_preset_direction(638, 640, 5) == YOURDESK_PRESET_STOP);
+
+    assert(!yourdesk_preset_reached(1014, 1020, 5, YOURDESK_PRESET_UP));
+    assert(yourdesk_preset_reached(1015, 1020, 5, YOURDESK_PRESET_UP));
+    assert(!yourdesk_preset_reached(646, 640, 5, YOURDESK_PRESET_DOWN));
+    assert(yourdesk_preset_reached(645, 640, 5, YOURDESK_PRESET_DOWN));
+
+    /* The captured upward 89 -> 87 regression must never replace height. */
+    assert(!yourdesk_height_transition_valid(
+        800, 890, 1150, YOURDESK_PRESET_UP, false, 35, 20));
+    assert(yourdesk_height_transition_valid(
+        800, 870, 2680, YOURDESK_PRESET_UP, false, 35, 20));
+    assert(!yourdesk_height_transition_valid(
+        890, 870, 1530, YOURDESK_PRESET_UP, false, 35, 20));
+    assert(!yourdesk_height_transition_valid(
+        670, 690, 400, YOURDESK_PRESET_DOWN, false, 35, 20));
+
+    /*
+     * Regression from the real desk: a false 64 cm baseline must not reject
+     * the first real frame after a new motion, then normal DOWN tracking resumes.
+     */
+    assert(yourdesk_height_transition_valid(
+        640, 1030, 7340, YOURDESK_PRESET_UP, true, 35, 20));
+    assert(yourdesk_height_transition_valid(
+        1030, 1050, 1320, YOURDESK_PRESET_DOWN, true, 35, 20));
+    assert(yourdesk_height_transition_valid(
+        1050, 1040, 310, YOURDESK_PRESET_DOWN, false, 35, 20));
+    assert(!yourdesk_height_transition_valid(
+        1030, 500, 100, YOURDESK_PRESET_DOWN, true, 35, 20));
+
+    /* A 94 cm anchor projects to the 101 cm early-stop boundary in 2 s. */
+    assert(yourdesk_projected_up_height_mm(940, 2000, 35) == 1010);
+
+    puts("yourdesk preset logic vectors: OK");
+    return 0;
+}

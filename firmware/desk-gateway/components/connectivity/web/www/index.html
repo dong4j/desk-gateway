@@ -15,6 +15,7 @@
       <div class="top-meta">
         <span id="meta">—</span>
         <span id="stateChip" class="pill">idle</span>
+        <span id="maxHeightBadge" class="pill">上限 102.0 cm</span>
         <span id="simBadge" class="pill pill-sim" hidden>SIM</span>
       </div>
     </header>
@@ -48,8 +49,8 @@
         </div>
 
         <div class="row">
-          <button type="button" id="p1" class="btn btn-soft">档位 1</button>
-          <button type="button" id="p4" class="btn btn-soft">档位 4</button>
+          <button type="button" id="p1" class="btn btn-soft">档位 1 · 64 cm</button>
+          <button type="button" id="p4" class="btn btn-soft" disabled>档位 4 · 102 cm</button>
           <label class="lock">
             <input type="checkbox" id="lock" />
             童锁
@@ -57,11 +58,25 @@
         </div>
 
         <details class="settings">
-          <summary>设置 · 改密码</summary>
-          <form id="pwForm" class="pw-form">
-            <input type="password" name="password" placeholder="新密码（至少 4 位）"
-                   required minlength="4" autocomplete="new-password" />
-            <button type="submit">保存</button>
+          <summary>设置</summary>
+          <form id="maxHeightForm" class="settings-form">
+            <label for="maxHeight">最高安全高度（cm）</label>
+            <div class="settings-row">
+              <input id="maxHeight" name="maxHeight" type="number" min="64" max="129"
+                     step="0.1" value="102.0" required inputmode="decimal" />
+              <button type="submit">保存</button>
+            </div>
+          </form>
+          <p class="settings-note">固件按最坏上升速度提前停止；显示帧短暂中断不会打断升降。</p>
+          <p id="maxHeightMsg" class="hint"></p>
+
+          <form id="pwForm" class="settings-form settings-divider">
+            <label for="newPassword">修改登录密码</label>
+            <div class="settings-row">
+              <input type="password" name="password" placeholder="新密码（至少 4 位）"
+                     id="newPassword" required minlength="4" autocomplete="new-password" />
+              <button type="submit">保存</button>
+            </div>
           </form>
           <p id="pwMsg" class="hint"></p>
         </details>

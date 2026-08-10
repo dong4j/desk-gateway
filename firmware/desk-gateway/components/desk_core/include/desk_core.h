@@ -23,6 +23,8 @@ typedef struct {
     bool height_known;
     bool height_sim; /* true = 本地模拟，非嗅探真值 */
     bool child_lock;
+    bool upward_blocked;
+    int max_height_mm;
     const char *driver;
 } desk_core_snapshot_t;
 
@@ -34,6 +36,8 @@ esp_err_t desk_core_goto_preset(uint8_t n);
 esp_err_t desk_core_save_preset(uint8_t n);
 esp_err_t desk_core_set_child_lock(bool enabled);
 bool desk_core_get_child_lock(void);
+esp_err_t desk_core_set_max_height_mm(int max_height_mm);
+int desk_core_get_max_height_mm(void);
 desk_core_snapshot_t desk_core_snapshot(void);
 
 #ifdef __cplusplus

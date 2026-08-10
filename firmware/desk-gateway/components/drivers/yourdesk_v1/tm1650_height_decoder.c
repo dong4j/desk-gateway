@@ -17,6 +17,14 @@
 #define TM1650_ADDR_DIG4 0x37u
 #define TM1650_ALL_DIGITS_MASK 0x0Fu
 
+/* Captures consistently show one coherent refresh in this address order. */
+static const uint8_t s_frame_order[4] = {
+    TM1650_ADDR_DIG3,
+    TM1650_ADDR_DIG2,
+    TM1650_ADDR_DIG1,
+    TM1650_ADDR_DIG4,
+};
+
 enum {
     SEGMENT_UNKNOWN = -2,
     SEGMENT_BLANK = -1,
@@ -68,6 +76,7 @@ void tm1650_height_decoder_reset(tm1650_height_decoder_t *decoder)
         return;
     }
     decoder->received_mask = 0;
+    decoder->next_order_index = 0;
     for (size_t i = 0; i < 4; ++i) {
         decoder->digits[i] = 0;
     }
@@ -91,8 +100,15 @@ tm1650_height_result_t tm1650_height_decoder_feed(tm1650_height_decoder_t *decod
     if (addr7 == TM1650_ADDR_DIG3) {
         tm1650_height_decoder_reset(decoder);
     }
+    if (decoder->next_order_index >= 4 ||
+        addr7 != s_frame_order[decoder->next_order_index]) {
+        /* Never let adjacent fragments manufacture a plausible height. */
+        tm1650_height_decoder_reset(decoder);
+        return TM1650_HEIGHT_WAITING;
+    }
     decoder->digits[index] = segment;
     decoder->received_mask |= (uint8_t)(1u << index);
+    decoder->next_order_index++;
     if (decoder->received_mask != TM1650_ALL_DIGITS_MASK) {
         return TM1650_HEIGHT_WAITING;
     }

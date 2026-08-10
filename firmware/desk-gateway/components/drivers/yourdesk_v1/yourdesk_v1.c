@@ -8,6 +8,7 @@
  * 键码契约见 docs/3-protocol-reverse-notes.md §18。
  */
 #include "yourdesk_v1.h"
+#include "yourdesk_preset_logic.h"
 
 #include "driver/i2c_slave.h"
 #include "esp_log.h"
@@ -16,6 +17,7 @@
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
+#include <limits.h>
 #include <stdatomic.h>
 
 #if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS && \
@@ -58,6 +60,20 @@ static const char *TAG = "yourdesk_v1";
 #define DR_P4_GOTO     0x2Fu
 #define DR_P4_SAVE     0x6Fu
 
+/* Stop slightly inside the target to absorb normal motor and protocol latency. */
+#define PRESET_STOP_MARGIN_MM 5
+
+/*
+ * A clean TM1650 refresh is about 7 ms. The wider 20 ms window tolerates task
+ * scheduling but still prevents unrelated motor-noise fragments being merged.
+ */
+#define HEIGHT_FRAME_WINDOW_MS          20
+#define HEIGHT_MAX_SPEED_MM_PER_S       35
+#define HEIGHT_STEP_SLACK_MM            20
+#define HEIGHT_SAFETY_POLL_MS           50
+/* Unknown-height UP is allowed only long enough to obtain the first real frame. */
+#define HEIGHT_ACQUIRE_TIMEOUT_MS        2000
+
 #if YOURDESK_HEIGHT_INPUT_ENABLED
 #define ADDR_DIG1_7BIT 0x34u
 #define ADDR_DIG4_7BIT 0x37u
@@ -86,9 +102,168 @@ typedef struct {
 
 static slave_ctx_t s_ctx;
 static atomic_uint_fast8_t s_dr;
+static esp_err_t set_dr(uint8_t dr);
 
 #if YOURDESK_HEIGHT_INPUT_ENABLED
 static atomic_int s_height_mm;
+static atomic_int s_max_height_mm;
+static atomic_int s_preset_target_mm;
+static atomic_int s_preset_direction;
+static atomic_int s_safety_anchor_mm;
+static atomic_bool s_up_limit_latched;
+static atomic_uint_fast32_t s_motion_epoch;
+static atomic_uint_fast32_t s_height_epoch;
+static atomic_uint_fast32_t s_height_tick;
+static atomic_uint_fast32_t s_safety_anchor_tick;
+
+/** Convert a wrapped FreeRTOS tick delta into bounded milliseconds. */
+static int elapsed_ms_since(uint_fast32_t then, TickType_t now)
+{
+    if (then == 0) {
+        return INT_MAX;
+    }
+    uint32_t elapsed_ticks = (uint32_t)(now - (TickType_t)then);
+    uint64_t elapsed_ms = (uint64_t)elapsed_ticks * portTICK_PERIOD_MS;
+    return elapsed_ms > INT_MAX ? INT_MAX : (int)elapsed_ms;
+}
+
+/** Return the current command direction for height plausibility checks. */
+static yourdesk_preset_direction_t current_height_direction(void)
+{
+    uint8_t dr = (uint8_t)atomic_load(&s_dr);
+    if (dr == DR_UP) {
+        return YOURDESK_PRESET_UP;
+    }
+    if (dr == DR_DOWN) {
+        return YOURDESK_PRESET_DOWN;
+    }
+    return YOURDESK_PRESET_STOP;
+}
+
+/** Begin an upward safety envelope from a known stationary height. */
+static void start_up_safety(int height_mm)
+{
+    TickType_t now = xTaskGetTickCount();
+    atomic_store(&s_safety_anchor_mm, height_mm);
+    atomic_store(&s_safety_anchor_tick, (uint_fast32_t)now);
+}
+
+/** Keep the upward safety anchor conservative even if a later frame regresses. */
+static void observe_up_safety_height(int height_mm, TickType_t now)
+{
+    if ((uint8_t)atomic_load(&s_dr) != DR_UP) {
+        return;
+    }
+    int anchor_mm = atomic_load(&s_safety_anchor_mm);
+    if (height_mm > anchor_mm) {
+        atomic_store(&s_safety_anchor_mm, height_mm);
+        atomic_store(&s_safety_anchor_tick, (uint_fast32_t)now);
+    }
+}
+
+/** Cancel closed-loop preset tracking before any manual or explicit stop command. */
+static void cancel_preset_motion(void)
+{
+    atomic_store(&s_preset_target_mm, -1);
+    atomic_store(&s_preset_direction, 0);
+}
+
+/** Require the next complete controller frame to establish a fresh baseline. */
+static void begin_height_resync(void)
+{
+    atomic_fetch_add(&s_motion_epoch, 1);
+}
+
+/** Enforce the ceiling in the height-event path, independent of Web polling. */
+static void stop_up_if_max_height_reached(int height_mm)
+{
+    if ((uint8_t)atomic_load(&s_dr) != DR_UP) {
+        return;
+    }
+    int max_height_mm = atomic_load(&s_max_height_mm);
+    if (!yourdesk_max_height_reached(height_mm, max_height_mm,
+                                     DESK_MAX_HEIGHT_STOP_MARGIN_MM)) {
+        return;
+    }
+    cancel_preset_motion();
+    atomic_store(&s_up_limit_latched, true);
+    ESP_LOGW(TAG, "max height stop: current=%d mm configured=%d mm",
+             height_mm, max_height_mm);
+    (void)set_dr(DR_IDLE);
+}
+
+/**
+ * Stop upward travel without waiting for another display refresh.
+ *
+ * The last controller-reported height remains published. A separate upward
+ * latch prevents another rise until DOWN supplies a fresh safe height.
+ */
+static void height_safety_task(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(HEIGHT_SAFETY_POLL_MS));
+        if ((uint8_t)atomic_load(&s_dr) != DR_UP) {
+            continue;
+        }
+
+        TickType_t now = xTaskGetTickCount();
+        int anchor_mm = atomic_load(&s_safety_anchor_mm);
+        int anchor_age_ms = elapsed_ms_since(
+            atomic_load(&s_safety_anchor_tick), now);
+        if (anchor_mm < YOURDESK_HEIGHT_MIN_MM) {
+            if (anchor_age_ms >= HEIGHT_ACQUIRE_TIMEOUT_MS) {
+                cancel_preset_motion();
+                ESP_LOGW(TAG, "height acquisition timeout (%d ms) -> stop",
+                         anchor_age_ms);
+                (void)set_dr(DR_IDLE);
+            }
+            continue;
+        }
+        int projected_mm = yourdesk_projected_up_height_mm(
+            anchor_mm, anchor_age_ms, HEIGHT_MAX_SPEED_MM_PER_S);
+        int max_height_mm = atomic_load(&s_max_height_mm);
+        if (!yourdesk_max_height_reached(projected_mm, max_height_mm,
+                                         DESK_MAX_HEIGHT_STOP_MARGIN_MM)) {
+            continue;
+        }
+
+        cancel_preset_motion();
+        begin_height_resync();
+        atomic_store(&s_up_limit_latched, true);
+        ESP_LOGW(TAG,
+                 "predictive max stop: anchor=%d mm age=%d ms projected=%d mm configured=%d mm",
+                 anchor_mm, anchor_age_ms, projected_mm, max_height_mm);
+        (void)set_dr(DR_IDLE);
+    }
+}
+
+/** Stop once the decoded height reaches or crosses the target in its travel direction. */
+static void stop_preset_if_reached(int height_mm)
+{
+    int target_mm = atomic_load(&s_preset_target_mm);
+    int direction = atomic_load(&s_preset_direction);
+    if (target_mm < 0 || direction == 0) {
+        return;
+    }
+
+    bool reached = yourdesk_preset_reached(
+        height_mm, target_mm, PRESET_STOP_MARGIN_MM,
+        (yourdesk_preset_direction_t)direction);
+    if (!reached) {
+        return;
+    }
+
+    /* CAS prevents an old height frame from cancelling a newer preset request. */
+    int expected = target_mm;
+    if (!atomic_compare_exchange_strong(&s_preset_target_mm, &expected, -1)) {
+        return;
+    }
+    atomic_store(&s_preset_direction, 0);
+    ESP_LOGI(TAG, "preset target reached: current=%d mm target=%d mm",
+             height_mm, target_mm);
+    (void)set_dr(DR_IDLE);
+}
 #endif
 
 #if CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
@@ -200,7 +375,7 @@ static void height_decode_task(void *arg)
     slave_ctx_t *ctx = (slave_ctx_t *)arg;
     tm1650_height_decoder_t decoder;
     tm1650_height_decoder_reset(&decoder);
-    TickType_t last_event_tick = 0;
+    TickType_t frame_start_tick = 0;
     uint32_t last_invalid_raw = UINT32_MAX;
     yourdesk_soft_i2c_digit_event_t event;
 
@@ -209,26 +384,71 @@ static void height_decode_task(void *arg)
             continue;
         }
         TickType_t now = xTaskGetTickCount();
-        if (last_event_tick != 0 &&
-            now - last_event_tick > pdMS_TO_TICKS(50)) {
+        if (event.addr7 == 0x36u) {
             tm1650_height_decoder_reset(&decoder);
+            frame_start_tick = now;
+        } else if (frame_start_tick == 0 ||
+                   now - frame_start_tick >
+                       pdMS_TO_TICKS(HEIGHT_FRAME_WINDOW_MS)) {
+            /* An incomplete or late fragment cannot borrow bytes from a new frame. */
+            tm1650_height_decoder_reset(&decoder);
+            frame_start_tick = 0;
+            continue;
         }
-        last_event_tick = now;
 
         int height_mm = -1;
         tm1650_height_result_t result =
             tm1650_height_decoder_feed(&decoder, event.addr7, event.segment,
                                         &height_mm);
         if (result == TM1650_HEIGHT_VALID) {
-            int previous = atomic_exchange(&s_height_mm, height_mm);
+            frame_start_tick = 0;
+            observe_up_safety_height(height_mm, now);
+
+            int previous = atomic_load(&s_height_mm);
+            int elapsed_ms = previous < 0
+                                 ? 0
+                                 : elapsed_ms_since(
+                                       atomic_load(&s_height_tick), now);
+            yourdesk_preset_direction_t direction = current_height_direction();
+            uint_fast32_t motion_epoch = atomic_load(&s_motion_epoch);
+            bool resync_pending =
+                atomic_load(&s_height_epoch) != motion_epoch;
+            bool accepted = yourdesk_height_transition_valid(
+                previous, height_mm, elapsed_ms, direction,
+                resync_pending, HEIGHT_MAX_SPEED_MM_PER_S,
+                HEIGHT_STEP_SLACK_MM);
             last_invalid_raw = UINT32_MAX;
-            if (previous != height_mm) {
-                ESP_LOGI(TAG, "height=%d.%d cm raw=%02X %02X %02X %02X",
+            if (accepted) {
+                atomic_store(&s_height_mm, height_mm);
+                atomic_store(&s_height_tick, (uint_fast32_t)now);
+                /* Preserve a concurrently started newer motion as pending. */
+                atomic_store(&s_height_epoch, motion_epoch);
+                if (yourdesk_up_latch_can_clear(
+                        height_mm, atomic_load(&s_max_height_mm),
+                        DESK_MAX_HEIGHT_STOP_MARGIN_MM, direction) &&
+                    atomic_exchange(&s_up_limit_latched, false)) {
+                    ESP_LOGI(TAG, "upward safety latch cleared at %d mm",
+                             height_mm);
+                }
+            }
+            if (accepted && previous != height_mm) {
+                ESP_LOGI(TAG, "height=%d.%d cm%s raw=%02X %02X %02X %02X",
                          height_mm / 10, height_mm % 10,
+                         resync_pending ? " (resync)" : "",
                          decoder.digits[0], decoder.digits[1],
                          decoder.digits[2], decoder.digits[3]);
+            } else if (!accepted) {
+                ESP_LOGW(TAG,
+                         "reject height transition: previous=%d candidate=%d elapsed=%d ms direction=%d",
+                         previous, height_mm, elapsed_ms, (int)direction);
+            }
+            /* A high raw frame is conservative for safety even if UI filtering rejects it. */
+            stop_up_if_max_height_reached(height_mm);
+            if (accepted) {
+                stop_preset_if_reached(height_mm);
             }
         } else if (result == TM1650_HEIGHT_INVALID) {
+            frame_start_tick = 0;
             uint32_t raw = ((uint32_t)decoder.digits[0] << 24) |
                            ((uint32_t)decoder.digits[1] << 16) |
                            ((uint32_t)decoder.digits[2] << 8) |
@@ -299,6 +519,14 @@ static esp_err_t yd_init(void)
     atomic_store(&s_dr, DR_IDLE);
 #if YOURDESK_HEIGHT_INPUT_ENABLED
     atomic_store(&s_height_mm, -1);
+    atomic_store(&s_max_height_mm, CONFIG_DESK_MAX_HEIGHT_MM);
+    atomic_store(&s_safety_anchor_mm, -1);
+    atomic_store(&s_up_limit_latched, false);
+    atomic_store(&s_motion_epoch, 1);
+    atomic_store(&s_height_epoch, 0);
+    atomic_store(&s_height_tick, 0);
+    atomic_store(&s_safety_anchor_tick, 0);
+    cancel_preset_motion();
 #endif
 #if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
     s_ctx.tx_q = xQueueCreate(1, sizeof(uint8_t));
@@ -358,6 +586,13 @@ static esp_err_t yd_init(void)
 #else
     ESP_LOGI(TAG, "experimental GPIO height sniffer disabled");
 #endif
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    if (xTaskCreatePinnedToCore(height_safety_task, "yd_height_safe", 3072,
+                                NULL, configMAX_PRIORITIES - 3,
+                                NULL, 0) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
+#endif
 #if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
     ESP_LOGI(TAG, "I2C slave @0x%02X SCL=%d SDA=%d", ADDR_KEY_7BIT,
              CONFIG_DESK_I2C_SCL_GPIO, CONFIG_DESK_I2C_SDA_GPIO);
@@ -372,28 +607,120 @@ static esp_err_t yd_deinit(void)
 
 static esp_err_t yd_stop(void)
 {
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    cancel_preset_motion();
+#endif
     return set_dr(DR_IDLE);
 }
 
 static esp_err_t yd_hold_up(void)
 {
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    cancel_preset_motion();
+    int height_mm = atomic_load(&s_height_mm);
+    int max_height_mm = atomic_load(&s_max_height_mm);
+    if (atomic_load(&s_up_limit_latched)) {
+        (void)set_dr(DR_IDLE);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (height_mm >= 0 &&
+        yourdesk_max_height_reached(height_mm, max_height_mm,
+                                    DESK_MAX_HEIGHT_STOP_MARGIN_MM)) {
+        (void)set_dr(DR_IDLE);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (height_mm < 0) {
+        ESP_LOGI(TAG, "manual up: height unknown, acquiring controller frame");
+    }
+    start_up_safety(height_mm);
+    begin_height_resync();
+#endif
     return set_dr(DR_UP);
 }
 
 static esp_err_t yd_hold_down(void)
 {
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    cancel_preset_motion();
+    begin_height_resync();
+#endif
     return set_dr(DR_DOWN);
 }
 
 static esp_err_t yd_goto_preset(uint8_t n)
 {
-    if (n == 1) {
-        return set_dr(DR_P1_GOTO);
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    int target_mm = yourdesk_preset_target_mm(n);
+    if (target_mm < 0) {
+        return ESP_ERR_NOT_SUPPORTED;
     }
-    if (n == 4) {
-        return set_dr(DR_P4_GOTO);
+
+    int current_mm = atomic_load(&s_height_mm);
+    if (current_mm < 0) {
+        yourdesk_preset_direction_t bootstrap =
+            yourdesk_preset_bootstrap_direction(n);
+        if (bootstrap == YOURDESK_PRESET_STOP) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        atomic_store(&s_preset_direction, bootstrap);
+        atomic_store(&s_preset_target_mm, target_mm);
+        begin_height_resync();
+        ESP_LOGI(TAG, "preset %u bootstrap: height unknown, direction=down target=%d mm",
+                 (unsigned)n, target_mm);
+        return set_dr(DR_DOWN);
     }
+    target_mm = yourdesk_preset_limit_target_mm(
+        target_mm, atomic_load(&s_max_height_mm));
+    yourdesk_preset_direction_t direction = yourdesk_preset_direction(
+        current_mm, target_mm, PRESET_STOP_MARGIN_MM);
+    if (direction == YOURDESK_PRESET_STOP) {
+        cancel_preset_motion();
+        return set_dr(DR_IDLE);
+    }
+
+    atomic_store(&s_preset_direction, direction);
+    atomic_store(&s_preset_target_mm, target_mm);
+    ESP_LOGI(TAG, "preset %u: current=%d mm target=%d mm direction=%s",
+             (unsigned)n, current_mm, target_mm, direction > 0 ? "up" : "down");
+    if (direction == YOURDESK_PRESET_UP) {
+        if (atomic_load(&s_up_limit_latched)) {
+            cancel_preset_motion();
+            return ESP_ERR_INVALID_STATE;
+        }
+        start_up_safety(current_mm);
+    }
+    begin_height_resync();
+    return set_dr(direction > 0 ? DR_UP : DR_DOWN);
+#else
+    (void)n;
     return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+static esp_err_t yd_set_max_height_mm(int max_height_mm)
+{
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    if (max_height_mm < DESK_MAX_HEIGHT_MM_MIN ||
+        max_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    int previous_max_height_mm =
+        atomic_exchange(&s_max_height_mm, max_height_mm);
+
+    int height_mm = atomic_load(&s_height_mm);
+    if (height_mm >= 0) {
+        stop_up_if_max_height_reached(height_mm);
+        /* Only an explicitly higher ceiling may release an existing latch. */
+        if (max_height_mm > previous_max_height_mm &&
+            height_mm < max_height_mm - DESK_MAX_HEIGHT_STOP_MARGIN_MM) {
+            atomic_store(&s_up_limit_latched, false);
+        }
+    }
+    return ESP_OK;
+#else
+    (void)max_height_mm;
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
 }
 
 static esp_err_t yd_save_preset(uint8_t n)
@@ -414,7 +741,6 @@ static esp_err_t yd_get_height_mm(int *out_mm)
     }
 #if YOURDESK_HEIGHT_INPUT_ENABLED
     int height_mm = atomic_load(&s_height_mm);
-    /* The controller only emits digit frames while its panel display changes. */
     if (height_mm < 0) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -425,8 +751,22 @@ static esp_err_t yd_get_height_mm(int *out_mm)
 #endif
 }
 
+static bool yd_is_upward_blocked(void)
+{
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    return atomic_load(&s_up_limit_latched);
+#else
+    return false;
+#endif
+}
+
 static desk_status_t yd_get_status(void)
 {
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    if (atomic_load(&s_preset_target_mm) >= 0) {
+        return DESK_STATUS_GOTO_PRESET;
+    }
+#endif
     uint8_t dr = (uint8_t)atomic_load(&s_dr);
     switch (dr) {
     case DR_UP:
@@ -469,6 +809,8 @@ const desk_driver_t yourdesk_v1_driver = {
     .goto_preset = yd_goto_preset,
     .save_preset = yd_save_preset,
     .get_height_mm = yd_get_height_mm,
+    .set_max_height_mm = yd_set_max_height_mm,
+    .is_upward_blocked = yd_is_upward_blocked,
     .get_status = yd_get_status,
     .get_caps = yd_get_caps,
 };

@@ -10,15 +10,17 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 
 - **Phase 1 — panel emulation:** software I²C slave serves key address `0x24` and height digits `0x34–0x37`
 - **Pluggable drivers:** `yourdesk_v1` implemented; Loctek / Jiecang stubs
-- **desk_core:** hold up/down and stop; preset 1/4 command paths and child-lock flag (NVS) are implemented but not yet hardware-accepted
+- **desk_core:** hold up/down and stop; presets 1 (64 cm) and 4 (102 cm) use real-height closed-loop control; child-lock state is persisted in NVS
+- **Maximum safe height:** configurable from the Web UI and persisted in NVS; a fail-closed watchdog projects the worst-case upward position between sparse height frames
 - **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
-- **Real height:** TM1650 digit writes are decoded and exposed by UART/Web without SIM fallback
+- **Real height:** strictly ordered TM1650 display frames are filtered and exposed by UART/Web; the last trusted value survives normal sparse refreshes
+- **Automatic resynchronisation:** the first complete controller frame of each motion becomes the new baseline; no user-entered or fabricated height can overwrite it
 
 > The main firmware builds with ESP-IDF 6.0.2. On 2026-08-10, Web hold-to-move
 > UP/DOWN and release-to-stop passed on the real desk after restoring the panel's
 > two external pull-ups. The unified multi-address software slave then passed
-> real-desk movement and `64–80 cm` height tracking. Presets, timeout/power-cycle
-> safety, and the child-lock state flow still require hardware acceptance. Phase 2 MITM,
+> real-desk movement and `64–80 cm` height tracking. Closed-loop presets,
+> predictive maximum-height enforcement, timeout/power-cycle safety, and the child-lock state flow still require hardware acceptance. Phase 2 MITM,
 > panel arbitration, and effective panel lockout are not implemented.
 
 ## Hardware

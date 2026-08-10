@@ -35,6 +35,14 @@ menu "Desk Gateway"
         range 1000 60000
         default 15000
 
+    config DESK_MAX_HEIGHT_MM
+        int "Default maximum safe height (mm)"
+        range 640 1290
+        default 1020
+        help
+            Web 设置会将用户值保存到 NVS 并覆盖本默认值。驱动会在到达上限前
+            10 mm 发出停止命令，以吸收电机惯性和高度帧延迟。
+
     config DESK_GOTO_HOLD_MS
         int "Preset goto hold (ms)"
         range 100 10000

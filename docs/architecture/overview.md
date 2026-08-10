@@ -53,7 +53,7 @@ docs/superpowers/specs/     ← 设计定稿
 - **仅局域网**；简单 Bearer 密码登录  
 - 控制：升 / 降 / 停 / 已支持档位 / **童锁**  
 - UI：品牌 + 升降桌示意图；`moving_up/down` 时示意图实时升降；有高度则按 mm 映射，无高度则按命令做相对动效  
-- 状态：鉴权后的 `GET /api/v1/desk/status` 每 250ms 短轮询；含 `child_lock`  
+- 状态：鉴权后的 `GET /api/v1/desk/status` 每 250ms 短轮询；含真实高度、`child_lock`、安全上限和动态 `upward_blocked`  
 
 ## 童锁与仲裁
 

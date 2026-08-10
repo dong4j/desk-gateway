@@ -31,3 +31,10 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${DRIVER_DIR}/test/yourdesk_soft_i2c_sm_test.c" \
     -o "${TEST_DIR}/soft-i2c-sm-test"
 "${TEST_DIR}/soft-i2c-sm-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${DRIVER_DIR}" \
+    "${DRIVER_DIR}/yourdesk_preset_logic.c" \
+    "${DRIVER_DIR}/test/yourdesk_preset_logic_test.c" \
+    -o "${TEST_DIR}/preset-logic-test"
+"${TEST_DIR}/preset-logic-test"

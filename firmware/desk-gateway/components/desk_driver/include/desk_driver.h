@@ -24,6 +24,11 @@ typedef enum {
     DESK_STATUS_ERROR,
 } desk_status_t;
 
+/* Shared safety policy: configurable physical ceiling plus early-stop margin. */
+#define DESK_MAX_HEIGHT_MM_MIN            640
+#define DESK_MAX_HEIGHT_MM_MAX            1290
+#define DESK_MAX_HEIGHT_STOP_MARGIN_MM    10
+
 typedef struct {
     bool hold_up_down;
     bool preset_goto;
@@ -45,6 +50,10 @@ typedef struct desk_driver {
     esp_err_t (*save_preset)(uint8_t n);
     /** 不支持高度时返回 ESP_ERR_NOT_SUPPORTED */
     esp_err_t (*get_height_mm)(int *out_mm);
+    /** 驱动必须在真实高度事件路径中执行该上限，而不能依赖 Web 轮询。 */
+    esp_err_t (*set_max_height_mm)(int max_height_mm);
+    /** 预测或真实触顶后，在重新获得安全下降高度前禁止继续上升。 */
+    bool (*is_upward_blocked)(void);
     desk_status_t (*get_status)(void);
     desk_caps_t (*get_caps)(void);
 } desk_driver_t;

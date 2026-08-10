@@ -190,7 +190,6 @@ body.is-moving .height { color: #5c4a28; }
   font-size: 0.95rem;
   max-width: 22rem;
 }
-
 .pads {
   display: flex;
   flex-wrap: wrap;
@@ -219,6 +218,11 @@ body.is-moving .height { color: #5c4a28; }
 }
 .btn:active,
 .btn.active { transform: scale(0.98); }
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  transform: none;
+}
 .hold {
   touch-action: none;
   user-select: none;
@@ -282,13 +286,19 @@ body.is-moving .height { color: #5c4a28; }
 }
 .settings summary { cursor: pointer; list-style: none; }
 .settings summary::-webkit-details-marker { display: none; }
-.pw-form {
-  display: flex;
-  gap: 0.5rem;
+.settings-form {
+  display: grid;
+  gap: 0.45rem;
   margin-top: 0.75rem;
 }
-.pw-form input {
+.settings-form label { color: var(--fg); }
+.settings-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.settings-form input {
   flex: 1;
+  min-width: 0;
   padding: 0.7rem 0.85rem;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -296,13 +306,23 @@ body.is-moving .height { color: #5c4a28; }
   color: var(--fg);
   font-family: var(--font-ui);
 }
-.pw-form button {
+.settings-form button {
   padding: 0.7rem 1rem;
   border: 0;
   border-radius: var(--radius);
   background: var(--fg);
   color: var(--bg);
   font-weight: 600;
+}
+.settings-note {
+  margin: 0.55rem 0 0;
+  color: var(--soft);
+  font-size: 0.82rem;
+}
+.settings-divider {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
 }
 
 /* 登录 / SoftAP */

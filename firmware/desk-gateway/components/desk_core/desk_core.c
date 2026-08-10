@@ -17,9 +17,11 @@
 static const char *TAG = "desk_core";
 static const char *NVS_NS = "desk_core";
 static const char *NVS_KEY_LOCK = "child_lock";
+static const char *NVS_KEY_MAX_HEIGHT = "max_height_mm";
 
 static esp_timer_handle_t s_hold_timer;
 static bool s_child_lock;
+static int s_max_height_mm = CONFIG_DESK_MAX_HEIGHT_MM;
 
 #if CONFIG_DESK_SIM_HEIGHT
 static int s_sim_mm;
@@ -141,6 +143,51 @@ static esp_err_t save_child_lock(void)
     return err;
 }
 
+/** Load the persisted ceiling, falling back to the compile-time safe default. */
+static esp_err_t load_max_height(void)
+{
+    s_max_height_mm = CONFIG_DESK_MAX_HEIGHT_MM;
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READONLY, &h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    int32_t value = 0;
+    err = nvs_get_i32(h, NVS_KEY_MAX_HEIGHT, &value);
+    nvs_close(h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    if (value < DESK_MAX_HEIGHT_MM_MIN || value > DESK_MAX_HEIGHT_MM_MAX) {
+        ESP_LOGW(TAG, "ignore invalid stored max height: %ld mm", (long)value);
+        return ESP_OK;
+    }
+    s_max_height_mm = (int)value;
+    return ESP_OK;
+}
+
+/** Persist only a range-checked ceiling; runtime enforcement is configured first. */
+static esp_err_t save_max_height(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_set_i32(h, NVS_KEY_MAX_HEIGHT, (int32_t)s_max_height_mm);
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    return err;
+}
+
 esp_err_t desk_core_init(const desk_driver_t *drv)
 {
     const esp_timer_create_args_t args = {
@@ -149,6 +196,7 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
     };
     ESP_ERROR_CHECK(esp_timer_create(&args, &s_hold_timer));
     (void)load_child_lock();
+    (void)load_max_height();
 #if CONFIG_DESK_SIM_HEIGHT
     sim_init();
     ESP_LOGI(TAG, "SIM height fallback compiled; height-capable drivers bypass it");
@@ -158,9 +206,15 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
     if (err != ESP_OK) {
         return err;
     }
+    if (drv->set_max_height_mm) {
+        err = drv->set_max_height_mm(s_max_height_mm);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
     (void)desk_core_stop();
-    ESP_LOGI(TAG, "init ok; child_lock=%d; motion_timeout=%d ms",
-             (int)s_child_lock, CONFIG_DESK_MOTION_TIMEOUT_MS);
+    ESP_LOGI(TAG, "init ok; child_lock=%d; max_height=%d mm; motion_timeout=%d ms",
+             (int)s_child_lock, s_max_height_mm, CONFIG_DESK_MOTION_TIMEOUT_MS);
     return ESP_OK;
 }
 
@@ -180,6 +234,25 @@ esp_err_t desk_core_hold_up(void)
     if (!drv || !drv->hold_up) {
         return ESP_ERR_NOT_SUPPORTED;
     }
+    if (!drv->get_height_mm) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    int current_mm = -1;
+    esp_err_t height_err = drv->get_height_mm(&current_mm);
+    if (height_err != ESP_OK && height_err != ESP_ERR_INVALID_STATE) {
+        (void)drv->stop();
+        return height_err;
+    }
+    if (height_err == ESP_OK &&
+        current_mm >= s_max_height_mm - DESK_MAX_HEIGHT_STOP_MARGIN_MM) {
+        (void)drv->stop();
+        return ESP_ERR_INVALID_STATE;
+    }
+    /*
+     * An unknown height is expected after boot because the controller may not
+     * refresh its display while idle. The driver permits only a bounded UP
+     * acquisition window and takes over as soon as the first real frame arrives.
+     */
     esp_err_t err = drv->hold_up();
     if (err == ESP_OK) {
         arm_hold_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
@@ -214,7 +287,8 @@ esp_err_t desk_core_goto_preset(uint8_t n)
     }
     esp_err_t err = drv->goto_preset(n);
     if (err == ESP_OK) {
-        arm_hold_ms(CONFIG_DESK_GOTO_HOLD_MS);
+        /* Height-based presets keep moving until the driver stops or safety timeout fires. */
+        arm_hold_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
 #if CONFIG_DESK_SIM_HEIGHT
         if (n == 1) {
             s_sim_mm = s_sim_preset1_mm;
@@ -259,6 +333,34 @@ bool desk_core_get_child_lock(void)
     return s_child_lock;
 }
 
+esp_err_t desk_core_set_max_height_mm(int max_height_mm)
+{
+    if (max_height_mm < DESK_MAX_HEIGHT_MM_MIN ||
+        max_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const desk_driver_t *drv = desk_driver_get_active();
+    if (!drv || !drv->set_max_height_mm) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    esp_err_t err = drv->set_max_height_mm(max_height_mm);
+    if (err != ESP_OK) {
+        return err;
+    }
+    s_max_height_mm = max_height_mm;
+    err = save_max_height();
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "max safe height=%d mm (stop margin=%d mm)",
+                 s_max_height_mm, DESK_MAX_HEIGHT_STOP_MARGIN_MM);
+    }
+    return err;
+}
+
+int desk_core_get_max_height_mm(void)
+{
+    return s_max_height_mm;
+}
+
 desk_core_snapshot_t desk_core_snapshot(void)
 {
     desk_core_snapshot_t s = {
@@ -267,6 +369,8 @@ desk_core_snapshot_t desk_core_snapshot(void)
         .height_known = false,
         .height_sim = false,
         .child_lock = s_child_lock,
+        .upward_blocked = false,
+        .max_height_mm = s_max_height_mm,
         .driver = "none",
     };
     const desk_driver_t *drv = desk_driver_get_active();
@@ -276,6 +380,9 @@ desk_core_snapshot_t desk_core_snapshot(void)
     s.driver = drv->name;
     if (drv->get_status) {
         s.status = drv->get_status();
+    }
+    if (drv->is_upward_blocked) {
+        s.upward_blocked = drv->is_upward_blocked();
     }
     if (drv->get_height_mm) {
         int mm = 0;

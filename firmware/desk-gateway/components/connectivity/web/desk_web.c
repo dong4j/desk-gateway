@@ -146,6 +146,8 @@ static cJSON *snapshot_json(void)
     cJSON_AddBoolToObject(o, "height_known", s.height_known);
     cJSON_AddBoolToObject(o, "height_sim", s.height_sim);
     cJSON_AddBoolToObject(o, "child_lock", s.child_lock);
+    cJSON_AddBoolToObject(o, "upward_blocked", s.upward_blocked);
+    cJSON_AddNumberToObject(o, "max_height_mm", s.max_height_mm);
     cJSON_AddStringToObject(o, "driver", s.driver ? s.driver : "none");
     cJSON_AddNumberToObject(o, "ts_ms", (double)esp_log_timestamp());
     return o;
@@ -238,6 +240,22 @@ static esp_err_t handler_cmd(httpd_req_t *req)
         err = desk_core_hold_down();
     } else if (strstr(uri, "/desk/stop")) {
         err = desk_core_stop();
+    } else if (strstr(uri, "/max-height")) {
+        char body[64];
+        if (read_body(req, body, sizeof(body)) == ESP_OK) {
+            cJSON *root = cJSON_Parse(body);
+            const cJSON *max_height =
+                root ? cJSON_GetObjectItem(root, "max_height_mm") : NULL;
+            if (cJSON_IsNumber(max_height) &&
+                max_height->valuedouble == (double)max_height->valueint) {
+                err = desk_core_set_max_height_mm(max_height->valueint);
+            } else {
+                err = ESP_ERR_INVALID_ARG;
+            }
+            cJSON_Delete(root);
+        } else {
+            err = ESP_ERR_INVALID_ARG;
+        }
     } else if (strstr(uri, "/child-lock")) {
         char body[64];
         if (read_body(req, body, sizeof(body)) == ESP_OK) {

@@ -69,6 +69,31 @@ works while digit frames decode through `64–80 cm`; after stopping, the API ke
 the last valid value (`height_mm=800`) without SIM fallback. This path is now
 enabled by default with `CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS=y`.
 
+## Maximum safe height
+
+The authenticated Web settings panel stores `max_height_mm` in NVS. The default
+is `1020 mm`, with an accepted range of `640–1290 mm`. Both `desk_core` and the
+active driver reject upward travel when height is unknown or already at the
+limit. During movement, `yourdesk_v1` checks strict, ordered display frames and
+runs an independent 50 ms watchdog. Between sparse frames it projects a
+worst-case upward position and sends idle before the configured ceiling. Normal
+multi-second gaps between display frames do not interrupt movement; the same
+projection keeps limiting upward travel without depending on another frame.
+Lowering the limit below the current height never moves the desk automatically;
+it only blocks further upward travel.
+
+After boot, the controller may not emit a digit frame until the display changes.
+While height is unknown, Web keeps manual UP and DOWN available so either action
+can trigger the controller's first display frame; preset 4 remains disabled.
+Unknown-height UP has a bounded 2-second acquisition window and stops if no real
+frame arrives, while preset 1 may bootstrap toward its known `640 mm` target.
+The first decoded frame resumes normal closed-loop control. The first complete frame
+of every new motion is accepted as an authoritative resynchronisation baseline;
+direction and speed filters apply only to later frames in that motion. Predictive
+maximum-height stopping never clears or overwrites the last controller height.
+Instead it latches further upward movement until DOWN produces a fresh height
+inside the safe region. There is no manual height-calibration endpoint.
+
 If the rejected experimental listener is enabled for protocol work,
 `CONFIG_GPIO_CTRL_FUNC_IN_IRAM=y` remains mandatory and is enforced at compile
 time.
