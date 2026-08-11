@@ -39,24 +39,44 @@ static uint8_t master_read_dr(yourdesk_soft_i2c_sm_t *sm,
     return value;
 }
 
+/** Replay one complete controller poll and require one completion marker. */
+static void key_poll_once(yourdesk_soft_i2c_sm_t *sm, uint8_t expected_dr)
+{
+    yourdesk_soft_i2c_digit_event_t event;
+
+    yourdesk_soft_i2c_sm_start(sm);
+    assert(master_write_byte(sm, 0x48, &event)); /* 0x24 write */
+    assert(master_write_byte(sm, 0x01, &event));
+    assert(!event.ready);
+
+    yourdesk_soft_i2c_sm_start(sm); /* Repeated START */
+    assert(master_write_byte(sm, 0x49, &event)); /* 0x24 read */
+    assert(master_read_dr(sm, &event) == expected_dr);
+    assert(event.key_read_completed);
+    yourdesk_soft_i2c_sm_stop(sm);
+    assert(sm->phase == YOURDESK_SOFT_I2C_IDLE);
+}
+
 /** Verify key polling with the bus's write + repeated-start + read shape. */
 static void test_key_read(void)
 {
     yourdesk_soft_i2c_sm_t sm;
-    yourdesk_soft_i2c_digit_event_t event;
     yourdesk_soft_i2c_sm_init(&sm, 0x47);
+    key_poll_once(&sm, 0x47);
+}
 
-    yourdesk_soft_i2c_sm_start(&sm);
-    assert(master_write_byte(&sm, 0x48, &event)); /* 0x24 write */
-    assert(master_write_byte(&sm, 0x01, &event));
-    assert(!event.ready);
-
-    yourdesk_soft_i2c_sm_start(&sm); /* Repeated START */
-    assert(master_write_byte(&sm, 0x49, &event)); /* 0x24 read */
-    assert(master_read_dr(&sm, &event) == 0x47);
-    assert(event.key_read_completed);
-    yourdesk_soft_i2c_sm_stop(&sm);
-    assert(sm.phase == YOURDESK_SOFT_I2C_IDLE);
+/** Ensure long UP/DOWN poll streams never lose a completion in pure protocol code. */
+static void test_motion_poll_stream(void)
+{
+    yourdesk_soft_i2c_sm_t sm;
+    yourdesk_soft_i2c_sm_init(&sm, 0x47);
+    for (int i = 0; i < 512; ++i) {
+        key_poll_once(&sm, 0x47);
+    }
+    yourdesk_soft_i2c_sm_set_dr(&sm, 0x4F);
+    for (int i = 0; i < 512; ++i) {
+        key_poll_once(&sm, 0x4F);
+    }
 }
 
 /** Verify all four digit endpoints ACK and emit their exact segment byte. */
@@ -98,6 +118,7 @@ static void test_address_filter(void)
 int main(void)
 {
     test_key_read();
+    test_motion_poll_stream();
     test_digit_writes();
     test_address_filter();
     puts("yourdesk soft I2C waveform vectors: OK");

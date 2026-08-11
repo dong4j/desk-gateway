@@ -79,9 +79,8 @@ static const char *TAG = "yourdesk_v1";
 #define HEIGHT_MAX_SPEED_MM_PER_S       35
 #define HEIGHT_STEP_SLACK_MM            20
 #define HEIGHT_SAFETY_POLL_MS           100
-/* Five missed 3.7 ms controller polls are enough to explain a visible pause. */
-#define KEY_READ_GAP_WARN_MS             20
-#define KEY_READ_GAP_LOG_COOLDOWN_MS     1000
+/* One summary per second is detailed enough without making UART affect timing. */
+#define MOTION_DIAG_PERIOD_MS           1000
 /* Unknown-height UP is allowed only long enough to obtain the first real frame. */
 #define HEIGHT_ACQUIRE_TIMEOUT_MS        2000
 
@@ -136,10 +135,15 @@ static atomic_int s_preset_direction;
 static atomic_int s_safety_anchor_mm;
 static atomic_bool s_up_limit_latched;
 static atomic_uint_fast32_t s_motion_epoch;
-static TickType_t s_last_key_gap_warning_tick;
 static atomic_uint_fast32_t s_height_epoch;
 static atomic_uint_fast32_t s_height_tick;
 static atomic_uint_fast32_t s_safety_anchor_tick;
+static atomic_uint_fast32_t s_diag_complete_frames;
+static atomic_uint_fast32_t s_diag_cached_samples;
+static atomic_uint_fast32_t s_diag_invalid_frames;
+static atomic_uint_fast32_t s_diag_accepted_samples;
+static atomic_uint_fast32_t s_diag_rejected_samples;
+static atomic_uint_fast32_t s_diag_height_changes;
 
 /** Convert a wrapped FreeRTOS tick delta into bounded milliseconds. */
 static int elapsed_ms_since(uint_fast32_t then, TickType_t now)
@@ -198,6 +202,110 @@ static void begin_height_resync(void)
 {
     atomic_fetch_add(&s_motion_epoch, 1);
 }
+
+/** Return a stable label for a controller-facing motion byte. */
+static const char *motion_direction_name(uint8_t dr)
+{
+    if (dr == DR_UP) {
+        return "up";
+    }
+    if (dr == DR_DOWN) {
+        return "down";
+    }
+    return "idle";
+}
+
+#if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+/** Convert Core 1 cycle-counter gaps using the configured fixed CPU frequency. */
+static uint32_t motion_diag_cycles_to_us(uint32_t cycles)
+{
+    return cycles / CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
+}
+
+/** Return a readable snapshot label for a possibly incomplete bus transaction. */
+static const char *motion_diag_phase_name(uint8_t phase)
+{
+    switch ((yourdesk_soft_i2c_phase_t)phase) {
+    case YOURDESK_SOFT_I2C_IDLE:
+        return "idle";
+    case YOURDESK_SOFT_I2C_RX_ADDRESS:
+        return "rx_addr";
+    case YOURDESK_SOFT_I2C_RX_DATA:
+        return "rx_data";
+    case YOURDESK_SOFT_I2C_TX_DATA:
+        return "tx_data";
+    case YOURDESK_SOFT_I2C_TX_MASTER_ACK:
+        return "tx_ack";
+    case YOURDESK_SOFT_I2C_IGNORE:
+    default:
+        return "ignore";
+    }
+}
+
+/** Emit two bounded task-context lines for one diagnostic interval. */
+static void motion_diag_log_interval(
+    uint8_t dr,
+    const yourdesk_soft_i2c_stats_t *baseline,
+    const yourdesk_soft_i2c_stats_t *bus,
+    TickType_t now,
+    TickType_t interval_tick,
+    const char *stage)
+{
+    uint32_t dt_ms =
+        (uint32_t)(now - interval_tick) * portTICK_PERIOD_MS;
+    const char *direction = motion_direction_name(dr);
+
+    ESP_LOGI(TAG,
+             "motion_diag bus stage=%s dir=%s dt=%" PRIu32
+             "ms scl=%" PRIu32 "/%" PRIu32
+             " gap_max=%" PRIu32 "us start_stop=%" PRIu32 "/%" PRIu32
+             " sda_ignored=%" PRIu32 "/%" PRIu32
+             " key_addr=%" PRIu32 "/%" PRIu32
+             " key_ok_abort=%" PRIu32 "/%" PRIu32
+             " key_gap_max=%" PRIu32 "us",
+             stage, direction, dt_ms,
+             bus->scl_rising_edges - baseline->scl_rising_edges,
+             bus->scl_falling_edges - baseline->scl_falling_edges,
+             motion_diag_cycles_to_us(bus->max_scl_edge_gap_cycles),
+             bus->recognized_starts - baseline->recognized_starts,
+             bus->recognized_stops - baseline->recognized_stops,
+             bus->ignored_own_sda_edges - baseline->ignored_own_sda_edges,
+             bus->ignored_sda_edges_while_scl_low -
+                 baseline->ignored_sda_edges_while_scl_low,
+             bus->key_write_addresses - baseline->key_write_addresses,
+             bus->key_read_addresses - baseline->key_read_addresses,
+             bus->completed_key_reads - baseline->completed_key_reads,
+             bus->aborted_key_reads - baseline->aborted_key_reads,
+             motion_diag_cycles_to_us(bus->max_key_read_gap_cycles));
+    ESP_LOGI(TAG,
+             "motion_diag state stage=%s dir=%s height=%d anchor=%d age=%dms"
+             " target=%d max=%d latch=%d digit=%" PRIu32 "/%" PRIu32
+             " drop=%" PRIu32 "/%" PRIu32
+             " unsupported=%" PRIu32
+             " frame_total=%" PRIuFAST32 " cache_total=%" PRIuFAST32
+             " invalid_total=%" PRIuFAST32
+             " accept_reject_total=%" PRIuFAST32 "/%" PRIuFAST32
+             " changes_total=%" PRIuFAST32 " sm=%s:%u@0x%02X",
+             stage, direction, atomic_load(&s_height_mm),
+             atomic_load(&s_safety_anchor_mm),
+             elapsed_ms_since(atomic_load(&s_safety_anchor_tick), now),
+             atomic_load(&s_preset_target_mm), atomic_load(&s_max_height_mm),
+             atomic_load(&s_up_limit_latched) ? 1 : 0,
+             bus->digit_write_addresses - baseline->digit_write_addresses,
+             bus->digit_events - baseline->digit_events,
+             bus->digit_queue_drops - baseline->digit_queue_drops,
+             bus->mirror_digit_queue_drops - baseline->mirror_digit_queue_drops,
+             bus->unsupported_addresses - baseline->unsupported_addresses,
+             atomic_load(&s_diag_complete_frames),
+             atomic_load(&s_diag_cached_samples),
+             atomic_load(&s_diag_invalid_frames),
+             atomic_load(&s_diag_accepted_samples),
+             atomic_load(&s_diag_rejected_samples),
+             atomic_load(&s_diag_height_changes),
+             motion_diag_phase_name(bus->phase), (unsigned)bus->bit_count,
+             bus->current_addr7);
+}
+#endif
 
 #if CONFIG_DESK_YOURDESK_PANEL_PROXY
 /**
@@ -299,25 +407,63 @@ static void stop_up_if_max_height_reached(int height_mm)
 static void height_safety_task(void *arg)
 {
     (void)arg;
+#if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+    bool diag_active = false;
+    uint8_t diag_dr = DR_IDLE;
+    TickType_t diag_started_tick = 0;
+    TickType_t diag_interval_tick = 0;
+    yourdesk_soft_i2c_stats_t diag_baseline = {0};
+#endif
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(HEIGHT_SAFETY_POLL_MS));
         TickType_t now = xTaskGetTickCount();
         uint8_t dr = (uint8_t)atomic_load(&s_dr);
 #if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
-        yourdesk_soft_i2c_stats_t stats;
-        yourdesk_soft_i2c_esp_take_stats(&stats);
-        if (dr == DR_UP || dr == DR_DOWN) {
-            if (stats.max_key_read_gap_ms >= KEY_READ_GAP_WARN_MS &&
-                (s_last_key_gap_warning_tick == 0 ||
-                 now - s_last_key_gap_warning_tick >=
-                     pdMS_TO_TICKS(KEY_READ_GAP_LOG_COOLDOWN_MS))) {
-                s_last_key_gap_warning_tick = now;
-                ESP_LOGW(TAG,
-                         "controller key-poll gap: max=%" PRIu32
-                         " ms reads=%" PRIu32 " DR=0x%02X",
-                         stats.max_key_read_gap_ms,
-                         stats.completed_key_reads, dr);
+        bool moving = dr == DR_UP || dr == DR_DOWN;
+        if (!diag_active && moving) {
+            yourdesk_soft_i2c_esp_take_stats(&diag_baseline);
+            diag_active = true;
+            diag_dr = dr;
+            diag_started_tick = now;
+            diag_interval_tick = now;
+            ESP_LOGI(TAG,
+                     "motion_diag begin dir=%s dr=0x%02X height=%d target=%d max=%d",
+                     motion_direction_name(dr), dr, atomic_load(&s_height_mm),
+                     atomic_load(&s_preset_target_mm),
+                     atomic_load(&s_max_height_mm));
+        } else if (diag_active && (!moving || dr != diag_dr)) {
+            yourdesk_soft_i2c_stats_t stats = {0};
+            yourdesk_soft_i2c_esp_take_stats(&stats);
+            motion_diag_log_interval(diag_dr, &diag_baseline, &stats, now,
+                                     diag_interval_tick, "end");
+            ESP_LOGI(TAG,
+                     "motion_diag end dir=%s elapsed=%" PRIu32 "ms reason=%s",
+                     motion_direction_name(diag_dr),
+                     (uint32_t)(now - diag_started_tick) * portTICK_PERIOD_MS,
+                     moving ? "direction_change" : "dr_idle");
+            diag_active = false;
+            diag_baseline = stats;
+            if (moving) {
+                diag_active = true;
+                diag_dr = dr;
+                diag_started_tick = now;
+                diag_interval_tick = now;
+                ESP_LOGI(TAG,
+                         "motion_diag begin dir=%s dr=0x%02X height=%d target=%d max=%d",
+                         motion_direction_name(dr), dr,
+                         atomic_load(&s_height_mm),
+                         atomic_load(&s_preset_target_mm),
+                         atomic_load(&s_max_height_mm));
             }
+        } else if (diag_active &&
+                   now - diag_interval_tick >=
+                       pdMS_TO_TICKS(MOTION_DIAG_PERIOD_MS)) {
+            yourdesk_soft_i2c_stats_t stats = {0};
+            yourdesk_soft_i2c_esp_take_stats(&stats);
+            motion_diag_log_interval(diag_dr, &diag_baseline, &stats, now,
+                                     diag_interval_tick, "run");
+            diag_baseline = stats;
+            diag_interval_tick = now;
         }
 #endif
         if (dr != DR_UP) {
@@ -531,6 +677,9 @@ static void height_decode_task(void *arg)
             frame_result == TM1650_HEIGHT_INVALID) {
             frame_start_tick = 0;
         }
+        if (frame_result == TM1650_HEIGHT_INVALID) {
+            atomic_fetch_add(&s_diag_invalid_frames, 1);
+        }
 
         int previous = atomic_load(&s_height_mm);
         yourdesk_preset_direction_t direction = current_height_direction();
@@ -556,6 +705,11 @@ static void height_decode_task(void *arg)
             }
             continue;
         }
+        if (complete_frame) {
+            atomic_fetch_add(&s_diag_complete_frames, 1);
+        } else {
+            atomic_fetch_add(&s_diag_cached_samples, 1);
+        }
 
         int height_mm = complete_frame ? frame_height_mm : cached_height_mm;
         uint32_t sample_age_ms =
@@ -573,6 +727,7 @@ static void height_decode_task(void *arg)
             HEIGHT_MAX_SPEED_MM_PER_S, HEIGHT_STEP_SLACK_MM);
         last_invalid_raw = UINT32_MAX;
         if (accepted) {
+            atomic_fetch_add(&s_diag_accepted_samples, 1);
             /*
              * Only a transition accepted for the current motion may drive the
              * published height or either upward safety path. A mixed or stale
@@ -598,6 +753,7 @@ static void height_decode_task(void *arg)
             }
         }
         if (accepted && previous != height_mm) {
+            atomic_fetch_add(&s_diag_height_changes, 1);
             if (complete_frame) {
                 ESP_LOGI(TAG, "height=%d.%d cm%s raw=%02X %02X %02X %02X",
                          height_mm / 10, height_mm % 10,
@@ -613,11 +769,13 @@ static void height_decode_task(void *arg)
                          cache.digits[1], cache.digits[2]);
             }
         } else if (!accepted && complete_frame) {
+            atomic_fetch_add(&s_diag_rejected_samples, 1);
             ESP_LOGW(TAG,
                      "reject height transition: previous=%d candidate=%d elapsed=%d ms direction=%d source=%s",
                      previous, height_mm, elapsed_ms, (int)direction,
                      "frame");
         } else if (!accepted) {
+            atomic_fetch_add(&s_diag_rejected_samples, 1);
             /* Mixed cache values are expected while decimal digits roll over. */
             ESP_LOGD(TAG,
                      "reject cached height transition: previous=%d candidate=%d elapsed=%d ms direction=%d",
@@ -721,6 +879,12 @@ static esp_err_t yd_init(void)
     atomic_store(&s_height_epoch, 0);
     atomic_store(&s_height_tick, 0);
     atomic_store(&s_safety_anchor_tick, 0);
+    atomic_store(&s_diag_complete_frames, 0);
+    atomic_store(&s_diag_cached_samples, 0);
+    atomic_store(&s_diag_invalid_frames, 0);
+    atomic_store(&s_diag_accepted_samples, 0);
+    atomic_store(&s_diag_rejected_samples, 0);
+    atomic_store(&s_diag_height_changes, 0);
     cancel_preset_motion();
 #endif
 #if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS

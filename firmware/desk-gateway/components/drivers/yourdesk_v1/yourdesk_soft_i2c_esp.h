@@ -19,9 +19,26 @@ extern "C" {
 #endif
 
 typedef struct {
+    uint32_t scl_rising_edges;
+    uint32_t scl_falling_edges;
+    uint32_t recognized_starts;
+    uint32_t recognized_stops;
+    uint32_t ignored_own_sda_edges;
+    uint32_t ignored_sda_edges_while_scl_low;
+    uint32_t key_write_addresses;
+    uint32_t key_read_addresses;
     uint32_t completed_key_reads;
-    uint32_t last_key_read_ms;
-    uint32_t max_key_read_gap_ms;
+    uint32_t aborted_key_reads;
+    uint32_t digit_write_addresses;
+    uint32_t unsupported_addresses;
+    uint32_t digit_events;
+    uint32_t digit_queue_drops;
+    uint32_t mirror_digit_queue_drops;
+    uint32_t max_scl_edge_gap_cycles;
+    uint32_t max_key_read_gap_cycles;
+    uint8_t phase;
+    uint8_t bit_count;
+    uint8_t current_addr7;
 } yourdesk_soft_i2c_stats_t;
 
 /**
@@ -39,10 +56,12 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
 void yourdesk_soft_i2c_esp_set_dr(uint8_t dr);
 
 /**
- * Copy controller-poll telemetry and clear the accumulated maximum gap.
+ * Copy controller-poll telemetry and clear accumulated maximum gaps.
  *
  * The 0x24 bus normally completes one key read about every 3.7 ms. The caller
- * may sample this structure slowly; no per-poll logging is performed.
+ * may sample this structure slowly; counters remain cumulative while maximum
+ * gaps cover only the time since the previous snapshot. No ISR logging is
+ * performed because UART output would disturb the timing being measured.
  */
 void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats);
 

@@ -12,6 +12,7 @@
 
 #include "driver/gpio.h"
 #include "esp_check.h"
+#include "esp_cpu.h"
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
 #include "freertos/semphr.h"
@@ -27,9 +28,9 @@ static DRAM_ATTR QueueHandle_t s_digit_queue;
 static DRAM_ATTR QueueHandle_t s_mirror_digit_queue;
 static DRAM_ATTR bool s_drive_sda_low;
 static DRAM_ATTR bool s_ignore_own_sda_edge;
-static DRAM_ATTR uint32_t s_completed_key_reads;
-static DRAM_ATTR uint32_t s_last_key_read_ms;
-static DRAM_ATTR uint32_t s_max_key_read_gap_ms;
+static DRAM_ATTR yourdesk_soft_i2c_stats_t s_stats;
+static DRAM_ATTR uint32_t s_last_scl_edge_cycles;
+static DRAM_ATTR uint32_t s_last_key_read_cycles;
 static portMUX_TYPE s_sm_mux = portMUX_INITIALIZER_UNLOCKED;
 
 typedef struct {
@@ -61,45 +62,105 @@ static inline void IRAM_ATTR apply_sda_output(void)
         was_high != line_is_high(CONFIG_DESK_I2C_SDA_GPIO);
 }
 
+/** Count an interrupted 0x24 response before START/STOP resets its state. */
+static inline void IRAM_ATTR count_aborted_key_read(void)
+{
+    if (s_sm.phase == YOURDESK_SOFT_I2C_TX_DATA ||
+        s_sm.phase == YOURDESK_SOFT_I2C_TX_MASTER_ACK) {
+        s_stats.aborted_key_reads++;
+    }
+}
+
+/** Classify a completed address byte without changing protocol decisions. */
+static inline void IRAM_ATTR count_address(uint8_t raw_address)
+{
+    uint8_t addr7 = (uint8_t)(raw_address >> 1);
+    bool read = (raw_address & 1u) != 0;
+    if (addr7 == 0x24u) {
+        if (read) {
+            s_stats.key_read_addresses++;
+        } else {
+            s_stats.key_write_addresses++;
+        }
+    } else if (!read && addr7 >= 0x34u && addr7 <= 0x37u) {
+        s_stats.digit_write_addresses++;
+    } else {
+        s_stats.unsupported_addresses++;
+    }
+}
+
 /** Advance receive/transmit timing on both SCL edges. */
 static void IRAM_ATTR scl_edge_isr(void *arg)
 {
     (void)arg;
     yourdesk_soft_i2c_digit_event_t event = {0};
+    uint32_t now_cycles = esp_cpu_get_cycle_count();
 
     portENTER_CRITICAL_ISR(&s_sm_mux);
-    if (line_is_high(CONFIG_DESK_I2C_SCL_GPIO)) {
+    if (s_last_scl_edge_cycles != 0) {
+        uint32_t gap_cycles = now_cycles - s_last_scl_edge_cycles;
+        if (gap_cycles > s_stats.max_scl_edge_gap_cycles) {
+            s_stats.max_scl_edge_gap_cycles = gap_cycles;
+        }
+    }
+    s_last_scl_edge_cycles = now_cycles;
+
+    bool scl_high = line_is_high(CONFIG_DESK_I2C_SCL_GPIO);
+    if (scl_high) {
+        s_stats.scl_rising_edges++;
         yourdesk_soft_i2c_sm_scl_rising(
             &s_sm, line_is_high(CONFIG_DESK_I2C_SDA_GPIO));
     } else {
+        s_stats.scl_falling_edges++;
+        yourdesk_soft_i2c_phase_t phase_before = s_sm.phase;
+        uint8_t bit_count_before = s_sm.bit_count;
+        uint8_t rx_byte_before = s_sm.rx_byte;
         event = yourdesk_soft_i2c_sm_scl_falling(&s_sm);
+        if (phase_before == YOURDESK_SOFT_I2C_RX_ADDRESS &&
+            bit_count_before == 8) {
+            count_address(rx_byte_before);
+        }
         apply_sda_output();
     }
     if (event.key_read_completed) {
-        uint32_t now_ms =
-            (uint32_t)xTaskGetTickCountFromISR() * portTICK_PERIOD_MS;
-        if (s_last_key_read_ms != 0) {
-            uint32_t gap_ms = now_ms - s_last_key_read_ms;
-            if (gap_ms > s_max_key_read_gap_ms) {
-                s_max_key_read_gap_ms = gap_ms;
+        if (s_last_key_read_cycles != 0) {
+            uint32_t gap_cycles = now_cycles - s_last_key_read_cycles;
+            if (gap_cycles > s_stats.max_key_read_gap_cycles) {
+                s_stats.max_key_read_gap_cycles = gap_cycles;
             }
         }
-        s_last_key_read_ms = now_ms;
-        s_completed_key_reads++;
+        s_last_key_read_cycles = now_cycles;
+        s_stats.completed_key_reads++;
+    }
+    if (event.ready) {
+        s_stats.digit_events++;
     }
     portEXIT_CRITICAL_ISR(&s_sm_mux);
 
     if (event.ready && s_digit_queue) {
         BaseType_t higher_priority_task_woken = pdFALSE;
-        (void)xQueueSendFromISR(s_digit_queue, &event,
-                                &higher_priority_task_woken);
+        BaseType_t digit_sent = xQueueSendFromISR(
+            s_digit_queue, &event, &higher_priority_task_woken);
+        bool digit_dropped = digit_sent != pdTRUE;
+        bool mirror_dropped = false;
         if (s_mirror_digit_queue) {
             BaseType_t mirror_task_woken = pdFALSE;
-            (void)xQueueSendFromISR(s_mirror_digit_queue, &event,
-                                    &mirror_task_woken);
+            BaseType_t mirror_sent = xQueueSendFromISR(
+                s_mirror_digit_queue, &event, &mirror_task_woken);
+            mirror_dropped = mirror_sent != pdTRUE;
             if (mirror_task_woken == pdTRUE) {
                 higher_priority_task_woken = pdTRUE;
             }
+        }
+        if (digit_dropped || mirror_dropped) {
+            portENTER_CRITICAL_ISR(&s_sm_mux);
+            if (digit_dropped) {
+                s_stats.digit_queue_drops++;
+            }
+            if (mirror_dropped) {
+                s_stats.mirror_digit_queue_drops++;
+            }
+            portEXIT_CRITICAL_ISR(&s_sm_mux);
         }
         /*
          * Do not immediately schedule height decoding between adjacent 52 us
@@ -116,17 +177,23 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
     portENTER_CRITICAL_ISR(&s_sm_mux);
     if (s_ignore_own_sda_edge) {
         s_ignore_own_sda_edge = false;
+        s_stats.ignored_own_sda_edges++;
         portEXIT_CRITICAL_ISR(&s_sm_mux);
         return;
     }
     if (!line_is_high(CONFIG_DESK_I2C_SCL_GPIO)) {
+        s_stats.ignored_sda_edges_while_scl_low++;
         portEXIT_CRITICAL_ISR(&s_sm_mux);
         return;
     }
 
     if (line_is_high(CONFIG_DESK_I2C_SDA_GPIO)) {
+        count_aborted_key_read();
+        s_stats.recognized_stops++;
         yourdesk_soft_i2c_sm_stop(&s_sm);
     } else {
+        count_aborted_key_read();
+        s_stats.recognized_starts++;
         yourdesk_soft_i2c_sm_start(&s_sm);
     }
     apply_sda_output();
@@ -165,9 +232,9 @@ static esp_err_t init_on_current_core(QueueHandle_t digit_queue,
     s_mirror_digit_queue = mirror_digit_queue;
     s_drive_sda_low = false;
     s_ignore_own_sda_edge = false;
-    s_completed_key_reads = 0;
-    s_last_key_read_ms = 0;
-    s_max_key_read_gap_ms = 0;
+    s_stats = (yourdesk_soft_i2c_stats_t){0};
+    s_last_scl_edge_cycles = 0;
+    s_last_key_read_cycles = 0;
     yourdesk_soft_i2c_sm_init(&s_sm, initial_dr);
 
     /*
@@ -250,9 +317,11 @@ void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats)
         return;
     }
     portENTER_CRITICAL(&s_sm_mux);
-    stats->completed_key_reads = s_completed_key_reads;
-    stats->last_key_read_ms = s_last_key_read_ms;
-    stats->max_key_read_gap_ms = s_max_key_read_gap_ms;
-    s_max_key_read_gap_ms = 0;
+    *stats = s_stats;
+    stats->phase = (uint8_t)s_sm.phase;
+    stats->bit_count = s_sm.bit_count;
+    stats->current_addr7 = s_sm.current_addr7;
+    s_stats.max_scl_edge_gap_cycles = 0;
+    s_stats.max_key_read_gap_cycles = 0;
     portEXIT_CRITICAL(&s_sm_mux);
 }
