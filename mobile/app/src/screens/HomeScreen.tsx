@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { DeskClientSnapshot } from '../desk/DeskClient';
 import { formatFirmwareBuildTime } from '../desk/formatFirmwareBuildTime';
 import { DeskScene } from '../ui/DeskScene';
+import { HomeAtmosphere, type HomePeriod, useHomePeriod } from '../ui/HomeAtmosphere';
 import {
   ChairIcon,
   ChevronIcon,
@@ -65,19 +66,26 @@ export function HomeScreen({
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
   const preset1HeightCm = ((config?.preset1HeightMm ?? 640) / 10).toFixed(0);
   const preset4HeightCm = ((config?.preset4HeightMm ?? 1020) / 10).toFixed(0);
+  const period = useHomePeriod();
+  const night = period === 'night';
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={[styles.safeArea, night && styles.safeAreaNight]}
+      edges={['top', 'bottom']}
+    >
+      <HomeAtmosphere period={period} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Desk Gateway</Text>
+          <Text style={[styles.title, night && styles.textNight]}>Desk Gateway</Text>
           <View style={styles.headerActions}>
             <ConnectionBadge
               connected={connected}
               connecting={connecting}
+              period={period}
               onPress={connected || connecting ? undefined : onConnect}
             />
             <Pressable
@@ -87,7 +95,7 @@ export function HomeScreen({
               hitSlop={10}
               style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
             >
-              <GearIcon size={30} />
+              <GearIcon size={30} color={night ? NIGHT_TEXT : palette.ink} />
             </Pressable>
           </View>
         </View>
@@ -108,16 +116,17 @@ export function HomeScreen({
         <DeskScene
           heightMm={state?.heightKnown ? state.heightMm : null}
           maxHeightMm={1290}
+          period={period}
         />
 
         <View style={styles.heightBlock}>
-          <Text style={styles.heightLabel}>当前高度</Text>
+          <Text style={[styles.heightLabel, night && styles.textNightMuted]}>当前高度</Text>
           <View style={styles.heightLine}>
-            <Text style={styles.heightValue}>{heightCm}</Text>
-            <Text style={styles.heightUnit}>cm</Text>
+            <Text style={[styles.heightValue, night && styles.textNight]}>{heightCm}</Text>
+            <Text style={[styles.heightUnit, night && styles.textNight]}>cm</Text>
           </View>
-          <View style={styles.limitPill}>
-            <Text style={styles.limitText}>上限 {maxHeightCm} cm</Text>
+          <View style={[styles.limitPill, night && styles.limitPillNight]}>
+            <Text style={[styles.limitText, night && styles.limitTextNight]}>上限 {maxHeightCm} cm</Text>
           </View>
         </View>
 
@@ -126,6 +135,7 @@ export function HomeScreen({
             variant="primary"
             label="按住升"
             direction="up"
+            period={period}
             disabled={motionBlocked}
             onPressIn={onHoldUpStart}
             onPressOut={onHoldEnd}
@@ -147,6 +157,7 @@ export function HomeScreen({
             variant="outline"
             label="按住降"
             direction="down"
+            period={period}
             disabled={motionBlocked}
             onPressIn={onHoldDownStart}
             onPressOut={onHoldEnd}
@@ -160,6 +171,7 @@ export function HomeScreen({
             height={preset1HeightCm}
             disabled={motionBlocked}
             onPress={onPreset1}
+            period={period}
           />
           <PresetCard
             icon={<StandingIcon size={34} color={palette.gold} />}
@@ -167,6 +179,7 @@ export function HomeScreen({
             height={preset4HeightCm}
             disabled={motionBlocked}
             onPress={onPreset4}
+            period={period}
           />
         </View>
 
@@ -181,13 +194,14 @@ export function HomeScreen({
           onPress={onToggleChildLock}
           style={({ pressed }) => [
             styles.lockCard,
+            night && styles.surfaceNight,
             (!connected || !config) && styles.disabled,
             pressed && connected && config && styles.pressed,
           ]}
         >
           <View style={styles.lockLabel}>
             <LockIcon size={24} color={palette.gold} />
-            <Text style={styles.lockText}>童锁</Text>
+            <Text style={[styles.lockText, night && styles.textNight]}>童锁</Text>
           </View>
           <PrototypeSwitch
             value={config?.childLock ?? state?.childLock ?? false}
@@ -195,7 +209,7 @@ export function HomeScreen({
           />
         </Pressable>
 
-        <Text style={styles.footer} numberOfLines={1}>
+        <Text style={[styles.footer, night && styles.textNightMuted]} numberOfLines={1}>
           {snapshot.transport === 'wifi' ? 'Wi-Fi · REST' : 'BLE'} · 固件{' '}
           {firmwareBuildTime ?? '构建信息不可用'}
         </Text>
@@ -207,22 +221,33 @@ export function HomeScreen({
 function ConnectionBadge({
   connected,
   connecting,
+  period,
   onPress,
 }: {
   connected: boolean;
   connecting: boolean;
+  period: HomePeriod;
   onPress?: () => void;
 }) {
+  const night = period === 'night';
   const label = connected ? '已连接' : connecting ? '连接中' : '点击连接';
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [styles.connectionBadge, pressed && onPress && styles.pressed]}
+      style={({ pressed }) => [
+        styles.connectionBadge,
+        night && styles.connectionBadgeNight,
+        pressed && onPress && styles.pressed,
+      ]}
     >
       <View style={[styles.connectionDot, !connected && styles.connectionDotOff]} />
-      <Text style={[styles.connectionText, !connected && styles.connectionTextOff]}>{label}</Text>
+      <Text style={[
+        styles.connectionText,
+        !connected && styles.connectionTextOff,
+        night && !connected && styles.textNightMuted,
+      ]}>{label}</Text>
     </Pressable>
   );
 }
@@ -231,6 +256,7 @@ function HoldControl({
   variant,
   label,
   direction,
+  period,
   disabled,
   onPressIn,
   onPressOut,
@@ -238,11 +264,13 @@ function HoldControl({
   variant: 'primary' | 'outline';
   label: string;
   direction: 'up' | 'down';
+  period: HomePeriod;
   disabled: boolean;
   onPressIn: () => void;
   onPressOut: () => void;
 }) {
   const primary = variant === 'primary';
+  const night = period === 'night';
   return (
     <Pressable
       accessibilityRole="button"
@@ -253,6 +281,8 @@ function HoldControl({
       style={({ pressed }) => [
         styles.holdButton,
         primary ? styles.holdPrimary : styles.holdOutline,
+        night && primary && styles.holdPrimaryNight,
+        night && !primary && styles.holdOutlineNight,
         disabled && styles.disabled,
         pressed && !disabled && styles.holdPressed,
       ]}
@@ -260,10 +290,15 @@ function HoldControl({
       <ChevronIcon
         direction={direction}
         size={27}
-        color={primary ? palette.white : palette.ink}
+        color={night ? (primary ? NIGHT_INK : NIGHT_TEXT) : (primary ? palette.white : palette.ink)}
         strokeWidth={2.2}
       />
-      <Text style={[styles.holdText, primary && styles.holdTextPrimary]}>{label}</Text>
+      <Text style={[
+        styles.holdText,
+        primary && styles.holdTextPrimary,
+        night && primary && styles.holdTextPrimaryNight,
+        night && !primary && styles.textNight,
+      ]}>{label}</Text>
     </Pressable>
   );
 }
@@ -274,13 +309,16 @@ function PresetCard({
   height,
   disabled,
   onPress,
+  period,
 }: {
   icon: React.ReactNode;
   label: string;
   height: string;
   disabled: boolean;
   onPress: () => void;
+  period: HomePeriod;
 }) {
+  const night = period === 'night';
   return (
     <Pressable
       accessibilityRole="button"
@@ -288,16 +326,17 @@ function PresetCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.presetCard,
+        night && styles.surfaceNight,
         disabled && styles.disabled,
         pressed && !disabled && styles.pressed,
       ]}
     >
       {icon}
       <View>
-        <Text style={styles.presetLabel}>{label}</Text>
+        <Text style={[styles.presetLabel, night && styles.textNight]}>{label}</Text>
         <View style={styles.presetHeightLine}>
-          <Text style={styles.presetHeight}>{height}</Text>
-          <Text style={styles.presetUnit}>cm</Text>
+          <Text style={[styles.presetHeight, night && styles.textNight]}>{height}</Text>
+          <Text style={[styles.presetUnit, night && styles.textNight]}>cm</Text>
         </View>
       </View>
     </Pressable>
@@ -316,8 +355,14 @@ function friendlyError(error: string): string {
   return error;
 }
 
+const NIGHT_TEXT = '#FFF9EE';
+const NIGHT_MUTED = '#D4D8DE';
+const NIGHT_INK = '#17243A';
+const NIGHT_GOLD = '#E1B979';
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
+  safeAreaNight: { backgroundColor: '#101C32' },
   content: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 10, paddingBottom: 18 },
   header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { color: palette.ink, fontSize: 31, fontWeight: '700', letterSpacing: -1.2 },
@@ -356,6 +401,15 @@ const styles = StyleSheet.create({
   lockLabel: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   lockText: { color: palette.ink, fontSize: 17, fontWeight: '500' },
   footer: { marginTop: 14, color: palette.inkMuted, fontSize: 12, textAlign: 'center' },
+  textNight: { color: NIGHT_TEXT },
+  textNightMuted: { color: NIGHT_MUTED },
+  connectionBadgeNight: { backgroundColor: 'rgba(16, 28, 50, 0.62)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.12)' },
+  limitPillNight: { backgroundColor: 'rgba(16, 28, 50, 0.36)', borderColor: NIGHT_GOLD },
+  limitTextNight: { color: NIGHT_GOLD },
+  holdPrimaryNight: { backgroundColor: NIGHT_TEXT },
+  holdOutlineNight: { borderColor: 'rgba(255, 249, 238, 0.72)', backgroundColor: 'rgba(16, 28, 50, 0.42)' },
+  holdTextPrimaryNight: { color: NIGHT_INK },
+  surfaceNight: { borderColor: 'rgba(255, 249, 238, 0.2)', backgroundColor: 'rgba(16, 28, 50, 0.48)' },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.38 },
 });
