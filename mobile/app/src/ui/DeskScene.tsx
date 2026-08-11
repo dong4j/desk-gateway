@@ -48,11 +48,9 @@ export function DeskScene({
     }).start();
   }, [animated, target]);
 
-  const displayHeight = heightMm === null ? null : Math.round(heightMm / 10);
   const rulerY = 272 - progress * 194;
   const rulerLine = palette.line;
   const rulerMuted = palette.inkMuted;
-  const rulerInk = palette.ink;
 
   return (
     <View style={styles.scene} accessibilityLabel="升降桌实时高度示意图">
@@ -84,9 +82,6 @@ export function DeskScene({
           <SvgText x="363" y="219" fontSize="11" fill={rulerMuted}>80</SvgText>
           <SvgText x="363" y="277" fontSize="11" fill={rulerMuted}>64</SvgText>
           <SvgText x="350" y="296" fontSize="10" fill={rulerMuted}>cm</SvgText>
-          {displayHeight !== null ? (
-            <SvgText x="327" y={rulerY + 4} textAnchor="end" fontSize="11" fill={rulerInk}>{displayHeight}</SvgText>
-          ) : null}
         </G>
       </Svg>
     </View>
