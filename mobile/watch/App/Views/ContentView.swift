@@ -54,15 +54,7 @@ struct ContentView<Controller: DeskControlling>: View {
     VStack(spacing: 3) {
       connectionLabel
 
-      directionIndicatorStage
-
-      Text(heightText)
-        .font(.system(size: 52, weight: .medium, design: .rounded))
-        .monospacedDigit()
-        .lineLimit(1)
-        .minimumScaleFactor(0.75)
-        .contentTransition(.numericText())
-        .animation(.linear(duration: reduceMotion ? 0 : 0.12), value: heightText)
+      heightDisplay
 
       Text("cm")
         .font(.caption)
@@ -115,27 +107,31 @@ struct ContentView<Controller: DeskControlling>: View {
     }
   }
 
-  /// 为方向箭头保留固定高度，待机与运动切换时主高度不会被上下推动。
-  private var directionIndicatorStage: some View {
-    ZStack {
-      if let direction = effectiveDirection {
-        Image(systemName: direction == .up ? "arrow.up" : "arrow.down")
-          .font(.system(size: 22, weight: .semibold))
-          .foregroundStyle(direction == .up ? .cyan : .orange)
-          .offset(y: arrowOffset(for: direction))
-          .opacity(arrowOpacity)
-          .id(direction)
-          .transition(directionTransition(for: direction))
-          .onAppear {
-            startArrowAnimation(for: direction)
-          }
-          .onDisappear {
-            arrowDriftActive = false
-          }
-          .accessibilityHidden(true)
+  /// 数字自身保持居中，箭头通过 overlay 放到右侧，不参与布局宽度和纵向排版。
+  private var heightDisplay: some View {
+    Text(heightText)
+      .font(.system(size: 52, weight: .medium, design: .rounded))
+      .monospacedDigit()
+      .lineLimit(1)
+      .minimumScaleFactor(0.75)
+      .overlay(alignment: .trailing) {
+        if let direction = effectiveDirection {
+          Image(systemName: direction == .up ? "arrow.up" : "arrow.down")
+            .font(.system(size: 22, weight: .semibold))
+            .foregroundStyle(direction == .up ? .cyan : .orange)
+            .offset(x: 28, y: arrowOffset(for: direction))
+            .opacity(arrowOpacity)
+            .id(direction)
+            .transition(directionTransition(for: direction))
+            .onAppear {
+              startArrowAnimation(for: direction)
+            }
+            .onDisappear {
+              arrowDriftActive = false
+            }
+            .accessibilityHidden(true)
+        }
       }
-    }
-    .frame(height: 24)
   }
 
   /// 控制区固定占位，STOP 和快捷高度只在舞台内部做过渡，避免整页跳动。
