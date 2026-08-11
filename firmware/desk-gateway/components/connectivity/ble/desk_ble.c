@@ -10,7 +10,9 @@
 #include "desk_ble_protocol.h"
 #include "desk_core.h"
 
+#include "esp_app_desc.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -27,6 +29,7 @@
 #include "services/gatt/ble_svc_gatt.h"
 #include "store/config/ble_store_config.h"
 
+#include <stdio.h>
 #include <string.h>
 
 /* NimBLE store/config currently exports this initializer without a public declaration. */
@@ -35,6 +38,8 @@ void ble_store_config_init(void);
 #define DESK_BLE_DEVICE_NAME "DeskGateway"
 #define DESK_BLE_STATE_POLL_MS 200
 #define DESK_BLE_STATE_HEARTBEAT_MS 1000
+#define DESK_BLE_FIRMWARE_REVISION_MAX_LEN 64
+#define DESK_BLE_RESTART_DELAY_MS 500
 
 /* Canonical UUID: 7f4e0001-6d4c-4f4b-9f7a-3c1d2e5a9b10. */
 static const ble_uuid128_t s_service_uuid = BLE_UUID128_INIT(
@@ -48,16 +53,31 @@ static const ble_uuid128_t s_command_uuid = BLE_UUID128_INIT(
 static const ble_uuid128_t s_state_uuid = BLE_UUID128_INIT(
     0x10, 0x9b, 0x5a, 0x2e, 0x1d, 0x3c, 0x7a, 0x9f,
     0x4b, 0x4f, 0x4c, 0x6d, 0x03, 0x00, 0x4e, 0x7f);
+/* Canonical UUID: 7f4e0004-6d4c-4f4b-9f7a-3c1d2e5a9b10. */
+static const ble_uuid128_t s_config_uuid = BLE_UUID128_INIT(
+    0x10, 0x9b, 0x5a, 0x2e, 0x1d, 0x3c, 0x7a, 0x9f,
+    0x4b, 0x4f, 0x4c, 0x6d, 0x04, 0x00, 0x4e, 0x7f);
+/* Canonical UUID: 7f4e0005-6d4c-4f4b-9f7a-3c1d2e5a9b10. */
+static const ble_uuid128_t s_system_uuid = BLE_UUID128_INIT(
+    0x10, 0x9b, 0x5a, 0x2e, 0x1d, 0x3c, 0x7a, 0x9f,
+    0x4b, 0x4f, 0x4c, 0x6d, 0x05, 0x00, 0x4e, 0x7f);
+/* Bluetooth SIG Device Information Service / Firmware Revision String. */
+static const ble_uuid16_t s_device_information_service_uuid =
+    BLE_UUID16_INIT(0x180a);
+static const ble_uuid16_t s_firmware_revision_uuid = BLE_UUID16_INIT(0x2a26);
 
 static const char *TAG = "desk_ble";
 static uint8_t s_own_addr_type;
 static uint16_t s_state_value_handle;
+static uint16_t s_config_value_handle;
 static esp_timer_handle_t s_hold_lease_timer;
 static portMUX_TYPE s_motion_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool s_motion_owned;
 static volatile bool s_stack_synced;
 static volatile bool s_connected;
 static volatile bool s_state_subscribed;
+static volatile bool s_config_subscribed;
+static volatile bool s_restart_pending;
 
 static void start_advertising(void);
 
@@ -212,6 +232,26 @@ static size_t current_state(uint8_t out[DESK_BLE_STATE_LENGTH])
     return desk_ble_state_encode(&input, out, DESK_BLE_STATE_LENGTH);
 }
 
+/** Config 是 desk_core 当前真实设置的只读快照，不在 BLE 层维护第二份状态。 */
+static size_t current_config(uint8_t out[DESK_BLE_CONFIG_LENGTH])
+{
+    desk_core_snapshot_t snapshot = desk_core_snapshot();
+    desk_ble_config_input_t input = {
+        .child_lock = snapshot.child_lock,
+        .rest_enabled =
+            (snapshot.enabled_sources & DESK_CONTROL_SOURCE_BIT(
+                 DESK_CONTROL_SOURCE_REST)) != 0,
+        .bluetooth_enabled =
+            (snapshot.enabled_sources & DESK_CONTROL_SOURCE_BIT(
+                 DESK_CONTROL_SOURCE_BLUETOOTH)) != 0,
+        .panel_enabled =
+            (snapshot.enabled_sources & DESK_CONTROL_SOURCE_BIT(
+                 DESK_CONTROL_SOURCE_PANEL)) != 0,
+        .max_height_mm = snapshot.max_height_mm,
+    };
+    return desk_ble_config_encode(&input, out, DESK_BLE_CONFIG_LENGTH);
+}
+
 static int state_access(uint16_t conn_handle, uint16_t attr_handle,
                         struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -229,6 +269,154 @@ static int state_access(uint16_t conn_handle, uint16_t attr_handle,
                : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
 
+static esp_err_t execute_config_write(const desk_ble_config_write_t *write)
+{
+    switch (write->field) {
+    case DESK_BLE_CONFIG_FIELD_CHILD_LOCK:
+        return desk_core_set_child_lock(write->value != 0);
+    case DESK_BLE_CONFIG_FIELD_REST_ENABLED:
+        return desk_core_set_source_enabled(DESK_CONTROL_SOURCE_REST,
+                                            write->value != 0);
+    case DESK_BLE_CONFIG_FIELD_BLUETOOTH_ENABLED:
+        return desk_core_set_source_enabled(DESK_CONTROL_SOURCE_BLUETOOTH,
+                                            write->value != 0);
+    case DESK_BLE_CONFIG_FIELD_PANEL_ENABLED:
+        return desk_core_set_source_enabled(DESK_CONTROL_SOURCE_PANEL,
+                                            write->value != 0);
+    case DESK_BLE_CONFIG_FIELD_MAX_HEIGHT_MM:
+        return desk_core_set_max_height_mm((int)write->value);
+    default:
+        return ESP_ERR_INVALID_ARG;
+    }
+}
+
+/**
+ * Config 的 READ 返回完整快照，WRITE 只更新一个字段。
+ *
+ * 管理写入不经过来源开关：否则关闭 Bluetooth 后将无法用同一加密连接重新开启；
+ * 但所有会运动的命令仍统一受童锁与 Bluetooth 来源权限约束。
+ */
+static int config_access(uint16_t conn_handle, uint16_t attr_handle,
+                         struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)arg;
+    if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
+        uint8_t config[DESK_BLE_CONFIG_LENGTH];
+        size_t len = current_config(config);
+        return os_mbuf_append(ctxt->om, config, len) == 0
+                   ? 0
+                   : BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    uint8_t raw[DESK_BLE_CONFIG_WRITE_LENGTH];
+    size_t len = OS_MBUF_PKTLEN(ctxt->om);
+    if (len != sizeof(raw)) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    if (os_mbuf_copydata(ctxt->om, 0, sizeof(raw), raw) != 0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    desk_ble_config_write_t write;
+    if (!desk_ble_config_write_decode(raw, sizeof(raw), &write)) {
+        return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+    }
+    esp_err_t err = execute_config_write(&write);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "config field=0x%02x value=%u rejected: %s",
+                 (unsigned)write.field, (unsigned)write.value,
+                 esp_err_to_name(err));
+        return command_error_to_att(err);
+    }
+    ESP_LOGI(TAG, "config field=0x%02x value=%u accepted",
+             (unsigned)write.field, (unsigned)write.value);
+    return 0;
+}
+
+/** 给 ATT Write Response 留出发送时间，再执行芯片软重启。 */
+static void restart_task(void *arg)
+{
+    (void)arg;
+    vTaskDelay(pdMS_TO_TICKS(DESK_BLE_RESTART_DELAY_MS));
+    ESP_LOGW(TAG, "restarting by encrypted BLE request");
+    esp_restart();
+}
+
+static int system_access(uint16_t conn_handle, uint16_t attr_handle,
+                         struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)arg;
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    uint8_t raw = 0;
+    if (OS_MBUF_PKTLEN(ctxt->om) != sizeof(raw)) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    if (os_mbuf_copydata(ctxt->om, 0, sizeof(raw), &raw) != 0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_system_command_t command;
+    if (!desk_ble_system_command_decode(&raw, sizeof(raw), &command)) {
+        return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+    }
+    if (s_restart_pending) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    esp_err_t err = desk_core_stop();
+    if (err == ESP_OK) {
+        s_restart_pending = true;
+        if (xTaskCreate(restart_task, "ble_restart", 2048, NULL,
+                        tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
+            s_restart_pending = false;
+            err = ESP_ERR_NO_MEM;
+        }
+    }
+    if (err != ESP_OK) {
+        return command_error_to_att(err);
+    }
+    ESP_LOGI(TAG, "system restart accepted");
+    return 0;
+}
+
+/** Expose the exact flashed image identity without coupling clients to HTTP. */
+static int firmware_revision_access(uint16_t conn_handle, uint16_t attr_handle,
+                                    struct ble_gatt_access_ctxt *ctxt,
+                                    void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)arg;
+    if (ctxt->op != BLE_GATT_ACCESS_OP_READ_CHR) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    const esp_app_desc_t *app = esp_app_get_description();
+    if (!app) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    char revision[DESK_BLE_FIRMWARE_REVISION_MAX_LEN];
+    int length = snprintf(
+        revision, sizeof(revision), "%s %s # %02x%02x%02x%02x", app->date,
+        app->time, app->app_elf_sha256[0], app->app_elf_sha256[1],
+        app->app_elf_sha256[2], app->app_elf_sha256[3]);
+    if (length < 0 || (size_t)length >= sizeof(revision)) {
+        return BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+    return os_mbuf_append(ctxt->om, revision, (uint16_t)length) == 0
+               ? 0
+               : BLE_ATT_ERR_INSUFFICIENT_RES;
+}
+
 static const struct ble_gatt_chr_def s_characteristics[] = {
     {
         .uuid = &s_command_uuid.u,
@@ -242,6 +430,28 @@ static const struct ble_gatt_chr_def s_characteristics[] = {
         .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
         .val_handle = &s_state_value_handle,
     },
+    {
+        .uuid = &s_config_uuid.u,
+        .access_cb = config_access,
+        /* 读取用于展示真实状态；写入必须在配对加密后才能执行。 */
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY |
+                 BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC,
+        .val_handle = &s_config_value_handle,
+    },
+    {
+        .uuid = &s_system_uuid.u,
+        .access_cb = system_access,
+        .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC,
+    },
+    {0},
+};
+
+static const struct ble_gatt_chr_def s_device_information_characteristics[] = {
+    {
+        .uuid = &s_firmware_revision_uuid.u,
+        .access_cb = firmware_revision_access,
+        .flags = BLE_GATT_CHR_F_READ,
+    },
     {0},
 };
 
@@ -250,6 +460,11 @@ static const struct ble_gatt_svc_def s_services[] = {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = &s_service_uuid.u,
         .characteristics = s_characteristics,
+    },
+    {
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = &s_device_information_service_uuid.u,
+        .characteristics = s_device_information_characteristics,
     },
     {0},
 };
@@ -272,6 +487,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_DISCONNECT:
         s_connected = false;
         s_state_subscribed = false;
+        s_config_subscribed = false;
         stop_owned_motion("BLE disconnected");
         ESP_LOGI(TAG, "client disconnected reason=%d",
                  event->disconnect.reason);
@@ -285,6 +501,12 @@ static int gap_event(struct ble_gap_event *event, void *arg)
             if (s_state_subscribed) {
                 ble_gatts_chr_updated(s_state_value_handle);
             }
+        } else if (event->subscribe.attr_handle == s_config_value_handle) {
+            s_config_subscribed = event->subscribe.cur_notify != 0;
+            ESP_LOGI(TAG, "config notify -> %d", (int)s_config_subscribed);
+            if (s_config_subscribed) {
+                ble_gatts_chr_updated(s_config_value_handle);
+            }
         }
         return 0;
 
@@ -292,6 +514,27 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         ESP_LOGI(TAG, "encryption changed status=%d",
                  event->enc_change.status);
         return 0;
+
+    case BLE_GAP_EVENT_REPEAT_PAIRING: {
+        /*
+         * iOS“忽略此设备”只会删除手机端密钥。ESP32 仍保留旧 bond 时，
+         * 必须删除该 peer 的旧密钥并让 NimBLE 重试，否则首个加密写会一直
+         * 卡在配对阶段。这里只删除当前 peer，不影响 Wi-Fi 或桌子设置。
+         */
+        struct ble_gap_conn_desc desc;
+        int rc = ble_gap_conn_find(event->repeat_pairing.conn_handle, &desc);
+        if (rc != 0) {
+            ESP_LOGE(TAG, "repeat pairing peer lookup failed: %d", rc);
+            return BLE_GAP_REPEAT_PAIRING_IGNORE;
+        }
+        rc = ble_store_util_delete_peer(&desc.peer_id_addr);
+        if (rc != 0) {
+            ESP_LOGE(TAG, "delete stale BLE bond failed: %d", rc);
+            return BLE_GAP_REPEAT_PAIRING_IGNORE;
+        }
+        ESP_LOGW(TAG, "stale BLE bond removed; retry pairing");
+        return BLE_GAP_REPEAT_PAIRING_RETRY;
+    }
 
     case BLE_GAP_EVENT_ADV_COMPLETE:
         start_advertising();
@@ -372,12 +615,16 @@ static void state_notify_task(void *arg)
 {
     (void)arg;
     uint8_t previous[DESK_BLE_STATE_LENGTH] = {0};
+    uint8_t previous_config[DESK_BLE_CONFIG_LENGTH] = {0};
     bool previous_valid = false;
+    bool previous_config_valid = false;
     uint32_t last_notify_ms = 0;
 
     for (;;) {
         uint8_t state[DESK_BLE_STATE_LENGTH];
         current_state(state);
+        uint8_t config[DESK_BLE_CONFIG_LENGTH];
+        current_config(config);
         if (state[1] == DESK_STATUS_IDLE) {
             /* 清掉已闭环结束的档位所有权，避免之后断连误停其他入口。 */
             take_motion_ownership(false);
@@ -393,8 +640,17 @@ static void state_notify_task(void *arg)
             ble_gatts_chr_updated(s_state_value_handle);
             last_notify_ms = now;
         }
+        bool config_changed = !previous_config_valid ||
+                              memcmp(previous_config, config,
+                                     sizeof(config)) != 0;
+        if (s_stack_synced && s_connected && s_config_subscribed &&
+            config_changed) {
+            ble_gatts_chr_updated(s_config_value_handle);
+        }
         memcpy(previous, state, sizeof(previous));
+        memcpy(previous_config, config, sizeof(previous_config));
         previous_valid = true;
+        previous_config_valid = true;
         vTaskDelay(pdMS_TO_TICKS(DESK_BLE_STATE_POLL_MS));
     }
 }

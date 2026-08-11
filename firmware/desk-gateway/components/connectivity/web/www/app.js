@@ -8,7 +8,6 @@
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
   };
-  const desk = document.getElementById('desk');
   const railFill = document.getElementById('railFill');
   const heightEl = document.getElementById('height');
   const meta = document.getElementById('meta');
@@ -136,15 +135,9 @@
 
     if (s.height_known && typeof s.height_mm === 'number') {
       const t = Math.min(1, Math.max(0, (s.height_mm - 700) / 500));
-      desk.style.setProperty('--lift', (t * 42).toFixed(1) + 'px');
-      // The inner columns extend by the same distance that the complete upper
-      // assembly rises, keeping both feet visually anchored to the floor.
-      desk.style.setProperty('--extension', (1 + t * 42 / 68).toFixed(3));
       railFill.style.height = (12 + t * 76).toFixed(1) + '%';
       heightEl.textContent = (s.height_mm / 10).toFixed(1);
     } else {
-      desk.style.setProperty('--lift', '0px');
-      desk.style.setProperty('--extension', '1');
       heightEl.textContent = '—';
       railFill.style.height = '12%';
     }

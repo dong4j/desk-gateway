@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Desk Gateway",
+    "slug": "desk-gateway",
+    "scheme": "deskgateway",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.dong4j.deskgateway",
+      "appleTeamId": "8WCUMGCWMB"
+    },
+    "android": {
+      "package": "com.dong4j.deskgateway",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "react-native-ble-manager",
+        {
+          "bluetoothAlwaysPermission": "Desk Gateway 需要使用蓝牙连接并控制升降桌。",
+          "isBleRequired": true,
+          "neverForLocation": true
+        }
+      ]
+    ]
+  }
+}

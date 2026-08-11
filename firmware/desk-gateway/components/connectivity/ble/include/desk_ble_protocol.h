@@ -17,6 +17,8 @@ extern "C" {
 
 #define DESK_BLE_PROTOCOL_VERSION 0x01
 #define DESK_BLE_STATE_LENGTH     8
+#define DESK_BLE_CONFIG_LENGTH    4
+#define DESK_BLE_CONFIG_WRITE_LENGTH 4
 #define DESK_BLE_HEIGHT_UNKNOWN   UINT16_C(0xFFFF)
 
 typedef enum {
@@ -27,12 +29,32 @@ typedef enum {
     DESK_BLE_COMMAND_PRESET_4 = 0x14,
 } desk_ble_command_t;
 
+/** Config 写入按字段更新，避免客户端用旧快照覆盖其他入口刚修改的设置。 */
+typedef enum {
+    DESK_BLE_CONFIG_FIELD_CHILD_LOCK = 0x01,
+    DESK_BLE_CONFIG_FIELD_REST_ENABLED = 0x02,
+    DESK_BLE_CONFIG_FIELD_BLUETOOTH_ENABLED = 0x03,
+    DESK_BLE_CONFIG_FIELD_PANEL_ENABLED = 0x04,
+    DESK_BLE_CONFIG_FIELD_MAX_HEIGHT_MM = 0x05,
+} desk_ble_config_field_t;
+
+typedef enum {
+    DESK_BLE_SYSTEM_COMMAND_RESTART = 0x01,
+} desk_ble_system_command_t;
+
 enum {
     DESK_BLE_STATE_FLAG_HEIGHT_KNOWN = UINT8_C(1) << 0,
     DESK_BLE_STATE_FLAG_HEIGHT_SIM = UINT8_C(1) << 1,
     DESK_BLE_STATE_FLAG_CHILD_LOCK = UINT8_C(1) << 2,
     DESK_BLE_STATE_FLAG_BLUETOOTH_ENABLED = UINT8_C(1) << 3,
     DESK_BLE_STATE_FLAG_UPWARD_BLOCKED = UINT8_C(1) << 4,
+};
+
+enum {
+    DESK_BLE_CONFIG_FLAG_CHILD_LOCK = UINT8_C(1) << 0,
+    DESK_BLE_CONFIG_FLAG_REST_ENABLED = UINT8_C(1) << 1,
+    DESK_BLE_CONFIG_FLAG_BLUETOOTH_ENABLED = UINT8_C(1) << 2,
+    DESK_BLE_CONFIG_FLAG_PANEL_ENABLED = UINT8_C(1) << 3,
 };
 
 typedef struct {
@@ -46,6 +68,19 @@ typedef struct {
     int max_height_mm;
 } desk_ble_state_input_t;
 
+typedef struct {
+    bool child_lock;
+    bool rest_enabled;
+    bool bluetooth_enabled;
+    bool panel_enabled;
+    int max_height_mm;
+} desk_ble_config_input_t;
+
+typedef struct {
+    desk_ble_config_field_t field;
+    uint16_t value;
+} desk_ble_config_write_t;
+
 /** 解析 Command characteristic 的单字节指令。 */
 bool desk_ble_command_decode(const uint8_t *data, size_t len,
                              desk_ble_command_t *out_command);
@@ -53,6 +88,18 @@ bool desk_ble_command_decode(const uint8_t *data, size_t len,
 /** 将桌面状态编码为固定 8 字节、小端序的 State characteristic 数据。 */
 size_t desk_ble_state_encode(const desk_ble_state_input_t *input,
                              uint8_t *out, size_t out_len);
+
+/** 将设备设置编码为固定 4 字节 Config 快照。 */
+size_t desk_ble_config_encode(const desk_ble_config_input_t *input,
+                              uint8_t *out, size_t out_len);
+
+/** 解析固定 4 字节 Config 字段更新请求。 */
+bool desk_ble_config_write_decode(const uint8_t *data, size_t len,
+                                  desk_ble_config_write_t *out_write);
+
+/** 解析 System characteristic 的单字节管理命令。 */
+bool desk_ble_system_command_decode(const uint8_t *data, size_t len,
+                                    desk_ble_system_command_t *out_command);
 
 #ifdef __cplusplus
 }

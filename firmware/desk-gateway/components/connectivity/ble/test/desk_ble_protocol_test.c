@@ -57,10 +57,48 @@ static void test_state_encode(void)
     assert(state[4] == 0xff && state[5] == 0xff);
 }
 
+static void test_config_protocol(void)
+{
+    desk_ble_config_input_t input = {
+        .child_lock = true,
+        .rest_enabled = true,
+        .bluetooth_enabled = false,
+        .panel_enabled = true,
+        .max_height_mm = 1100,
+    };
+    uint8_t config[DESK_BLE_CONFIG_LENGTH];
+    assert(desk_ble_config_encode(&input, config, sizeof(config)) ==
+           DESK_BLE_CONFIG_LENGTH);
+    const uint8_t expected[] = {0x01, 0x0b, 0x4c, 0x04};
+    assert(memcmp(config, expected, sizeof(expected)) == 0);
+
+    const uint8_t write_max[] = {0x01, 0x05, 0xfc, 0x03};
+    desk_ble_config_write_t write;
+    assert(desk_ble_config_write_decode(write_max, sizeof(write_max),
+                                        &write));
+    assert(write.field == DESK_BLE_CONFIG_FIELD_MAX_HEIGHT_MM);
+    assert(write.value == 1020);
+
+    const uint8_t invalid_bool[] = {0x01, 0x01, 0x02, 0x00};
+    assert(!desk_ble_config_write_decode(invalid_bool, sizeof(invalid_bool),
+                                         &write));
+    const uint8_t unknown_field[] = {0x01, 0x7f, 0x00, 0x00};
+    assert(!desk_ble_config_write_decode(unknown_field,
+                                         sizeof(unknown_field), &write));
+
+    const uint8_t restart = DESK_BLE_SYSTEM_COMMAND_RESTART;
+    desk_ble_system_command_t system_command;
+    assert(desk_ble_system_command_decode(&restart, 1, &system_command));
+    const uint8_t unknown_system_command = 0x7f;
+    assert(!desk_ble_system_command_decode(&unknown_system_command, 1,
+                                           &system_command));
+}
+
 int main(void)
 {
     test_command_decode();
     test_state_encode();
+    test_config_protocol();
     puts("desk_ble_protocol_test: OK");
     return 0;
 }

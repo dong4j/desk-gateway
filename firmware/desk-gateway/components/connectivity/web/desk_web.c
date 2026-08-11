@@ -46,6 +46,8 @@ extern const uint8_t www_app_js_start[] asm("_binary_app_js_start");
 extern const uint8_t www_app_js_end[] asm("_binary_app_js_end");
 extern const uint8_t www_style_css_start[] asm("_binary_style_css_start");
 extern const uint8_t www_style_css_end[] asm("_binary_style_css_end");
+extern const uint8_t www_desk_workstation_webp_start[] asm("_binary_desk_workstation_webp_start");
+extern const uint8_t www_desk_workstation_webp_end[] asm("_binary_desk_workstation_webp_end");
 extern const uint8_t www_setup_html_start[] asm("_binary_setup_html_start");
 extern const uint8_t www_setup_html_end[] asm("_binary_setup_html_end");
 
@@ -441,6 +443,11 @@ static esp_err_t handler_css(httpd_req_t *req)
 {
     return send_embed(req, "text/css", www_style_css_start, www_style_css_end);
 }
+static esp_err_t handler_desk_workstation(httpd_req_t *req)
+{
+    return send_embed(req, "image/webp", www_desk_workstation_webp_start,
+                      www_desk_workstation_webp_end);
+}
 
 /** SoftAP 下免登录写 WiFi；已入网后拒绝（防局域网未授权改密） */
 static esp_err_t handler_setup_wifi(httpd_req_t *req)
@@ -502,6 +509,7 @@ esp_err_t desk_web_start(void)
         {.uri = "/login.html", .method = HTTP_GET, .handler = handler_login_page},
         {.uri = "/app.js", .method = HTTP_GET, .handler = handler_app_js},
         {.uri = "/style.css", .method = HTTP_GET, .handler = handler_css},
+        {.uri = "/desk-workstation.webp", .method = HTTP_GET, .handler = handler_desk_workstation},
         {.uri = "/api/v1/setup/wifi", .method = HTTP_POST, .handler = handler_setup_wifi},
         {.uri = "/api/v1/auth/login", .method = HTTP_POST, .handler = handler_login},
         {.uri = "/api/v1/auth/password", .method = HTTP_POST, .handler = handler_password},

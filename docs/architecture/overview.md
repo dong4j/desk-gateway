@@ -89,6 +89,8 @@ docs/superpowers/specs/     ← 设计定稿
 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) | 实现依据 |
 | [小米/华为生态调研](./ecosystem-xiaomi-huawei.md) | 模组 vs Matter |
 | [BLE 外设 Profile](./ble-accessory-profile.md) | 旋钮/OLED 配件总线 |
+| [移动端技术选型](./mobile-app-technology-selection.md) | React Native 手机端与 BLE 验证门禁 |
+| [Apple Watch 控制方案](./apple-watch-control.md) | SwiftUI Watch App 与直连 BLE 安全边界 |
 | [需求](../0-requirements.md) | 做什么、阶段门禁 |
 | [主控板](../2-esp32-s3-n16r8-platform.md) | YD-ESP32-S3 N16R8 |
 | [协议逆向](../3-protocol-reverse-notes.md) | yourdesk_v1 契约 |

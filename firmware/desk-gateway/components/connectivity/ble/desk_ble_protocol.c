@@ -74,3 +74,77 @@ size_t desk_ble_state_encode(const desk_ble_state_input_t *input,
     put_u16_le(&out[6], max_height);
     return DESK_BLE_STATE_LENGTH;
 }
+
+size_t desk_ble_config_encode(const desk_ble_config_input_t *input,
+                              uint8_t *out, size_t out_len)
+{
+    if (!input || !out || out_len < DESK_BLE_CONFIG_LENGTH) {
+        return 0;
+    }
+
+    uint8_t flags = 0;
+    if (input->child_lock) {
+        flags |= DESK_BLE_CONFIG_FLAG_CHILD_LOCK;
+    }
+    if (input->rest_enabled) {
+        flags |= DESK_BLE_CONFIG_FLAG_REST_ENABLED;
+    }
+    if (input->bluetooth_enabled) {
+        flags |= DESK_BLE_CONFIG_FLAG_BLUETOOTH_ENABLED;
+    }
+    if (input->panel_enabled) {
+        flags |= DESK_BLE_CONFIG_FLAG_PANEL_ENABLED;
+    }
+
+    out[0] = DESK_BLE_PROTOCOL_VERSION;
+    out[1] = flags;
+    uint16_t max_height = 0;
+    if (input->max_height_mm > 0 &&
+        input->max_height_mm <= (int)UINT16_MAX) {
+        max_height = (uint16_t)input->max_height_mm;
+    }
+    put_u16_le(&out[2], max_height);
+    return DESK_BLE_CONFIG_LENGTH;
+}
+
+bool desk_ble_config_write_decode(const uint8_t *data, size_t len,
+                                  desk_ble_config_write_t *out_write)
+{
+    if (!data || !out_write || len != DESK_BLE_CONFIG_WRITE_LENGTH ||
+        data[0] != DESK_BLE_PROTOCOL_VERSION) {
+        return false;
+    }
+
+    desk_ble_config_field_t field = (desk_ble_config_field_t)data[1];
+    uint16_t value = (uint16_t)data[2] | ((uint16_t)data[3] << 8);
+    switch (field) {
+    case DESK_BLE_CONFIG_FIELD_CHILD_LOCK:
+    case DESK_BLE_CONFIG_FIELD_REST_ENABLED:
+    case DESK_BLE_CONFIG_FIELD_BLUETOOTH_ENABLED:
+    case DESK_BLE_CONFIG_FIELD_PANEL_ENABLED:
+        if (value > 1) {
+            return false;
+        }
+        break;
+    case DESK_BLE_CONFIG_FIELD_MAX_HEIGHT_MM:
+        /* 具体安全范围由 desk_core 统一校验，协议层只负责字节格式。 */
+        break;
+    default:
+        return false;
+    }
+
+    out_write->field = field;
+    out_write->value = value;
+    return true;
+}
+
+bool desk_ble_system_command_decode(const uint8_t *data, size_t len,
+                                    desk_ble_system_command_t *out_command)
+{
+    if (!data || !out_command || len != 1 ||
+        data[0] != DESK_BLE_SYSTEM_COMMAND_RESTART) {
+        return false;
+    }
+    *out_command = DESK_BLE_SYSTEM_COMMAND_RESTART;
+    return true;
+}
