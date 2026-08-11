@@ -10,6 +10,8 @@
 
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "sdkconfig.h"
@@ -24,6 +26,12 @@ static const char *NVS_KEY_PRESET4_HEIGHT = "preset4_mm";
 
 #define DESK_PRESET1_HEIGHT_MM_DEFAULT 640
 #define DESK_PRESET4_HEIGHT_MM_DEFAULT 1020
+
+/*
+ * 当前 YourDesk 控制盒实测：DOWN 保持 100 ms 后立即 STOP，不产生可见位移，
+ * 但会让控制盒发送当前高度显示帧。该时长是本机硬件经验值，不是协议常量。
+ */
+#define DESK_STARTUP_HEIGHT_PROBE_MS 100U
 
 /*
  * 单次旋转只进入待命；700 ms 窗口内第二个同方向事件才启动。
@@ -335,6 +343,54 @@ static esp_err_t save_preset_heights(void)
     return err;
 }
 
+/**
+ * 启动时用一次极短 DOWN 脉冲唤醒控制盒高度显示帧。
+ *
+ * 该探测发生在 BLE/Wi-Fi/Web 启动之前，不会打断外部控制；童锁仍具有最高
+ * 优先级。仅在驱动明确表示高度尚未知时执行一次，避免重复探测造成位移。
+ */
+static void probe_startup_height_if_unknown(const desk_driver_t *drv)
+{
+    if (!drv || !drv->get_height_mm) {
+        return;
+    }
+
+    int height_mm = 0;
+    esp_err_t height_err = drv->get_height_mm(&height_mm);
+    if (height_err == ESP_OK) {
+        ESP_LOGI(TAG, "startup height already known: %d mm", height_mm);
+        return;
+    }
+    if (height_err == ESP_ERR_NOT_SUPPORTED) {
+        return;
+    }
+    if (height_err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "startup height check failed: %s",
+                 esp_err_to_name(height_err));
+        return;
+    }
+    if (s_control_policy.child_lock) {
+        ESP_LOGI(TAG, "startup height probe skipped: child lock enabled");
+        return;
+    }
+
+    ESP_LOGI(TAG, "startup height unknown; probing DOWN for %u ms",
+             (unsigned)DESK_STARTUP_HEIGHT_PROBE_MS);
+    esp_err_t err = desk_core_hold_down(DESK_CONTROL_SOURCE_CONSOLE);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "startup height probe rejected: %s",
+                 esp_err_to_name(err));
+        return;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(DESK_STARTUP_HEIGHT_PROBE_MS));
+    err = desk_core_stop();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "startup height probe stop failed: %s",
+                 esp_err_to_name(err));
+    }
+}
+
 esp_err_t desk_core_init(const desk_driver_t *drv)
 {
     const esp_timer_create_args_t args = {
@@ -377,6 +433,7 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
             return err;
         }
     }
+    probe_startup_height_if_unknown(drv);
     ESP_LOGI(TAG,
              "init ok; child_lock=%d; sources=0x%08lx; max_height=%d mm; "
              "preset1=%d mm; preset4=%d mm; motion_timeout=%d ms",
