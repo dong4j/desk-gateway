@@ -123,7 +123,7 @@ export function HomeScreen({
 
         <View style={styles.controlsRow}>
           <HoldControl
-            label="按住升"
+            label="按住升高"
             direction="up"
             disabled={motionBlocked}
             onPressIn={onHoldUpStart}
@@ -143,7 +143,7 @@ export function HomeScreen({
             <StopIcon size={29} color={palette.white} />
           </Pressable>
           <HoldControl
-            label="按住降"
+            label="按住降低"
             direction="down"
             disabled={motionBlocked}
             onPressIn={onHoldDownStart}
