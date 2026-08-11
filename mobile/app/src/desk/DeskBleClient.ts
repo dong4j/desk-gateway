@@ -222,6 +222,43 @@ export class DeskBleClient {
     return this.writeConfig('max_height_mm', maxHeightMm);
   }
 
+  setPresetHeightMm(preset: 1 | 4, heightMm: number): Promise<void> {
+    return this.writeConfig(
+      preset === 1 ? 'preset1_height_mm' : 'preset4_height_mm',
+      heightMm,
+    );
+  }
+
+  /**
+   * 按不会暂时破坏“请坐 < 站立”的顺序串行更新两个字段。
+   * 固件每次写入都会回读 Config，因此 Web 与其他 BLE 订阅者仍以设备状态为准。
+   */
+  async setPresetHeightsMm(
+    preset1HeightMm: number,
+    preset4HeightMm: number,
+  ): Promise<void> {
+    const current = this.snapshot.deskConfig;
+    if (!current) {
+      throw new Error('Connected firmware does not support BLE Config');
+    }
+    if (preset1HeightMm >= preset4HeightMm) {
+      throw new Error('Sit preset must be lower than standing preset');
+    }
+
+    const writes: Array<[1 | 4, number]> =
+      preset1HeightMm >= current.preset4HeightMm
+        ? [[4, preset4HeightMm], [1, preset1HeightMm]]
+        : [[1, preset1HeightMm], [4, preset4HeightMm]];
+    for (const [preset, value] of writes) {
+      const currentValue = preset === 1
+        ? this.snapshot.deskConfig?.preset1HeightMm
+        : this.snapshot.deskConfig?.preset4HeightMm;
+      if (currentValue !== value) {
+        await this.setPresetHeightMm(preset, value);
+      }
+    }
+  }
+
   restartGateway(): Promise<void> {
     return this.enqueueWrite(
       DESK_SYSTEM_UUID,

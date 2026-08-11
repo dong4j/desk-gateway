@@ -26,6 +26,8 @@ typedef struct {
     bool child_lock;
     bool upward_blocked;
     int max_height_mm;
+    int preset1_height_mm;
+    int preset4_height_mm;
     uint32_t enabled_sources;
     const char *driver;
 } desk_core_snapshot_t;
@@ -48,6 +50,9 @@ esp_err_t desk_core_set_source_enabled(desk_control_source_t source,
 bool desk_core_get_source_enabled(desk_control_source_t source);
 esp_err_t desk_core_set_max_height_mm(int max_height_mm);
 int desk_core_get_max_height_mm(void);
+/** 两个档位作为一组校验和持久化，避免多入口观察到半更新状态。 */
+esp_err_t desk_core_set_preset_heights_mm(int preset1_height_mm,
+                                          int preset4_height_mm);
 desk_core_snapshot_t desk_core_snapshot(void);
 
 #ifdef __cplusplus

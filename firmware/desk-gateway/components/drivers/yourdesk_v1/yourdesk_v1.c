@@ -126,6 +126,8 @@ static atomic_bool s_panel_connected;
 #if YOURDESK_HEIGHT_INPUT_ENABLED
 static atomic_int s_height_mm;
 static atomic_int s_max_height_mm;
+static atomic_int s_preset1_height_mm;
+static atomic_int s_preset4_height_mm;
 static atomic_int s_preset_target_mm;
 static atomic_int s_preset_direction;
 static atomic_int s_safety_anchor_mm;
@@ -684,6 +686,8 @@ static esp_err_t yd_init(void)
 #if YOURDESK_HEIGHT_INPUT_ENABLED
     atomic_store(&s_height_mm, -1);
     atomic_store(&s_max_height_mm, CONFIG_DESK_MAX_HEIGHT_MM);
+    atomic_store(&s_preset1_height_mm, YOURDESK_HEIGHT_MIN_MM);
+    atomic_store(&s_preset4_height_mm, 1020);
     atomic_store(&s_safety_anchor_mm, -1);
     atomic_store(&s_up_limit_latched, false);
     atomic_store(&s_motion_epoch, 1);
@@ -843,7 +847,9 @@ static esp_err_t yd_goto_preset(uint8_t n)
         return ESP_ERR_INVALID_STATE;
     }
 #if YOURDESK_HEIGHT_INPUT_ENABLED
-    int target_mm = yourdesk_preset_target_mm(n);
+    int target_mm = yourdesk_preset_target_mm(
+        n, atomic_load(&s_preset1_height_mm),
+        atomic_load(&s_preset4_height_mm));
     if (target_mm < 0) {
         return ESP_ERR_NOT_SUPPORTED;
     }
@@ -912,6 +918,25 @@ static esp_err_t yd_set_max_height_mm(int max_height_mm)
     return ESP_OK;
 #else
     (void)max_height_mm;
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+static esp_err_t yd_set_preset_heights_mm(int preset1_height_mm,
+                                           int preset4_height_mm)
+{
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    if (preset1_height_mm < YOURDESK_HEIGHT_MIN_MM ||
+        preset1_height_mm > preset4_height_mm ||
+        preset4_height_mm > YOURDESK_HEIGHT_MAX_MM) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    atomic_store(&s_preset1_height_mm, preset1_height_mm);
+    atomic_store(&s_preset4_height_mm, preset4_height_mm);
+    return ESP_OK;
+#else
+    (void)preset1_height_mm;
+    (void)preset4_height_mm;
     return ESP_ERR_NOT_SUPPORTED;
 #endif
 }
@@ -1006,6 +1031,7 @@ const desk_driver_t yourdesk_v1_driver = {
     .save_preset = yd_save_preset,
     .get_height_mm = yd_get_height_mm,
     .set_max_height_mm = yd_set_max_height_mm,
+    .set_preset_heights_mm = yd_set_preset_heights_mm,
     .is_upward_blocked = yd_is_upward_blocked,
     .set_panel_enabled = yd_set_panel_enabled,
     .get_status = yd_get_status,

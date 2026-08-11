@@ -9,9 +9,9 @@
 
 int main(void)
 {
-    assert(yourdesk_preset_target_mm(1) == 640);
-    assert(yourdesk_preset_target_mm(4) == 1020);
-    assert(yourdesk_preset_target_mm(2) == -1);
+    assert(yourdesk_preset_target_mm(1, 650, 1050) == 650);
+    assert(yourdesk_preset_target_mm(4, 650, 1050) == 1050);
+    assert(yourdesk_preset_target_mm(2, 650, 1050) == -1);
     assert(yourdesk_preset_bootstrap_direction(1) == YOURDESK_PRESET_DOWN);
     assert(yourdesk_preset_bootstrap_direction(4) == YOURDESK_PRESET_STOP);
     assert(yourdesk_preset_limit_target_mm(1020, 900) == 900);

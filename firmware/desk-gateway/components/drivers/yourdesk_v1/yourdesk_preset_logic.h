@@ -20,8 +20,9 @@ typedef enum {
     YOURDESK_PRESET_DOWN = -1,
 } yourdesk_preset_direction_t;
 
-/** Return the fixed target in millimetres, or -1 for an unsupported preset. */
-int yourdesk_preset_target_mm(uint8_t preset);
+/** Return the configured target in millimetres, or -1 for an unsupported preset. */
+int yourdesk_preset_target_mm(uint8_t preset, int preset1_height_mm,
+                              int preset4_height_mm);
 
 /**
  * Return the only safe bootstrap direction when height is unknown.

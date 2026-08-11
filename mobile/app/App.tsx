@@ -44,7 +44,7 @@ interface AppPreferences {
 const defaultPreferences: AppPreferences = {
   autoConnect: true,
   hapticFeedback: true,
-  hapticStrength: 75,
+  hapticStrength: 70,
 };
 
 export default function App() {
@@ -294,6 +294,14 @@ export default function App() {
           onSetMaxHeightMm={(maxHeightMm) =>
             runCommand(clientRef.current!.setMaxHeightMm(maxHeightMm))
           }
+          onSetPresetHeightsMm={(preset1HeightMm, preset4HeightMm) =>
+            runCommand(
+              clientRef.current!.setPresetHeightsMm(
+                preset1HeightMm,
+                preset4HeightMm,
+              ),
+            )
+          }
           onRestart={() =>
             runCommand(clientRef.current!.restartGateway())
           }
@@ -312,23 +320,17 @@ function runSafely(operation: Promise<void>): void {
   void operation.catch(() => undefined);
 }
 
-/** expo-haptics 只提供离散反馈等级，因此滑块在这里映射为最接近的系统等级。 */
+/** expo-haptics 只提供离散反馈等级，三档设置在这里映射到系统等级。 */
 function impactStyleForStrength(
   strength: number,
 ): Haptics.ImpactFeedbackStyle {
-  if (strength >= 90) {
-    return Haptics.ImpactFeedbackStyle.Rigid;
-  }
-  if (strength >= 70) {
+  if (strength >= 85) {
     return Haptics.ImpactFeedbackStyle.Heavy;
   }
-  if (strength >= 45) {
+  if (strength >= 50) {
     return Haptics.ImpactFeedbackStyle.Medium;
   }
-  if (strength >= 20) {
-    return Haptics.ImpactFeedbackStyle.Light;
-  }
-  return Haptics.ImpactFeedbackStyle.Soft;
+  return Haptics.ImpactFeedbackStyle.Light;
 }
 
 /** 强度越高，长按期间的触感脉冲越密集，但保留 160ms 下限避免持续轰振。 */
@@ -337,5 +339,5 @@ function pulseIntervalForStrength(strength: number): number {
 }
 
 function normalizeHapticStrength(strength: number): number {
-  return Math.max(0, Math.min(100, Math.round(strength)));
+  return strength < 50 ? 30 : strength < 85 ? 70 : 100;
 }

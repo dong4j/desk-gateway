@@ -80,6 +80,27 @@
           <p class="settings-note">保存后立即生效，断电或重启后仍会保留；固件会按最坏上升速度提前停止。</p>
           <p id="maxHeightMsg" class="hint"></p>
 
+          <form id="presetHeightForm" class="settings-form settings-divider">
+            <label>档位高度（cm）</label>
+            <div class="settings-row preset-settings-row">
+              <label class="compact-field" for="preset1Height">
+                <span>请坐</span>
+                <input id="preset1Height" name="preset1Height" type="number"
+                       min="64" max="128" step="1" value="64" required
+                       inputmode="numeric" />
+              </label>
+              <label class="compact-field" for="preset4Height">
+                <span>站立</span>
+                <input id="preset4Height" name="preset4Height" type="number"
+                       min="65" max="129" step="1" value="102" required
+                       inputmode="numeric" />
+              </label>
+              <button type="submit">保存</button>
+            </div>
+          </form>
+          <p class="settings-note">请坐必须低于站立，站立不得超过最高安全高度。</p>
+          <p id="presetHeightMsg" class="hint"></p>
+
           <div class="settings-form settings-divider">
             <label>允许操作的入口</label>
             <label class="source-option">

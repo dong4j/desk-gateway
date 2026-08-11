@@ -96,7 +96,7 @@ size_t desk_ble_config_encode(const desk_ble_config_input_t *input,
         flags |= DESK_BLE_CONFIG_FLAG_PANEL_ENABLED;
     }
 
-    out[0] = DESK_BLE_PROTOCOL_VERSION;
+    out[0] = DESK_BLE_CONFIG_VERSION;
     out[1] = flags;
     uint16_t max_height = 0;
     if (input->max_height_mm > 0 &&
@@ -104,6 +104,18 @@ size_t desk_ble_config_encode(const desk_ble_config_input_t *input,
         max_height = (uint16_t)input->max_height_mm;
     }
     put_u16_le(&out[2], max_height);
+    uint16_t preset1_height = 0;
+    if (input->preset1_height_mm > 0 &&
+        input->preset1_height_mm <= (int)UINT16_MAX) {
+        preset1_height = (uint16_t)input->preset1_height_mm;
+    }
+    put_u16_le(&out[4], preset1_height);
+    uint16_t preset4_height = 0;
+    if (input->preset4_height_mm > 0 &&
+        input->preset4_height_mm <= (int)UINT16_MAX) {
+        preset4_height = (uint16_t)input->preset4_height_mm;
+    }
+    put_u16_le(&out[6], preset4_height);
     return DESK_BLE_CONFIG_LENGTH;
 }
 
@@ -111,7 +123,8 @@ bool desk_ble_config_write_decode(const uint8_t *data, size_t len,
                                   desk_ble_config_write_t *out_write)
 {
     if (!data || !out_write || len != DESK_BLE_CONFIG_WRITE_LENGTH ||
-        data[0] != DESK_BLE_PROTOCOL_VERSION) {
+        (data[0] != DESK_BLE_PROTOCOL_VERSION &&
+         data[0] != DESK_BLE_CONFIG_VERSION)) {
         return false;
     }
 
@@ -128,6 +141,12 @@ bool desk_ble_config_write_decode(const uint8_t *data, size_t len,
         break;
     case DESK_BLE_CONFIG_FIELD_MAX_HEIGHT_MM:
         /* 具体安全范围由 desk_core 统一校验，协议层只负责字节格式。 */
+        break;
+    case DESK_BLE_CONFIG_FIELD_PRESET1_HEIGHT_MM:
+    case DESK_BLE_CONFIG_FIELD_PRESET4_HEIGHT_MM:
+        if (data[0] != DESK_BLE_CONFIG_VERSION) {
+            return false;
+        }
         break;
     default:
         return false;

@@ -375,6 +375,14 @@ body.is-moving .height { color: #5c4a28; }
   display: flex;
   gap: 0.5rem;
 }
+.preset-settings-row { align-items: end; }
+.settings-form .compact-field {
+  display: grid;
+  flex: 1;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
 .settings-form input {
   flex: 1;
   min-width: 0;

@@ -248,6 +248,8 @@ static size_t current_config(uint8_t out[DESK_BLE_CONFIG_LENGTH])
             (snapshot.enabled_sources & DESK_CONTROL_SOURCE_BIT(
                  DESK_CONTROL_SOURCE_PANEL)) != 0,
         .max_height_mm = snapshot.max_height_mm,
+        .preset1_height_mm = snapshot.preset1_height_mm,
+        .preset4_height_mm = snapshot.preset4_height_mm,
     };
     return desk_ble_config_encode(&input, out, DESK_BLE_CONFIG_LENGTH);
 }
@@ -285,6 +287,16 @@ static esp_err_t execute_config_write(const desk_ble_config_write_t *write)
                                             write->value != 0);
     case DESK_BLE_CONFIG_FIELD_MAX_HEIGHT_MM:
         return desk_core_set_max_height_mm((int)write->value);
+    case DESK_BLE_CONFIG_FIELD_PRESET1_HEIGHT_MM: {
+        desk_core_snapshot_t snapshot = desk_core_snapshot();
+        return desk_core_set_preset_heights_mm((int)write->value,
+                                                snapshot.preset4_height_mm);
+    }
+    case DESK_BLE_CONFIG_FIELD_PRESET4_HEIGHT_MM: {
+        desk_core_snapshot_t snapshot = desk_core_snapshot();
+        return desk_core_set_preset_heights_mm(snapshot.preset1_height_mm,
+                                                (int)write->value);
+    }
     default:
         return ESP_ERR_INVALID_ARG;
     }

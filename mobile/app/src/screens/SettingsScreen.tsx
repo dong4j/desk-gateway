@@ -7,8 +7,6 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  type GestureResponderEvent,
-  type LayoutChangeEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +14,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { DeskClientSnapshot } from '../desk/DeskBleClient';
@@ -47,6 +46,10 @@ interface SettingsScreenProps {
     enabled: boolean,
   ) => void;
   onSetMaxHeightMm: (maxHeightMm: number) => void;
+  onSetPresetHeightsMm: (
+    preset1HeightMm: number,
+    preset4HeightMm: number,
+  ) => void;
   onRestart: () => void;
   onDisconnect: () => void;
 }
@@ -63,6 +66,7 @@ export function SettingsScreen({
   onSetChildLock,
   onSetSourceEnabled,
   onSetMaxHeightMm,
+  onSetPresetHeightsMm,
   onRestart,
   onDisconnect,
 }: SettingsScreenProps) {
@@ -73,6 +77,11 @@ export function SettingsScreen({
   const maxHeightCm = maxHeightMm ? maxHeightMm / 10 : 110;
   const [maxHeightDraft, setMaxHeightDraft] = useState(String(maxHeightCm));
   const [maxHeightError, setMaxHeightError] = useState<string | null>(null);
+  const preset1HeightCm = (config?.preset1HeightMm ?? 640) / 10;
+  const preset4HeightCm = (config?.preset4HeightMm ?? 1020) / 10;
+  const [preset1Draft, setPreset1Draft] = useState(String(preset1HeightCm));
+  const [preset4Draft, setPreset4Draft] = useState(String(preset4HeightCm));
+  const [presetHeightError, setPresetHeightError] = useState<string | null>(null);
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
 
   useEffect(() => {
@@ -80,15 +89,42 @@ export function SettingsScreen({
     setMaxHeightError(null);
   }, [maxHeightCm]);
 
+  useEffect(() => {
+    setPreset1Draft(String(preset1HeightCm));
+    setPreset4Draft(String(preset4HeightCm));
+    setPresetHeightError(null);
+  }, [preset1HeightCm, preset4HeightCm]);
+
   const saveMaxHeight = () => {
     const centimetres = Number(maxHeightDraft);
     if (!Number.isFinite(centimetres) || centimetres < 64 || centimetres > 129) {
       setMaxHeightError('请输入 64–129 cm');
       return;
     }
+    if (centimetres < preset4HeightCm) {
+      setMaxHeightError(`最高安全高度不能低于站立档位 ${preset4HeightCm} cm`);
+      return;
+    }
     setMaxHeightError(null);
     onSetMaxHeightMm(Math.round(centimetres * 10));
   };
+
+  const savePresetHeights = () => {
+    const preset1Mm = Math.round(Number(preset1Draft) * 10);
+    const preset4Mm = Math.round(Number(preset4Draft) * 10);
+    if (!Number.isInteger(preset1Mm) || !Number.isInteger(preset4Mm) ||
+        preset1Mm < 640 || preset1Mm >= preset4Mm ||
+        preset4Mm > maxHeightCm * 10) {
+      setPresetHeightError('请坐需低于站立，且站立不得超过最高安全高度');
+      return;
+    }
+    setPresetHeightError(null);
+    onSetPresetHeightsMm(preset1Mm, preset4Mm);
+  };
+  const parsedMaxHeightDraft = Number(maxHeightDraft);
+  const maxHeightSliderValue = Number.isFinite(parsedMaxHeightDraft)
+    ? Math.max(64, Math.min(129, parsedMaxHeightDraft))
+    : maxHeightCm;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -142,7 +178,23 @@ export function SettingsScreen({
               <Text style={styles.settingTitle}>最高安全高度</Text>
               <Text style={styles.settingValue}>{maxHeightCm.toFixed(1)} cm</Text>
             </View>
-            <HeightTrack value={maxHeightCm} />
+            <View style={styles.sliderRow}>
+              <Text style={styles.sliderEdge}>64</Text>
+              <Slider
+                accessibilityLabel="最高安全高度"
+                disabled={!deviceSettingsAvailable}
+                minimumValue={64}
+                maximumValue={129}
+                step={1}
+                value={maxHeightSliderValue}
+                onValueChange={(value) => setMaxHeightDraft(value.toFixed(0))}
+                minimumTrackTintColor={palette.goldSoft}
+                maximumTrackTintColor={palette.surfaceMuted}
+                thumbTintColor={palette.gold}
+                style={styles.nativeSlider}
+              />
+              <Text style={styles.sliderEdge}>129</Text>
+            </View>
             <View style={styles.heightEditor}>
               <TextInput
                 accessibilityLabel="最高安全高度，单位厘米"
@@ -169,6 +221,60 @@ export function SettingsScreen({
             </View>
             {maxHeightError ? (
               <Text style={styles.heightError}>{maxHeightError}</Text>
+            ) : null}
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.presetSetting}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.settingTitle}>档位高度</Text>
+              <Text style={styles.settingDescription}>设备保存，多端同步</Text>
+            </View>
+            <View style={styles.presetEditorRow}>
+              <View style={styles.presetInputGroup}>
+                <Text style={styles.presetInputLabel}>请坐</Text>
+                <View style={styles.presetInputLine}>
+                  <TextInput
+                    accessibilityLabel="请坐高度，单位厘米"
+                    editable={deviceSettingsAvailable}
+                    keyboardType="number-pad"
+                    value={preset1Draft}
+                    onChangeText={setPreset1Draft}
+                    style={styles.presetInput}
+                  />
+                  <Text style={styles.heightUnit}>cm</Text>
+                </View>
+              </View>
+              <View style={styles.presetInputGroup}>
+                <Text style={styles.presetInputLabel}>站立</Text>
+                <View style={styles.presetInputLine}>
+                  <TextInput
+                    accessibilityLabel="站立高度，单位厘米"
+                    editable={deviceSettingsAvailable}
+                    keyboardType="number-pad"
+                    value={preset4Draft}
+                    onChangeText={setPreset4Draft}
+                    onSubmitEditing={savePresetHeights}
+                    style={styles.presetInput}
+                  />
+                  <Text style={styles.heightUnit}>cm</Text>
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                disabled={!deviceSettingsAvailable}
+                onPress={savePresetHeights}
+                style={({ pressed }) => [
+                  styles.heightSave,
+                  styles.presetSave,
+                  !deviceSettingsAvailable && styles.disabled,
+                  pressed && deviceSettingsAvailable && styles.pressed,
+                ]}
+              >
+                <Text style={styles.heightSaveText}>保存</Text>
+              </Pressable>
+            </View>
+            {presetHeightError ? (
+              <Text style={styles.heightError}>{presetHeightError}</Text>
             ) : null}
           </View>
           <View style={styles.divider} />
@@ -250,7 +356,7 @@ export function SettingsScreen({
             value={hapticFeedback}
             onPress={onToggleHapticFeedback}
           />
-          <HapticStrengthSlider
+          <HapticLevelSelector
             value={hapticStrength}
             disabled={!hapticFeedback}
             onChange={onSetHapticStrength}
@@ -311,10 +417,8 @@ function InfoRow({
   );
 }
 
-/**
- * 不引入原生 Slider 依赖的轻量强度滑块。松手后才写入偏好，避免拖动时连续写存储。
- */
-function HapticStrengthSlider({
+/** 三档触感比伪连续滑块更符合系统实际提供的离散震动等级。 */
+function HapticLevelSelector({
   value,
   disabled,
   onChange,
@@ -323,68 +427,41 @@ function HapticStrengthSlider({
   disabled: boolean;
   onChange: (value: number) => void;
 }) {
-  const [trackWidth, setTrackWidth] = useState(1);
-  const [draft, setDraft] = useState(value);
-
-  useEffect(() => setDraft(value), [value]);
-
-  const valueFromEvent = (event: GestureResponderEvent): number =>
-    Math.max(
-      0,
-      Math.min(100, Math.round((event.nativeEvent.locationX / trackWidth) * 100)),
-    );
-  const updateDraft = (event: GestureResponderEvent) => {
-    setDraft(valueFromEvent(event));
-  };
-  const commitDraft = (event: GestureResponderEvent) => {
-    const next = valueFromEvent(event);
-    setDraft(next);
-    onChange(next);
-  };
-  const adjust = (delta: number) => {
-    const next = Math.max(0, Math.min(100, draft + delta));
-    setDraft(next);
-    onChange(next);
-  };
-  const onTrackLayout = (event: LayoutChangeEvent) => {
-    setTrackWidth(Math.max(1, event.nativeEvent.layout.width));
-  };
+  const levels = [
+    { label: '轻', value: 30 },
+    { label: '中', value: 70 },
+    { label: '强', value: 100 },
+  ] as const;
+  const selected = value < 50 ? 30 : value < 85 ? 70 : 100;
 
   return (
-    <View style={[styles.hapticStrength, disabled && styles.disabled]}>
-      <View style={styles.rowBetween}>
-        <Text style={styles.hapticStrengthLabel}>震动强度</Text>
-        <Text style={styles.hapticStrengthValue}>{draft}%</Text>
-      </View>
-      <View
-        accessible
-        accessibilityRole="adjustable"
-        accessibilityLabel="震动强度"
-        accessibilityState={{ disabled }}
-        accessibilityValue={{ min: 0, max: 100, now: draft, text: `${draft}%` }}
-        accessibilityActions={[
-          { name: 'increment', label: '增加震动强度' },
-          { name: 'decrement', label: '降低震动强度' },
-        ]}
-        onAccessibilityAction={(event) =>
-          adjust(event.nativeEvent.actionName === 'increment' ? 10 : -10)
-        }
-        onLayout={onTrackLayout}
-        onStartShouldSetResponder={() => !disabled}
-        onMoveShouldSetResponder={() => !disabled}
-        onResponderGrant={updateDraft}
-        onResponderMove={updateDraft}
-        onResponderRelease={commitDraft}
-        style={styles.hapticSliderTrackTouch}
-      >
-        <View style={styles.hapticSliderTrack}>
-          <View style={[styles.hapticSliderFill, { width: `${draft}%` }]} />
-          <View style={[styles.hapticSliderThumb, { left: `${draft}%` }]} />
-        </View>
-      </View>
-      <View style={styles.hapticStrengthEdges}>
-        <Text style={styles.hapticStrengthEdge}>轻</Text>
-        <Text style={styles.hapticStrengthEdge}>强</Text>
+    <View style={[styles.hapticLevelSetting, disabled && styles.disabled]}>
+      <Text style={styles.hapticLevelTitle}>震动强度</Text>
+      <View style={styles.hapticSegments}>
+        {levels.map((level) => {
+          const active = selected === level.value;
+          return (
+            <Pressable
+              key={level.value}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active, disabled }}
+              disabled={disabled}
+              onPress={() => onChange(level.value)}
+              style={({ pressed }) => [
+                styles.hapticSegment,
+                active && styles.hapticSegmentActive,
+                pressed && !disabled && styles.pressed,
+              ]}
+            >
+              <Text style={[
+                styles.hapticSegmentText,
+                active && styles.hapticSegmentTextActive,
+              ]}>
+                {level.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -392,20 +469,6 @@ function HapticStrengthSlider({
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
-}
-
-function HeightTrack({ value }: { value: number }) {
-  const percent = Math.max(0, Math.min(100, ((value - 64) / (129 - 64)) * 100));
-  return (
-    <View style={styles.sliderRow}>
-      <Text style={styles.sliderEdge}>64</Text>
-      <View style={styles.sliderTrack}>
-        <View style={[styles.sliderFill, { width: `${percent}%` }]} />
-        <View style={[styles.sliderThumb, { left: `${percent}%` }]} />
-      </View>
-      <Text style={styles.sliderEdge}>129</Text>
-    </View>
-  );
 }
 
 function SettingRow({
@@ -485,15 +548,20 @@ const styles = StyleSheet.create({
   settingValue: { color: palette.ink, fontSize: 17 },
   sliderRow: { marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 13 },
   sliderEdge: { width: 28, color: palette.inkMuted, fontSize: 14 },
-  sliderTrack: { flex: 1, height: 5, borderRadius: radii.pill, backgroundColor: palette.surfaceMuted },
-  sliderFill: { height: 5, borderRadius: radii.pill, backgroundColor: palette.goldSoft },
-  sliderThumb: { position: 'absolute', top: -7, width: 19, height: 19, marginLeft: -9, borderRadius: 10, backgroundColor: palette.gold },
+  nativeSlider: { flex: 1, height: 32 },
   heightEditor: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   heightInput: { width: 82, height: 40, paddingHorizontal: 12, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.white, color: palette.ink, fontSize: 16 },
   heightUnit: { color: palette.inkMuted, fontSize: 15 },
   heightSave: { minWidth: 66, height: 40, marginLeft: 'auto', alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: palette.ink },
   heightSaveText: { color: palette.white, fontSize: 15, fontWeight: '600' },
   heightError: { marginTop: 7, color: palette.danger, fontSize: 12 },
+  presetSetting: { paddingHorizontal: 18, paddingTop: 17, paddingBottom: 17 },
+  presetEditorRow: { marginTop: 14, flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  presetInputGroup: { flex: 1 },
+  presetInputLabel: { marginBottom: 6, color: palette.inkMuted, fontSize: 13 },
+  presetInputLine: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  presetInput: { flex: 1, minWidth: 0, height: 40, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.white, color: palette.ink, fontSize: 16 },
+  presetSave: { minWidth: 62 },
   divider: { height: 1, backgroundColor: palette.line },
   securityRow: { minHeight: 78, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 15 },
   settingCopy: { flex: 1 },
@@ -502,15 +570,13 @@ const styles = StyleSheet.create({
   settingIcon: { width: 42, alignItems: 'flex-start' },
   settingRowTitle: { color: palette.ink, fontSize: 17, fontWeight: '500' },
   settingSpacer: { flex: 1 },
-  hapticStrength: { paddingHorizontal: 18, paddingTop: 15, paddingBottom: 14 },
-  hapticStrengthLabel: { color: palette.ink, fontSize: 15, fontWeight: '500' },
-  hapticStrengthValue: { color: palette.gold, fontSize: 15, fontWeight: '600' },
-  hapticSliderTrackTouch: { height: 34, marginTop: 4, justifyContent: 'center' },
-  hapticSliderTrack: { height: 5, borderRadius: radii.pill, backgroundColor: palette.surfaceMuted },
-  hapticSliderFill: { height: 5, borderRadius: radii.pill, backgroundColor: palette.goldSoft },
-  hapticSliderThumb: { position: 'absolute', top: -7, width: 19, height: 19, marginLeft: -9, borderRadius: 10, borderWidth: 2, borderColor: palette.surface, backgroundColor: palette.gold },
-  hapticStrengthEdges: { marginTop: -3, flexDirection: 'row', justifyContent: 'space-between' },
-  hapticStrengthEdge: { color: palette.inkFaint, fontSize: 12 },
+  hapticLevelSetting: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16 },
+  hapticLevelTitle: { marginBottom: 10, color: palette.inkMuted, fontSize: 13 },
+  hapticSegments: { flexDirection: 'row', padding: 3, borderRadius: radii.pill, backgroundColor: palette.surfaceMuted },
+  hapticSegment: { flex: 1, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill },
+  hapticSegmentActive: { backgroundColor: palette.ink },
+  hapticSegmentText: { color: palette.inkMuted, fontSize: 14, fontWeight: '600' },
+  hapticSegmentTextActive: { color: palette.white },
   badge: { marginLeft: 9, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: palette.goldSoft, borderRadius: radii.pill },
   badgeText: { color: palette.gold, fontSize: 11 },
   actionButton: { minHeight: 54, marginTop: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.line, borderRadius: radii.medium, backgroundColor: palette.surface },

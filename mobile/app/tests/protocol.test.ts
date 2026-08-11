@@ -85,9 +85,18 @@ test('decodes Config snapshots and encodes field-only writes', () => {
   assert.equal(config.bluetoothAllowed, true);
   assert.equal(config.panelAllowed, true);
   assert.equal(config.maxHeightMm, 1100);
+  assert.equal(config.preset1HeightMm, 640);
+  assert.equal(config.preset4HeightMm, 1020);
 
-  assert.deepEqual(encodeDeskConfigWrite('child_lock', true), [1, 1, 1, 0]);
-  assert.deepEqual(encodeDeskConfigWrite('max_height_mm', 1020), [1, 5, 0xfc, 3]);
+  const configV2 = decodeDeskConfig([
+    0x02, 0b0000_1110, 0x4c, 0x04, 0x8a, 0x02, 0x1a, 0x04,
+  ]);
+  assert.equal(configV2.preset1HeightMm, 650);
+  assert.equal(configV2.preset4HeightMm, 1050);
+
+  assert.deepEqual(encodeDeskConfigWrite('child_lock', true), [2, 1, 1, 0]);
+  assert.deepEqual(encodeDeskConfigWrite('max_height_mm', 1020), [2, 5, 0xfc, 3]);
+  assert.deepEqual(encodeDeskConfigWrite('preset1_height_mm', 650), [2, 6, 0x8a, 2]);
   assert.throws(
     () => encodeDeskConfigWrite('rest_allowed', 2),
     /boolean config value/,

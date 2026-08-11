@@ -17,7 +17,8 @@ export const FIRMWARE_REVISION_UUID = '2a26';
 export const DESK_ADVERTISING_NAME = 'DeskGateway';
 
 const STATE_PACKET_LENGTH = 8;
-const CONFIG_PACKET_LENGTH = 4;
+const CONFIG_V1_PACKET_LENGTH = 4;
+const CONFIG_V2_PACKET_LENGTH = 8;
 const CONFIG_WRITE_PACKET_LENGTH = 4;
 const UNKNOWN_HEIGHT = 0xffff;
 
@@ -27,6 +28,8 @@ const configFieldCode: Record<DeskConfigField, number> = {
   bluetooth_allowed: 0x03,
   panel_allowed: 0x04,
   max_height_mm: 0x05,
+  preset1_height_mm: 0x06,
+  preset4_height_mm: 0x07,
 };
 
 export const DeskSystemCommand = {
@@ -99,19 +102,35 @@ export function decodeFirmwareRevision(bytes: readonly number[]): string {
 
 /** 解码设备设置快照；状态必须来自 ESP32 回读，App 不做乐观伪更新。 */
 export function decodeDeskConfig(bytes: readonly number[]): DeskConfig {
-  validatePacket(bytes, CONFIG_PACKET_LENGTH, 'config');
+  if (bytes.length !== CONFIG_V1_PACKET_LENGTH &&
+      bytes.length !== CONFIG_V2_PACKET_LENGTH) {
+    throw new Error(
+      `Invalid Desk Gateway config length: expected ${CONFIG_V1_PACKET_LENGTH} or ${CONFIG_V2_PACKET_LENGTH}, got ${bytes.length}`,
+    );
+  }
+  validateBytes(bytes, 'config');
   const protocolVersion = bytes[0];
-  if (protocolVersion !== 1) {
+  if (protocolVersion !== 1 && protocolVersion !== 2) {
     throw new Error(`Unsupported Desk Gateway config version: ${protocolVersion}`);
   }
+  if (protocolVersion === 1 && bytes.length !== CONFIG_V1_PACKET_LENGTH) {
+    throw new Error('Desk Gateway config v1 must contain 4 bytes');
+  }
+  if (protocolVersion === 2 && bytes.length !== CONFIG_V2_PACKET_LENGTH) {
+    throw new Error('Desk Gateway config v2 must contain 8 bytes');
+  }
   const flags = bytes[1];
+  const maxHeightMm = readUint16LE(bytes, 2);
   return {
     protocolVersion,
     childLock: (flags & (1 << 0)) !== 0,
     restAllowed: (flags & (1 << 1)) !== 0,
     bluetoothAllowed: (flags & (1 << 2)) !== 0,
     panelAllowed: (flags & (1 << 3)) !== 0,
-    maxHeightMm: readUint16LE(bytes, 2),
+    maxHeightMm,
+    preset1HeightMm: protocolVersion === 2 ? readUint16LE(bytes, 4) : 640,
+    preset4HeightMm:
+      protocolVersion === 2 ? readUint16LE(bytes, 6) : Math.min(1020, maxHeightMm),
   };
 }
 
@@ -130,10 +149,12 @@ export function encodeDeskConfigWrite(
   ) {
     throw new Error(`Invalid Desk Gateway config value: ${numericValue}`);
   }
-  if (field !== 'max_height_mm' && numericValue > 1) {
+  const numericField = field === 'max_height_mm' ||
+    field === 'preset1_height_mm' || field === 'preset4_height_mm';
+  if (!numericField && numericValue > 1) {
     throw new Error(`Invalid boolean config value: ${numericValue}`);
   }
-  const packet = [1, configFieldCode[field], 0, 0];
+  const packet = [2, configFieldCode[field], 0, 0];
   packet[2] = numericValue & 0xff;
   packet[3] = numericValue >> 8;
   if (packet.length !== CONFIG_WRITE_PACKET_LENGTH) {
@@ -160,6 +181,10 @@ function validatePacket(
       `Invalid Desk Gateway ${name} length: expected ${expectedLength}, got ${bytes.length}`,
     );
   }
+  validateBytes(bytes, name);
+}
+
+function validateBytes(bytes: readonly number[], name: string): void {
   if (bytes.some((byte) => !Number.isInteger(byte) || byte < 0 || byte > 0xff)) {
     throw new Error(`Desk Gateway ${name} contains a non-byte value`);
   }

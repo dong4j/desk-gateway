@@ -1,21 +1,19 @@
 /**
  * @file yourdesk_preset_logic.c
- * @brief Fixed-height preset mapping and stop-boundary decisions.
+ * @brief Configurable preset mapping and stop-boundary decisions.
  */
 #include "yourdesk_preset_logic.h"
 
 #include <limits.h>
 
-#define PRESET1_HEIGHT_MM YOURDESK_HEIGHT_MIN_MM
-#define PRESET4_HEIGHT_MM 1020
-
-int yourdesk_preset_target_mm(uint8_t preset)
+int yourdesk_preset_target_mm(uint8_t preset, int preset1_height_mm,
+                              int preset4_height_mm)
 {
     if (preset == 1) {
-        return PRESET1_HEIGHT_MM;
+        return preset1_height_mm;
     }
     if (preset == 4) {
-        return PRESET4_HEIGHT_MM;
+        return preset4_height_mm;
     }
     return -1;
 }

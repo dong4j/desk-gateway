@@ -60,6 +60,8 @@ export function HomeScreen({
     ? (state.maxHeightMm / 10).toFixed(0)
     : '—';
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
+  const preset1HeightCm = ((config?.preset1HeightMm ?? 640) / 10).toFixed(0);
+  const preset4HeightCm = ((config?.preset4HeightMm ?? 1020) / 10).toFixed(0);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -146,14 +148,14 @@ export function HomeScreen({
           <PresetCard
             icon={<ChairIcon size={34} color={palette.gold} />}
             label="请坐"
-            height="64"
+            height={preset1HeightCm}
             disabled={motionBlocked}
             onPress={onPreset1}
           />
           <PresetCard
             icon={<StandingIcon size={34} color={palette.gold} />}
             label="起立"
-            height="102"
+            height={preset4HeightCm}
             disabled={motionBlocked}
             onPress={onPreset4}
           />

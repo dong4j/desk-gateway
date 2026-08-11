@@ -52,6 +52,9 @@ typedef struct desk_driver {
     esp_err_t (*get_height_mm)(int *out_mm);
     /** 驱动必须在真实高度事件路径中执行该上限，而不能依赖 Web 轮询。 */
     esp_err_t (*set_max_height_mm)(int max_height_mm);
+    /** 配置网关侧档位目标；驱动的 goto_preset 必须读取这里下发的值。 */
+    esp_err_t (*set_preset_heights_mm)(int preset1_height_mm,
+                                       int preset4_height_mm);
     /** 预测或真实触顶后，在重新获得安全下降高度前禁止继续上升。 */
     bool (*is_upward_blocked)(void);
     /**

@@ -78,7 +78,10 @@ test('connects, subscribes, bonds, then verifies encrypted STOP', async () => {
 
   await client.setChildLock(true);
   assert.equal(latestChildLock, true);
-  assert.deepEqual(adapter.writes.at(-1), [1, 1, 1, 0]);
+  assert.deepEqual(adapter.writes.at(-1), [2, 1, 1, 0]);
+
+  await client.setPresetHeightMm(1, 650);
+  assert.equal(adapter.writes.at(-1)?.[1], 6);
 
   adapter.emitDisconnect();
   assert.equal(latestPhase, 'disconnected');
@@ -104,6 +107,20 @@ test('keeps old firmware controllable when Device Information is absent', async 
 
   assert.equal(latestPhase, 'ready');
   assert.equal(latestFirmware, null);
+  client.dispose();
+});
+
+test('updates standing preset first when the new sitting height crosses the old standing height', async () => {
+  const adapter = new FakeBleAdapter();
+  const client = new DeskBleClient(adapter);
+
+  await client.initialize();
+  await client.scanAndConnect();
+  adapter.writes.length = 0;
+
+  await client.setPresetHeightsMm(1050, 1100);
+
+  assert.deepEqual(adapter.writes.map((write) => write[1]), [7, 6]);
   client.dispose();
 });
 
@@ -137,7 +154,9 @@ class FakeBleAdapter implements BleAdapter {
   private stateListener: BytesListener | null = null;
   private configListener: BytesListener | null = null;
   private disconnectListener: DisconnectListener | null = null;
-  private config = [0x01, 0b0000_1110, 0x4c, 0x04];
+  private config = [
+    0x02, 0b0000_1110, 0x4c, 0x04, 0x80, 0x02, 0xfc, 0x03,
+  ];
 
   constructor(
     private readonly firmwareAvailable = true,
@@ -263,6 +282,12 @@ class FakeBleAdapter implements BleAdapter {
     } else if (field === 5) {
       this.config[2] = value & 0xff;
       this.config[3] = value >> 8;
+    } else if (field === 6) {
+      this.config[4] = value & 0xff;
+      this.config[5] = value >> 8;
+    } else if (field === 7) {
+      this.config[6] = value & 0xff;
+      this.config[7] = value >> 8;
     }
   }
 }

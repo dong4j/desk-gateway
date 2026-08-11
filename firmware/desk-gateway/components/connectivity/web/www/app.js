@@ -19,6 +19,8 @@
   const maxHeightBadge = document.getElementById('maxHeightBadge');
   const firmwareBuildBadge = document.getElementById('firmwareBuildBadge');
   const maxHeightInput = document.getElementById('maxHeight');
+  const preset1HeightInput = document.getElementById('preset1Height');
+  const preset4HeightInput = document.getElementById('preset4Height');
   const upButton = document.getElementById('up');
   const downButton = document.getElementById('down');
   const p1Button = document.getElementById('p1');
@@ -160,6 +162,20 @@
         maxHeightInput.value = maxCm;
       }
     }
+    if (typeof s.preset1_height_mm === 'number') {
+      const preset1Cm = (s.preset1_height_mm / 10).toFixed(0);
+      p1Button.textContent = `请坐 · ${preset1Cm} cm`;
+      if (document.activeElement !== preset1HeightInput) {
+        preset1HeightInput.value = preset1Cm;
+      }
+    }
+    if (typeof s.preset4_height_mm === 'number') {
+      const preset4Cm = (s.preset4_height_mm / 10).toFixed(0);
+      p4Button.textContent = `站立 · ${preset4Cm} cm`;
+      if (document.activeElement !== preset4HeightInput) {
+        preset4HeightInput.value = preset4Cm;
+      }
+    }
   }
 
   function bindHold(btn, startPath) {
@@ -257,6 +273,11 @@
       msg.textContent = '请输入 64.0–129.0 cm';
       return;
     }
+    const preset4HeightMm = Number(lastStatus.preset4_height_mm);
+    if (Number.isFinite(preset4HeightMm) && maxHeightMm < preset4HeightMm) {
+      msg.textContent = `最高安全高度不能低于站立档位 ${(preset4HeightMm / 10).toFixed(0)} cm`;
+      return;
+    }
     const requestedCm = (maxHeightMm / 10).toFixed(1);
     try {
       await api('/api/v1/desk/max-height', 'POST', { max_height_mm: maxHeightMm });
@@ -264,6 +285,31 @@
       await tick();
     } catch (_) {
       msg.textContent = '保存失败，请检查高度范围或网络';
+    }
+  };
+
+  document.getElementById('presetHeightForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('presetHeightMsg');
+    const preset1HeightMm = Math.round(Number(preset1HeightInput.value) * 10);
+    const preset4HeightMm = Math.round(Number(preset4HeightInput.value) * 10);
+    const maxHeightMm = Number(lastStatus.max_height_mm);
+    if (!Number.isInteger(preset1HeightMm) ||
+        !Number.isInteger(preset4HeightMm) ||
+        preset1HeightMm < 640 || preset1HeightMm >= preset4HeightMm ||
+        preset4HeightMm > 1290 || preset4HeightMm > maxHeightMm) {
+      msg.textContent = '请坐需低于站立，且站立不得超过最高安全高度';
+      return;
+    }
+    try {
+      await api('/api/v1/desk/presets', 'POST', {
+        preset1_height_mm: preset1HeightMm,
+        preset4_height_mm: preset4HeightMm,
+      });
+      msg.textContent = '档位高度已保存，App 将自动同步';
+      await tick();
+    } catch (_) {
+      msg.textContent = '保存失败，请检查档位顺序、高度上限或网络';
     }
   };
 

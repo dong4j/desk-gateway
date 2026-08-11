@@ -65,11 +65,15 @@ static void test_config_protocol(void)
         .bluetooth_enabled = false,
         .panel_enabled = true,
         .max_height_mm = 1100,
+        .preset1_height_mm = 650,
+        .preset4_height_mm = 1050,
     };
     uint8_t config[DESK_BLE_CONFIG_LENGTH];
     assert(desk_ble_config_encode(&input, config, sizeof(config)) ==
            DESK_BLE_CONFIG_LENGTH);
-    const uint8_t expected[] = {0x01, 0x0b, 0x4c, 0x04};
+    const uint8_t expected[] = {
+        0x02, 0x0b, 0x4c, 0x04, 0x8a, 0x02, 0x1a, 0x04,
+    };
     assert(memcmp(config, expected, sizeof(expected)) == 0);
 
     const uint8_t write_max[] = {0x01, 0x05, 0xfc, 0x03};
@@ -78,6 +82,16 @@ static void test_config_protocol(void)
                                         &write));
     assert(write.field == DESK_BLE_CONFIG_FIELD_MAX_HEIGHT_MM);
     assert(write.value == 1020);
+
+    const uint8_t write_preset1[] = {0x02, 0x06, 0x8a, 0x02};
+    assert(desk_ble_config_write_decode(write_preset1,
+                                         sizeof(write_preset1), &write));
+    assert(write.field == DESK_BLE_CONFIG_FIELD_PRESET1_HEIGHT_MM);
+    assert(write.value == 650);
+
+    const uint8_t legacy_preset[] = {0x01, 0x06, 0x8a, 0x02};
+    assert(!desk_ble_config_write_decode(legacy_preset,
+                                          sizeof(legacy_preset), &write));
 
     const uint8_t invalid_bool[] = {0x01, 0x01, 0x02, 0x00};
     assert(!desk_ble_config_write_decode(invalid_bool, sizeof(invalid_bool),

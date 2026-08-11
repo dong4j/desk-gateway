@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/slider": "5.2.0",
     "expo": "~57.0.12",
     "expo-dev-client": "~57.0.11",
     "expo-haptics": "~57.0.1",

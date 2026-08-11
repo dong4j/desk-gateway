@@ -173,6 +173,8 @@ static cJSON *snapshot_json(void)
     cJSON_AddBoolToObject(o, "child_lock", s.child_lock);
     cJSON_AddBoolToObject(o, "upward_blocked", s.upward_blocked);
     cJSON_AddNumberToObject(o, "max_height_mm", s.max_height_mm);
+    cJSON_AddNumberToObject(o, "preset1_height_mm", s.preset1_height_mm);
+    cJSON_AddNumberToObject(o, "preset4_height_mm", s.preset4_height_mm);
     cJSON *sources = cJSON_AddObjectToObject(o, "control_sources");
     cJSON_AddBoolToObject(
         sources, "rest",
@@ -342,6 +344,26 @@ static esp_err_t handler_cmd(httpd_req_t *req)
         err = desk_core_hold_down(DESK_CONTROL_SOURCE_REST);
     } else if (strstr(uri, "/desk/stop")) {
         err = desk_core_stop();
+    } else if (strstr(uri, "/presets")) {
+        char body[96];
+        if (read_body(req, body, sizeof(body)) == ESP_OK) {
+            cJSON *root = cJSON_Parse(body);
+            const cJSON *preset1 = root ?
+                cJSON_GetObjectItem(root, "preset1_height_mm") : NULL;
+            const cJSON *preset4 = root ?
+                cJSON_GetObjectItem(root, "preset4_height_mm") : NULL;
+            if (cJSON_IsNumber(preset1) && cJSON_IsNumber(preset4) &&
+                preset1->valuedouble == (double)preset1->valueint &&
+                preset4->valuedouble == (double)preset4->valueint) {
+                err = desk_core_set_preset_heights_mm(preset1->valueint,
+                                                       preset4->valueint);
+            } else {
+                err = ESP_ERR_INVALID_ARG;
+            }
+            cJSON_Delete(root);
+        } else {
+            err = ESP_ERR_INVALID_ARG;
+        }
     } else if (strstr(uri, "/max-height")) {
         char body[64];
         if (read_body(req, body, sizeof(body)) == ESP_OK) {

@@ -19,6 +19,11 @@ static const char *NVS_NS = "desk_core";
 static const char *NVS_KEY_LOCK = "child_lock";
 static const char *NVS_KEY_MAX_HEIGHT = "max_height_mm";
 static const char *NVS_KEY_SOURCES = "ctrl_sources";
+static const char *NVS_KEY_PRESET1_HEIGHT = "preset1_mm";
+static const char *NVS_KEY_PRESET4_HEIGHT = "preset4_mm";
+
+#define DESK_PRESET1_HEIGHT_MM_DEFAULT 640
+#define DESK_PRESET4_HEIGHT_MM_DEFAULT 1020
 
 /*
  * 单次旋转只进入待命；窗口内第二个同方向事件才启动。运动后如果事件流
@@ -39,20 +44,18 @@ static desk_control_policy_t s_control_policy = {
     .enabled_sources = DESK_CONTROL_SOURCE_DEFAULT_MASK,
 };
 static int s_max_height_mm = CONFIG_DESK_MAX_HEIGHT_MM;
+static int s_preset1_height_mm = DESK_PRESET1_HEIGHT_MM_DEFAULT;
+static int s_preset4_height_mm = DESK_PRESET4_HEIGHT_MM_DEFAULT;
 static desk_jog_direction_t s_jog_pending_direction;
 static uint32_t s_jog_last_event_ms;
 
 #if CONFIG_DESK_SIM_HEIGHT
 static int s_sim_mm;
 static int64_t s_sim_last_us;
-static int s_sim_preset1_mm;
-static int s_sim_preset4_mm;
 
 static void sim_init(void)
 {
     s_sim_mm = (CONFIG_DESK_SIM_HEIGHT_MM_MIN + CONFIG_DESK_SIM_HEIGHT_MM_MAX) / 2;
-    s_sim_preset1_mm = CONFIG_DESK_SIM_HEIGHT_MM_MIN + 50;
-    s_sim_preset4_mm = CONFIG_DESK_SIM_HEIGHT_MM_MAX - 50;
     s_sim_last_us = esp_timer_get_time();
 }
 
@@ -257,6 +260,80 @@ static esp_err_t save_max_height(void)
     return err;
 }
 
+static bool preset_heights_valid(int preset1_height_mm,
+                                 int preset4_height_mm,
+                                 int max_height_mm)
+{
+    return preset1_height_mm >= DESK_MAX_HEIGHT_MM_MIN &&
+           preset1_height_mm < preset4_height_mm &&
+           preset4_height_mm <= max_height_mm &&
+           preset4_height_mm <= DESK_MAX_HEIGHT_MM_MAX;
+}
+
+/** Load both gateway-owned preset targets as one validated configuration. */
+static esp_err_t load_preset_heights(void)
+{
+    s_preset1_height_mm = DESK_PRESET1_HEIGHT_MM_DEFAULT;
+    s_preset4_height_mm = DESK_PRESET4_HEIGHT_MM_DEFAULT;
+    if (s_preset4_height_mm > s_max_height_mm) {
+        s_preset4_height_mm = s_max_height_mm;
+    }
+
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READONLY, &h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    int32_t preset1 = 0;
+    int32_t preset4 = 0;
+    esp_err_t preset1_err = nvs_get_i32(h, NVS_KEY_PRESET1_HEIGHT, &preset1);
+    esp_err_t preset4_err = nvs_get_i32(h, NVS_KEY_PRESET4_HEIGHT, &preset4);
+    nvs_close(h);
+    if (preset1_err == ESP_ERR_NVS_NOT_FOUND ||
+        preset4_err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (preset1_err != ESP_OK) {
+        return preset1_err;
+    }
+    if (preset4_err != ESP_OK) {
+        return preset4_err;
+    }
+    if (!preset_heights_valid((int)preset1, (int)preset4,
+                              s_max_height_mm)) {
+        ESP_LOGW(TAG, "ignore invalid stored presets: p1=%ld p4=%ld max=%d",
+                 (long)preset1, (long)preset4, s_max_height_mm);
+        return ESP_OK;
+    }
+    s_preset1_height_mm = (int)preset1;
+    s_preset4_height_mm = (int)preset4;
+    return ESP_OK;
+}
+
+/** Persist both targets in one NVS commit so power loss cannot split the pair. */
+static esp_err_t save_preset_heights(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_set_i32(h, NVS_KEY_PRESET1_HEIGHT,
+                      (int32_t)s_preset1_height_mm);
+    if (err == ESP_OK) {
+        err = nvs_set_i32(h, NVS_KEY_PRESET4_HEIGHT,
+                          (int32_t)s_preset4_height_mm);
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    return err;
+}
+
 esp_err_t desk_core_init(const desk_driver_t *drv)
 {
     const esp_timer_create_args_t args = {
@@ -267,6 +344,7 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
     (void)load_child_lock();
     (void)load_control_sources();
     (void)load_max_height();
+    (void)load_preset_heights();
 #if CONFIG_DESK_SIM_HEIGHT
     sim_init();
     ESP_LOGI(TAG, "SIM height fallback compiled; height-capable drivers bypass it");
@@ -282,6 +360,13 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
             return err;
         }
     }
+    if (drv->set_preset_heights_mm) {
+        err = drv->set_preset_heights_mm(s_preset1_height_mm,
+                                          s_preset4_height_mm);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
     (void)desk_core_stop();
     if (drv->set_panel_enabled) {
         bool panel_enabled = desk_control_policy_allows(
@@ -293,10 +378,11 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
     }
     ESP_LOGI(TAG,
              "init ok; child_lock=%d; sources=0x%08lx; max_height=%d mm; "
-             "motion_timeout=%d ms",
+             "preset1=%d mm; preset4=%d mm; motion_timeout=%d ms",
              (int)s_control_policy.child_lock,
              (unsigned long)s_control_policy.enabled_sources,
-             s_max_height_mm, CONFIG_DESK_MOTION_TIMEOUT_MS);
+             s_max_height_mm, s_preset1_height_mm, s_preset4_height_mm,
+             CONFIG_DESK_MOTION_TIMEOUT_MS);
     return ESP_OK;
 }
 
@@ -491,9 +577,9 @@ esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
         arm_hold_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
 #if CONFIG_DESK_SIM_HEIGHT
         if (n == 1) {
-            s_sim_mm = s_sim_preset1_mm;
+            s_sim_mm = s_preset1_height_mm;
         } else if (n == 4) {
-            s_sim_mm = s_sim_preset4_mm;
+            s_sim_mm = s_preset4_height_mm;
         }
 #endif
     }
@@ -515,9 +601,11 @@ esp_err_t desk_core_save_preset(desk_control_source_t source, uint8_t n)
         arm_hold_ms(CONFIG_DESK_SAVE_HOLD_MS);
 #if CONFIG_DESK_SIM_HEIGHT
         if (n == 1) {
-            s_sim_preset1_mm = s_sim_mm;
+            (void)desk_core_set_preset_heights_mm(
+                s_sim_mm, s_preset4_height_mm);
         } else if (n == 4) {
-            s_sim_preset4_mm = s_sim_mm;
+            (void)desk_core_set_preset_heights_mm(
+                s_preset1_height_mm, s_sim_mm);
         }
 #endif
     }
@@ -624,7 +712,8 @@ bool desk_core_get_source_enabled(desk_control_source_t source)
 esp_err_t desk_core_set_max_height_mm(int max_height_mm)
 {
     if (max_height_mm < DESK_MAX_HEIGHT_MM_MIN ||
-        max_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
+        max_height_mm > DESK_MAX_HEIGHT_MM_MAX ||
+        max_height_mm < s_preset4_height_mm) {
         return ESP_ERR_INVALID_ARG;
     }
     const desk_driver_t *drv = desk_driver_get_active();
@@ -649,6 +738,40 @@ int desk_core_get_max_height_mm(void)
     return s_max_height_mm;
 }
 
+esp_err_t desk_core_set_preset_heights_mm(int preset1_height_mm,
+                                          int preset4_height_mm)
+{
+    if (!preset_heights_valid(preset1_height_mm, preset4_height_mm,
+                              s_max_height_mm)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const desk_driver_t *drv = desk_driver_get_active();
+    if (!drv || !drv->set_preset_heights_mm) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    int previous_preset1 = s_preset1_height_mm;
+    int previous_preset4 = s_preset4_height_mm;
+    esp_err_t err = drv->set_preset_heights_mm(preset1_height_mm,
+                                                preset4_height_mm);
+    if (err != ESP_OK) {
+        return err;
+    }
+    s_preset1_height_mm = preset1_height_mm;
+    s_preset4_height_mm = preset4_height_mm;
+    err = save_preset_heights();
+    if (err != ESP_OK) {
+        s_preset1_height_mm = previous_preset1;
+        s_preset4_height_mm = previous_preset4;
+        (void)drv->set_preset_heights_mm(previous_preset1,
+                                          previous_preset4);
+        return err;
+    }
+    ESP_LOGI(TAG, "preset heights: p1=%d mm p4=%d mm",
+             s_preset1_height_mm, s_preset4_height_mm);
+    return ESP_OK;
+}
+
 desk_core_snapshot_t desk_core_snapshot(void)
 {
     desk_core_snapshot_t s = {
@@ -659,6 +782,8 @@ desk_core_snapshot_t desk_core_snapshot(void)
         .child_lock = s_control_policy.child_lock,
         .upward_blocked = false,
         .max_height_mm = s_max_height_mm,
+        .preset1_height_mm = s_preset1_height_mm,
+        .preset4_height_mm = s_preset4_height_mm,
         .enabled_sources = s_control_policy.enabled_sources,
         .driver = "none",
     };

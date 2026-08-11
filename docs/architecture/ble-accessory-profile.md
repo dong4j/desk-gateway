@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | DG-ARCH-BLE-ACC-001 |
 | 日期 | 2026-08-06 |
-| 状态 | Command / State v1 + Config / System 扩展已实现，待新增特征真机验收 |
+| 状态 | Command / State v1 + Config v2 / System 扩展已实现，待 Config v2 真机验收 |
 | 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
 
 ## 1. 要解决什么
@@ -73,8 +73,8 @@ Command 不实现 BLE UART，也不兼容任何第三方 App 的私有协议。�
 | `00` | STOP | 无条件停止；同时释放 BLE 运动所有权 |
 | `01` | HOLD_UP | 开始或续期上升 |
 | `02` | HOLD_DOWN | 开始或续期下降 |
-| `11` | PRESET_1 | 闭环前往档位 1（当前驱动为 64 cm） |
-| `14` | PRESET_4 | 闭环前往档位 4（当前驱动为 102 cm） |
+| `11` | PRESET_1 | 闭环前往设备配置的档位 1（默认 64 cm） |
+| `14` | PRESET_4 | 闭环前往设备配置的档位 4（默认 102 cm） |
 
 未知指令、长度不为 1、童锁拒绝、Bluetooth 来源关闭或驱动不支持时，Write
 返回 ATT 错误，不会绕过 `desk_core`。
@@ -117,13 +117,15 @@ Flags：
 
 ### 4.3 Config 数据与写入
 
-Config Read / Notify 固定返回 4 字节：
+Config Read / Notify v2 固定返回 8 字节：
 
 | Byte | 内容 |
 |---|---|
-| `0` | 协议版本，固定 `01` |
+| `0` | 协议版本，v2 固定 `02` |
 | `1` | flags：bit0 童锁、bit1 REST、bit2 Bluetooth、bit3 原厂面板 |
 | `2..3` | `max_height_mm`，uint16 little-endian |
+| `4..5` | `preset1_height_mm`，uint16 little-endian |
+| `6..7` | `preset4_height_mm`，uint16 little-endian |
 
 Config Write 固定为 `[version, field, value_le16]`，每次只修改一个字段，避免客户端拿旧
 快照覆盖 Web 或其他入口刚更新的设置：
@@ -135,6 +137,13 @@ Config Write 固定为 `[version, field, value_le16]`，每次只修改一个字
 | `03` | Bluetooth 来源允许 | `0` / `1` |
 | `04` | 原厂面板来源允许 | `0` / `1` |
 | `05` | 最高安全高度 | 毫米，当前有效范围 `640..1290` |
+| `06` | 档位 1（请坐）高度 | 毫米，须满足 `640 <= 档位1 < 档位4` |
+| `07` | 档位 4（站立）高度 | 毫米，须满足 `档位1 < 档位4 <= 最高安全高度` |
+
+固件仍接受 v1 的 4 字节 Config Write，以兼容已经发布的童锁、来源权限和最高安全高度
+客户端；新增档位字段必须使用 v2。移动端可读取旧固件的 4 字节 v1 快照，并回退显示
+64 cm / `min(102 cm, 最高安全高度)`，但只有收到 v2 快照后才允许修改档位。设备 NVS 是
+配置唯一事实来源：Web 保存或 BLE 写入成功后，Config Notify 会把同一份真实值同步给 App。
 
 管理写入不受童锁或 Bluetooth 来源开关阻断，否则客户端关闭 Bluetooth 后无法通过同一
 加密连接重新开启；但这些设置只能改变策略，所有运动命令仍必须经过 `desk_core` 的童锁、
@@ -193,13 +202,16 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
 9. Web 开启童锁后写 `01` / `02` / `11` / `14`，LightBlue 应显示 Write 失败且
    桌子不动；`00` 仍可停止。
 10. Web 关闭“允许蓝牙操作”后重复第 9 步；重新开启后恢复。
-11. 读取 Config `7f4e0004-...`；写 `01 01 01 00` 开启童锁，再读应看到 bit0=1；
-    写 `01 01 00 00` 关闭童锁。
-12. 写 `01 05 FC 03` 将安全上限设为 1020 mm，Config Read 和 State Read 均应回读
+11. 读取 Config `7f4e0004-...`，应得到 8 字节 v2 快照；写 `02 01 01 00` 开启童锁，
+    再读应看到 bit0=1；写 `02 01 00 00` 关闭童锁。
+12. 写 `02 05 FC 03` 将安全上限设为 1020 mm，Config Read 和 State Read 均应回读
     `FC 03`；无效范围必须 Write 失败。
-13. 写 Config 分别关闭/开启 REST、Bluetooth、Panel，核对 Web 状态与对应入口行为；
+13. 写 `02 06 8A 02` 将档位 1 设为 650 mm，写 `02 07 FC 03` 将档位 4 设为
+    1020 mm；Web 与 App 均应自动显示 65 / 102 cm，重启固件后仍保持。违反
+    `640 <= 档位1 < 档位4 <= 最高安全高度 <= 1290` 的写入必须失败。
+14. 写 Config 分别关闭/开启 REST、Bluetooth、Panel，核对 Web 状态与对应入口行为；
     关闭 Bluetooth 后 Config 管理写入仍可重新开启它。
-14. 对 System `7f4e0005-...` 写 `01`，确认先停车再重启；重新连接已绑定手机后 Notify 恢复。
+15. 对 System `7f4e0005-...` 写 `01`，确认先停车再重启；重新连接已绑定手机后 Notify 恢复。
 
 如果 LightBlue 显示旧的 GATT 表，先在 iOS 蓝牙设置中忽略 `DeskGateway`，关闭并
 重新打开 LightBlue 后重新扫描；固件协议 UUID 变化时系统缓存不会总是自动刷新。
@@ -222,3 +234,4 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
 | 1.0 | 2026-08-11 | 冻结 UUID 和字节协议；实现加密 Write、HOLD 租约、断连停止、档位 1/4 与 State Notify |
 | 1.1 | 2026-08-11 | 增加标准 Device Information / Firmware Revision String，Command / State v1 不变 |
 | 1.2 | 2026-08-11 | 增加 Config 单字段读写、设置 Notify 与独立 System 重启命令；Command / State v1 保持不变 |
+| 1.3 | 2026-08-11 | Config 升级为 v2，新增设备持久化的档位 1/4 高度并在 Web、App 间同步；保留 v1 读写兼容 |
