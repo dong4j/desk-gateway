@@ -52,8 +52,6 @@ struct ContentView<Controller: DeskControlling>: View {
 
   var body: some View {
     VStack(spacing: 3) {
-      connectionLabel
-
       heightDisplay
 
       motionStatusStage
@@ -68,6 +66,11 @@ struct ContentView<Controller: DeskControlling>: View {
       }
     }
     .padding(.horizontal, 8)
+    .toolbar {
+      ToolbarItem(placement: .topBarLeading) {
+        connectionLabel
+      }
+    }
     .focusable(controlsEnabled)
     .digitalCrownRotation(
       $crownPosition,
@@ -144,32 +147,33 @@ struct ContentView<Controller: DeskControlling>: View {
 
   /// 状态槽始终保留一行高度；待机只隐藏文字，不能折叠并推动按钮。
   private var motionStatusStage: some View {
-    ZStack {
-      if isMoving {
-        Text(motionText)
-          .font(.caption)
-          .foregroundStyle(effectiveDirection == .down ? .orange : .cyan)
-          .transition(.opacity.animation(.easeOut(duration: reduceMotion ? 0.1 : 0.16)))
-      }
-    }
-    .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18)
+    Text(motionText)
+      .font(.caption)
+      .foregroundStyle(effectiveDirection == .down ? .orange : .cyan)
+      .opacity(isMoving ? 1 : 0)
+      .accessibilityHidden(!isMoving)
+      .animation(.easeOut(duration: reduceMotion ? 0.1 : 0.16), value: isMoving)
+      .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18)
   }
 
-  /// 控制槽固定占位，STOP 和快捷高度只替换内容，纵向坐标始终相同。
+  /// 两套控制始终叠放在同一中心，只改变可见性和点击能力，不触发布局切换。
   private var controlStage: some View {
     ZStack {
-      if isMoving {
-        movingControls
-          .transition(movingControlsTransition)
-      } else {
-        presetControls
-          .transition(presetControlsTransition)
-      }
+      presetControls
+        .opacity(isMoving ? 0 : 1)
+        .allowsHitTesting(!isMoving)
+        .accessibilityHidden(isMoving)
+
+      movingControls
+        .opacity(isMoving ? 1 : 0)
+        .allowsHitTesting(isMoving)
+        .accessibilityHidden(!isMoving)
     }
     .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
+    .animation(.easeOut(duration: reduceMotion ? 0.1 : 0.18), value: isMoving)
   }
 
-  /// 连接状态始终占用固定顶部位置，避免状态变化导致主要按钮跳动。
+  /// 连接状态使用系统顶部栏，与右侧系统时间处于同一行。
   private var connectionLabel: some View {
     HStack(spacing: 4) {
       Circle()
@@ -196,8 +200,6 @@ struct ContentView<Controller: DeskControlling>: View {
         .buttonStyle(.plain)
       }
     }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.leading, 2)
     .accessibilityElement(children: .combine)
   }
 
@@ -212,6 +214,8 @@ struct ContentView<Controller: DeskControlling>: View {
     }
     .buttonStyle(.borderedProminent)
     .tint(.red)
+    .frame(maxWidth: .infinity)
+    .frame(height: 44)
     .accessibilityHint("立即停止桌面运动")
   }
 
@@ -263,37 +267,6 @@ struct ContentView<Controller: DeskControlling>: View {
     return .asymmetric(insertion: insertion, removal: removal)
   }
 
-  /// 运动态退出先收束；再次进入时立即出现，不等待待机按钮动画。
-  private var movingControlsTransition: AnyTransition {
-    let insertion = AnyTransition.opacity
-      .combined(with: .scale(scale: 0.96))
-      .animation(.easeOut(duration: reduceMotion ? 0.12 : 0.16))
-    let exitOffset: CGFloat = effectiveDirection == .down ? 5 : -5
-    let removal =
-      reduceMotion
-      ? AnyTransition.opacity.animation(.easeOut(duration: 0.12))
-      : AnyTransition.opacity
-        .combined(with: .offset(y: exitOffset))
-        .combined(with: .scale(scale: 0.94))
-        .animation(.easeOut(duration: 0.18))
-    return .asymmetric(insertion: insertion, removal: removal)
-  }
-
-  /// 待机按钮略晚于 STOP 离场进入，使约 400 ms 的两段过渡有清晰先后关系。
-  private var presetControlsTransition: AnyTransition {
-    let insertion =
-      reduceMotion
-      ? AnyTransition.opacity.animation(.easeOut(duration: 0.15))
-      : AnyTransition.opacity
-        .combined(with: .offset(y: 6))
-        .combined(with: .scale(scale: 0.97))
-        .animation(.spring(response: 0.28, dampingFraction: 0.84).delay(0.12))
-    let removal = AnyTransition.opacity
-      .combined(with: .scale(scale: 0.97))
-      .animation(.easeOut(duration: reduceMotion ? 0.1 : 0.12))
-    return .asymmetric(insertion: insertion, removal: removal)
-  }
-
   /// 待机态固定高度使用设备 Config 回读值，旧固件才回退到 64/102 cm。
   private var presetControls: some View {
     HStack(spacing: 6) {
@@ -334,6 +307,7 @@ struct ContentView<Controller: DeskControlling>: View {
     }
     .buttonStyle(.bordered)
     .tint(tint)
+    .frame(height: 44)
     .disabled(!controlsEnabled)
     .accessibilityLabel("\(title)，\(format(height: height))")
   }
