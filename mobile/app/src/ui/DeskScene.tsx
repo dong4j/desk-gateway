@@ -14,14 +14,12 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 
-import type { HomePeriod } from './HomeAtmosphere';
 import { palette } from './theme';
 
 interface DeskSceneProps {
   heightMm: number | null;
   minHeightMm?: number;
   maxHeightMm?: number;
-  period?: HomePeriod;
 }
 
 const SCENE_MIN_MM = 640;
@@ -32,7 +30,6 @@ export function DeskScene({
   heightMm,
   minHeightMm = SCENE_MIN_MM,
   maxHeightMm = SCENE_MAX_MM,
-  period = 'day',
 }: DeskSceneProps) {
   const target = normalizeHeight(heightMm, minHeightMm, maxHeightMm);
   const animated = useRef(new Animated.Value(target)).current;
@@ -53,9 +50,9 @@ export function DeskScene({
 
   const displayHeight = heightMm === null ? null : Math.round(heightMm / 10);
   const rulerY = 272 - progress * 194;
-  const rulerLine = period === 'night' ? 'rgba(245, 239, 225, 0.42)' : palette.line;
-  const rulerMuted = period === 'night' ? '#D8D1C5' : palette.inkMuted;
-  const rulerInk = period === 'night' ? '#FFF9EE' : palette.ink;
+  const rulerLine = palette.line;
+  const rulerMuted = palette.inkMuted;
+  const rulerInk = palette.ink;
 
   return (
     <View style={styles.scene} accessibilityLabel="升降桌实时高度示意图">
