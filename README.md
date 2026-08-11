@@ -20,9 +20,10 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 > The main firmware builds with ESP-IDF 6.0.2. On 2026-08-10, Web hold-to-move
 > UP/DOWN and release-to-stop passed on the real desk after restoring the panel's
 > two external pull-ups. The unified multi-address software slave then passed
-> real-desk movement and `64–80 cm` height tracking. Closed-loop presets,
-> predictive maximum-height enforcement, timeout/power-cycle safety, and the global child-lock flow still require hardware acceptance. Panel arbitration and
-> lockout are implemented in firmware, but original-panel pass-through still awaits the blocked breadboard capture and real-hardware acceptance.
+> real-desk movement and height tracking. Closed-loop presets, configurable safety
+> height, LightBlue, and the iPhone App have since passed their core real-desk paths.
+> The consolidated abnormal-stop matrix, Android acceptance, and original-panel
+> pass-through / lockout remain open; see the prioritized status document below.
 
 ## Hardware
 
@@ -99,6 +100,7 @@ NOTICE                     Third-party attributions
 | Doc | Description |
 |-----|-------------|
 | [docs/0-requirements.md](./docs/0-requirements.md) | Requirements (Chinese) |
+| [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | Current status and prioritized backlog (Chinese) |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | Architecture overview |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUIDs, byte protocol, and LightBlue test flow |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | Bring-up / acceptance checklist |
@@ -108,8 +110,11 @@ NOTICE                     Third-party attributions
 ## Roadmap
 
 - [x] Replace the rejected GPIO sniffer with a multi-address I²C slave for real height
+- [x] Validate BLE control with LightBlue and the iPhone App on the real desk
+- [x] Deliver BLE-first / REST-fallback mobile control and synchronized device settings
 - [ ] Phase 2 dual‑RJ45 MITM + true panel blocking under child lock
-- [x] BLE accessory profile firmware (LightBlue hardware acceptance pending)
+- [ ] Complete the abnormal-stop matrix and Android hardware acceptance
+- [ ] Apple Watch and dual-ToF implementations (designs are documented)
 - [ ] Matter / Home Assistant integrations
 - [ ] Additional desk drivers (Loctek, Jiecang, …)
 

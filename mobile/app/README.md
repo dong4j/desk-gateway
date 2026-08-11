@@ -9,6 +9,9 @@ Desk Gateway 的跨平台移动端工程，采用 React Native、Expo Developmen
 BLE 优先、Wi-Fi 回退、mDNS 和安全边界见
 [`docs/architecture/mobile-connection-transport.md`](../../docs/architecture/mobile-connection-transport.md)。
 
+项目完成度和剩余任务优先级见
+[`docs/5-current-status-and-priorities.md`](../../docs/5-current-status-and-priorities.md)。
+
 iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 [`docs/guides/mobile-ios-device-deployment.md`](../../docs/guides/mobile-ios-device-deployment.md)。
 
@@ -91,4 +94,5 @@ npm run doctor
 6. ESP32 与 App 重启后的 bond 恢复。
 
 Command / State v1 保持不变；新增 Config / System characteristic 承载设备设置和重启。
-iOS 已完成真实 BLE 运动控制和两张正式页面，Android 真机以及新增设置写入仍是开放门禁。
+iOS 已完成真实 BLE 运动控制、两张正式页面和设备设置写入。Android 真机、BLE/Wi-Fi
+自动回退异常矩阵以及双平台内测发布仍是开放门禁。

@@ -23,15 +23,17 @@ Web UI + 手机 App（BLE/REST）+ UART + BLE 外设（OLED/旋钮）
 
 > 截至 2026-08-11：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
 > 不代表真机验收完成；硬件结论以 [`bringup-checklist.md`](../bringup-checklist.md) 为准。
+> 当前完成度和后续优先级统一记录在
+> [`5-current-status-and-priorities.md`](../5-current-status-and-priorities.md)。
 
 | 层 | 状态 |
 |---|---|
-| `yourdesk_v1`（I²C Slave 模拟面板） | 键通道已真机验证；实验性 GPIO 高度嗅探因干扰控桌而默认关闭 |
+| `yourdesk_v1`（软件多地址 I²C Slave） | 键通道和 `0x34–0x37` 真实高度均已通过真桌验证；GPIO 被动嗅探方案已废弃 |
 | `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位、全局童锁和来源权限 |
-| WiFi + Web（局域网、密码、UI、升降动效） | 已实现；提供 `desk-gateway.local` mDNS 名称，状态使用 250ms 短轮询，待板端/UI 验收 |
-| 手机 App 双通道 | BLE 控制已真机验证；已实现 BLE 优先、局域网 REST 回退和统一设置，Wi-Fi 回退待真机验收 |
-| 高度 | 完整 0–9 经验字模已锁定；真实总线接入待软件多地址 Slave，稳定版仅提供明确标记的 SIM |
-| BLE / Loctek / Jiecang | BLE GATT Server 已实现，待 LightBlue 真机验收；Loctek / Jiecang 为 stub |
+| WiFi + Web（局域网、密码、UI、升降动效） | 基础真机路径已完成；升降、停止、档位、真实高度和设置读写可用，异常矩阵仍待专项验收 |
+| 手机 App 双通道 | iPhone BLE 真机控制已完成；指定 IP 的 REST 基本路径可用，自动回退矩阵和 Android 待验收 |
+| 高度 | 软件多地址 Slave 已接入真实 digit 帧；Web、REST、BLE 和 App 共用最后可信高度，并兼容厘米/英寸显示模式 |
+| BLE / Loctek / Jiecang | BLE GATT Server 已通过 LightBlue 和 iPhone App 核心真机控制；Loctek / Jiecang 为 stub |
 | 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | 仲裁与权限代码已实现；原厂面板透传/真屏蔽仍待面包板抓包和真机验收 |
 | HA / Matter / Siri / OTA | Phase 3+，未实现 |
 | 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](./ecosystem-xiaomi-huawei.md) |
@@ -96,6 +98,7 @@ docs/superpowers/specs/     ← 设计定稿
 | 文档 | 用途 |
 |---|---|
 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) | 实现依据 |
+| [当前状态与优先级](../5-current-status-and-priorities.md) | 已完成、待验收和剩余任务的统一清单 |
 | [小米/华为生态调研](./ecosystem-xiaomi-huawei.md) | 模组 vs Matter |
 | [BLE 外设 Profile](./ble-accessory-profile.md) | 旋钮/OLED 配件总线 |
 | [移动端技术选型](./mobile-app-technology-selection.md) | React Native 手机端与 BLE 验证门禁 |

@@ -147,6 +147,9 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 
 ### 3.3 后续扩展（Backlog）
 
+当前完成度和实施顺序统一维护在
+[《当前状态与任务优先级》](./5-current-status-and-priorities.md)，本节只保留产品范围。
+
 - **Matter**（现有 ESP32 软件栈；进米家/华为 App 的默认开放路径，见生态调研）
 - **小米米家原生**：MIIO 认证模组 + IoT 开放平台 + 认证（可选独立硬件 SKU）
 - **华为智慧生活 / 鸿蒙智联原生**：HarmonyOS Connect 认证模组 + 伙伴流程（可选独立 SKU）
@@ -298,7 +301,7 @@ MQTT / HA / 久坐提醒 / 更多桌型等，另开需求修订，不阻塞 Phas
 | G-W03 | 提供短轮询状态刷新，驱动 UI 升降动效（含 `child_lock`） | P0 |
 | G-W04 | 简单密码认证（Bearer token）；默认仅局域网；无云账号 | P0 |
 | G-W05 | Web UI：现代化；含升降桌示意图；运动中实时动画；童锁开关可见 | P0 |
-| G-W06 | **BLE Accessory Profile**：Gateway 为 GATT Server；向 OLED/无限旋钮等外设 Notify 高度与状态；Write 控升降/停止；与 `desk_core` 对齐 | P0（代码已实现；LightBlue 验收待完成） |
+| G-W06 | **BLE Accessory Profile**：Gateway 为 GATT Server；向 OLED/无限旋钮等外设 Notify 高度与状态；Write 控升降/停止；与 `desk_core` 对齐 | P0（代码已实现；LightBlue 与 iPhone App 核心路径已验收） |
 | G-W07 | BLE 未绑定设备默认不可下发运动指令；已绑定外设仍受全局童锁和 Bluetooth 来源权限约束 | P1 |
 | G-W08 | 支持由电脑侧程序或键盘工作流触发（如经 BLE/HTTP）；本仓库不强制实现具体键盘固件 | P1 |
 | G-W09 | （可选）Gateway 作 Central 适配「仅 Peripheral」的成品旋钮——独立适配层，不替代 G-W06 | P2 |
@@ -440,7 +443,8 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 - [x] 针脚与电压确认完成（含四线线序及原厂面板两只 `1.99 kΩ` 上拉）
 - [x] 关键抓包集齐全并可复现分析
 - [x] ESP32 可上升 / 下降 / 松手停止（2026-08-10 真机）
-- [ ] 15s 超时、断连/重启等异常停止保护验证通过
+- [x] 15s 运动超时已有真机停止日志
+- [ ] 断连、重启、掉电和网络中断等异常停止保护完成矩阵验收
 - [x] 命令表文档已写
 
 ### Phase 2
@@ -448,11 +452,11 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 - [ ] 双 RJ45 样机透传正常
 - [ ] 原面板优先仲裁验证通过（童锁 OFF）
 - [ ] 童锁 ON：REST/UART/BLE/原厂面板均无法启动运动；STOP 和解锁仍有效
-- [ ] Web/REST 可控制并读状态（需登录）
-- [ ] 短轮询驱动升降示意图动效
-- [ ] 简单密码认证可用；仅局域网
+- [x] Web/REST 可控制并读状态（需登录）
+- [x] 短轮询驱动升降示意图动效
+- [x] 简单密码认证可用；仅局域网
 - [ ] （可选/后门禁）上+下≈5s 重置协议已抓包并文档化
-- [x] 键盘/HTTP 通道可用；BLE GATT 代码与自动化构建通过后仍需 LightBlue 真机验收
+- [x] 键盘/HTTP 通道可用；BLE GATT 已通过 LightBlue 和 iPhone App 核心真机控制
 - [ ] 异常与上电安全态验证通过
 
 ---

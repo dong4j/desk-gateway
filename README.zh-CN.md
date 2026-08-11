@@ -19,8 +19,9 @@
 
 > 当前主固件已通过 ESP-IDF 6.0.2 编译。2026-08-10 补回原厂面板上的两只外部上拉后，
 > Web 按住升/降与松手停止已通过真机验证；统一软件多地址 Slave 随后通过升降与 `64–80 cm`
-> 真实高度跟踪。档位闭环、预测限高、超时/重启安全和全局童锁仍待真机验收。
-> 原面板仲裁与权限屏蔽代码已经实现，但双 RJ45 透传仍需面包板抓包和真机验收。
+> 真实高度跟踪。档位闭环、可配置安全高度、LightBlue 和 iPhone App 核心路径随后通过真机。
+> 当前仍需完成异常停止矩阵、Android 验收，以及双 RJ45 原面板透传、仲裁和童锁真屏蔽；
+> 统一顺序见下方“当前状态与剩余任务优先级”文档。
 
 ## 硬件
 
@@ -96,6 +97,7 @@ NOTICE                        第三方声明
 | 文档 | 说明 |
 |------|------|
 | [docs/0-requirements.md](./docs/0-requirements.md) | 需求 |
+| [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | 当前状态与剩余任务优先级 |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | 架构总览 |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUID、字节协议与 LightBlue 测试步骤 |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | 到货 / 真机验收 |
@@ -105,8 +107,11 @@ NOTICE                        第三方声明
 ## 路线图
 
 - [x] 用多地址 I²C Slave 替换已否决的 GPIO 嗅探，实现真实高度
+- [x] LightBlue 和 iPhone App 已在真桌完成 BLE 核心控制
+- [x] 手机 App 已实现 BLE 优先、REST 回退和设备设置同步
 - [ ] Phase 2 双 RJ45 MITM 透传恢复 + 面板权限/童锁真机验收
-- [x] BLE 配件 Profile 固件（LightBlue 真机验收待完成）
+- [ ] 完成异常停止矩阵和 Android 真机验收
+- [ ] Apple Watch 与双 ToF 实现（当前只有设计）
 - [ ] Matter / Home Assistant
 - [ ] 更多厂商 Driver
 

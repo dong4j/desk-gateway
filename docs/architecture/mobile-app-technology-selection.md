@@ -3,16 +3,16 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-MOBILE-001 |
-| 版本 | 0.3 |
+| 版本 | 0.4 |
 | 日期 | 2026-08-11 |
-| 状态 | iOS Phase 1 + BLE Config 已实现；Android 与新增设置真机验收待完成 |
+| 状态 | iPhone 主控制与设置已完成；BLE 和指定 IP REST 已使用；Android 与自动回退矩阵待验收 |
 | 目标平台 | iOS + Android |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
 | 视觉依据 | [`mobile/prototypes/`](../../mobile/prototypes/) |
 
 本文冻结 Desk Gateway 移动端的总体技术方向，并记录 BLE 技术验证和正式 UI 的分阶段
-边界。iOS 已按原型实现 Home / Settings，继续消费现有 ESP32 GATT v1；Android 真机和
-设备设置写入仍待后续阶段完成。
+边界。iOS 已按原型实现 Home / Settings，继续消费现有 ESP32 GATT v1；设备设置写入、
+震动反馈和 BLE 优先 / REST 回退代码均已落地，Android 真机和异常矩阵仍待完成。
 
 ---
 
@@ -25,11 +25,11 @@
 | 跨平台框架 | React Native |
 | 工程体系 | Expo Development Build |
 | 语言 | TypeScript |
-| 路由 | Expo Router（Phase 1 引入） |
+| 路由 | 当前仅 Home / Settings，本地页面状态切换；未引入 Expo Router |
 | BLE 第一候选 | `react-native-ble-manager` |
 | BLE 备选 | `react-native-ble-plx` |
-| 状态 | Zustand（Phase 1 引入，仅承载可观察状态） |
-| 动画 | Reanimated + `react-native-svg`（Phase 1 引入） |
+| 状态 | React state + `DeskClient` 订阅；当前未引入 Zustand |
+| 动画 | React Native `Animated` + `react-native-svg` |
 | 触感 | `expo-haptics`（Phase 1 引入） |
 | 本地存储 | 首版仅在确有持久化数据时使用 AsyncStorage |
 
@@ -250,6 +250,10 @@ ESP32 回读值。旧固件缺少 Config 时仍可连接和运动控制，但相
 
 完成权限拒绝、蓝牙关闭、配对失效、设备重启、App 被杀死、前后台切换和系统版本矩阵验收后，再进入 TestFlight / Android 内测。
 
+当前状态：尚未进入 Phase 3。iPhone 日常控制路径已完成，但 Android、连续连接/断开、
+BLE 超距自动回退和发布签名仍是 P1 任务。统一任务顺序见
+[`5-current-status-and-priorities.md`](../5-current-status-and-priorities.md)。
+
 ---
 
 ## 9. 成功标准
@@ -272,7 +276,7 @@ Phase 0 代码完成不等于移动端 BLE 已选型完成。最终 GO 必须同
 |---|---|---|
 | 跨平台框架 | React Native + TypeScript | 2026-08-11 |
 | 工程体系 | Expo Development Build，不使用 Expo Go | 2026-08-11 |
-| BLE 第一候选 | react-native-ble-manager，待 Phase 0 双平台真机冻结 | 2026-08-11 |
+| BLE 实现 | react-native-ble-manager；iPhone 已验证，Android 真机验收后完成双平台冻结 | 2026-08-11 |
 | BLE 备选 | react-native-ble-plx，通过 BleAdapter 隔离 | 2026-08-11 |
 | 后台策略 | App 退后台立即停止，不做后台持续控制 | 2026-08-11 |
 | 工程结构 | `mobile/app/`，暂不重构根仓库为 monorepo | 2026-08-11 |
