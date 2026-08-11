@@ -16,6 +16,7 @@
 #define TM1650_ADDR_DIG3 0x36u
 #define TM1650_ADDR_DIG4 0x37u
 #define TM1650_HEIGHT_DIGITS_MASK 0x07u
+#define TM1650_SEGMENT_DECIMAL_POINT 0x20u
 
 /*
  * The three numeric digits are written first in captured refreshes. DIG4 is a
@@ -36,7 +37,8 @@ enum {
 /** Decode the exact segment values observed on the three numeric digits. */
 static int decode_segment(uint8_t segment)
 {
-    switch (segment) {
+    /* The panel adds bit 0x20 to the digit preceding the decimal point. */
+    switch (segment & (uint8_t)~TM1650_SEGMENT_DECIMAL_POINT) {
     case 0x00:
         return SEGMENT_BLANK;
     case 0x5F:
@@ -82,6 +84,29 @@ static tm1650_height_result_t decode_height_digits(const uint8_t digits[3],
     int ones = decode_segment(digits[2]);
     if (hundreds == SEGMENT_UNKNOWN || tens < 0 || ones < 0) {
         return TM1650_HEIGHT_INVALID;
+    }
+
+    bool hundreds_decimal =
+        (digits[0] & TM1650_SEGMENT_DECIMAL_POINT) != 0;
+    bool tens_decimal = (digits[1] & TM1650_SEGMENT_DECIMAL_POINT) != 0;
+    bool ones_decimal = (digits[2] & TM1650_SEGMENT_DECIMAL_POINT) != 0;
+    if (hundreds_decimal || ones_decimal) {
+        /* Only xx.x inch has been observed; other positions are corruption. */
+        return TM1650_HEIGHT_INVALID;
+    }
+
+    if (tens_decimal) {
+        if (hundreds < 0) {
+            return TM1650_HEIGHT_INVALID;
+        }
+        int tenths_inches = hundreds * 100 + tens * 10 + ones;
+        /* Convert 0.1 inch to the nearest millimetre without floating point. */
+        int height_mm = (tenths_inches * 254 + 50) / 100;
+        if (height_mm < 400 || height_mm > 2000) {
+            return TM1650_HEIGHT_INVALID;
+        }
+        *out_height_mm = height_mm;
+        return TM1650_HEIGHT_VALID;
     }
 
     int height_cm = hundreds == SEGMENT_BLANK
@@ -175,7 +200,9 @@ tm1650_height_result_t tm1650_height_cache_feed(
     }
 
     int value = decode_segment(segment);
-    if (value == SEGMENT_UNKNOWN || (index > 0 && value == SEGMENT_BLANK)) {
+    bool decimal = (segment & TM1650_SEGMENT_DECIMAL_POINT) != 0;
+    if (value == SEGMENT_UNKNOWN || (index > 0 && value == SEGMENT_BLANK) ||
+        (decimal && index != 1)) {
         /* Corrupted observations must not evict the last valid digit. */
         return TM1650_HEIGHT_INVALID;
     }

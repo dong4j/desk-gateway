@@ -143,6 +143,30 @@ test('keeps Command and State usable when old firmware has no Config', async () 
   client.dispose();
 });
 
+test('keeps BLE ready when a command write is rejected', async () => {
+  const adapter = new FakeBleAdapter();
+  const client = new DeskBleClient(adapter);
+  let latestPhase = 'missing';
+  let latestError: string | null = null;
+  client.subscribe((snapshot) => {
+    latestPhase = snapshot.phase;
+    latestError = snapshot.error;
+  });
+
+  await client.initialize();
+  await client.scanAndConnect();
+  adapter.rejectNextWrite = true;
+
+  await assert.rejects(client.sendCommand(DeskCommand.Preset4));
+  assert.equal(latestPhase, 'ready');
+  assert.equal(latestError, '操作失败');
+
+  await client.sendCommand(DeskCommand.Stop);
+  assert.equal(latestPhase, 'ready');
+  assert.equal(latestError, null);
+  client.dispose();
+});
+
 class FakeBleAdapter implements BleAdapter {
   readonly peripheral: DeskPeripheral = {
     id: 'desk-1',
@@ -151,6 +175,7 @@ class FakeBleAdapter implements BleAdapter {
   };
   readonly operations: string[] = [];
   readonly writes: number[][] = [];
+  rejectNextWrite = false;
   private stateListener: BytesListener | null = null;
   private configListener: BytesListener | null = null;
   private disconnectListener: DisconnectListener | null = null;
@@ -221,6 +246,10 @@ class FakeBleAdapter implements BleAdapter {
   ): Promise<void> {
     this.operations.push(`write:${bytes.join(',')}`);
     this.writes.push(Array.from(bytes));
+    if (this.rejectNextWrite) {
+      this.rejectNextWrite = false;
+      throw new Error('ATT write rejected');
+    }
     if (characteristicUuid === DESK_CONFIG_UUID) {
       this.applyConfigWrite(bytes);
       this.configListener?.(this.config);

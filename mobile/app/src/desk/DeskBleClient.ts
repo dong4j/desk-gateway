@@ -281,9 +281,11 @@ export class DeskBleClient implements DeskClient {
         bytes,
       );
       await afterWrite?.(peripheralId);
+      this.update({ error: null });
     });
     const operation = write.catch((error: unknown) => {
-      this.fail(error);
+      /* ATT 拒绝是一次操作失败，不代表 GATT 链路已经断开。 */
+      this.update({ error: '操作失败' });
       throw error;
     });
     this.writeQueue = operation.catch(() => undefined);

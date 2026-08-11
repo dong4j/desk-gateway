@@ -93,10 +93,16 @@ export function HomeScreen({
         </View>
 
         {snapshot.error ? (
-          <Pressable onPress={onConnect} style={styles.errorBanner}>
-            <Text style={styles.errorTitle}>连接失败，点击重试</Text>
-            <Text style={styles.errorText}>{friendlyError(snapshot.error)}</Text>
-          </Pressable>
+          snapshot.phase === 'ready' ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorTitle}>操作失败</Text>
+            </View>
+          ) : (
+            <Pressable onPress={onConnect} style={styles.errorBanner}>
+              <Text style={styles.errorTitle}>连接失败，点击重试</Text>
+              <Text style={styles.errorText}>{friendlyError(snapshot.error)}</Text>
+            </Pressable>
+          )
         ) : null}
 
         <DeskScene

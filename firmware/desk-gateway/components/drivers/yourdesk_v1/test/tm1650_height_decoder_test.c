@@ -33,6 +33,22 @@ static void expect_height(uint8_t dig1, uint8_t dig2, uint8_t dig3,
     assert(height_mm == expected_mm);
 }
 
+/** Require a complete numeric frame to be rejected as malformed. */
+static void expect_invalid_height(uint8_t dig1, uint8_t dig2, uint8_t dig3)
+{
+    tm1650_height_decoder_t decoder;
+    tm1650_height_decoder_reset(&decoder);
+    int height_mm = -1;
+
+    assert(tm1650_height_decoder_feed(&decoder, 0x36, dig3, &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_decoder_feed(&decoder, 0x35, dig2, &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_decoder_feed(&decoder, 0x34, dig1, &height_mm) ==
+           TM1650_HEIGHT_INVALID);
+    assert(height_mm == -1);
+}
+
 /** Verify that a new frame works even when the previous DIG4 never arrived. */
 static void expect_missing_mirror_recovery(void)
 {
@@ -108,6 +124,32 @@ static void expect_fragmented_up_cache(void)
     assert(oldest_age_ms == 4);
 }
 
+/** Verify fragmented register updates also understand xx.x inch frames. */
+static void expect_imperial_cache(void)
+{
+    tm1650_height_cache_t cache;
+    tm1650_height_cache_reset(&cache);
+    int height_mm = -1;
+    uint32_t oldest_age_ms = 0;
+
+    assert(tm1650_height_cache_feed(&cache, 0x36, 0x5F, 0, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_cache_feed(&cache, 0x35, 0xF3, 2, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_cache_feed(&cache, 0x34, 0x9E, 4, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 635);
+    assert(oldest_age_ms == 4);
+
+    /* A decimal point on any digit except DIG2 is not a supported unit frame. */
+    assert(tm1650_height_cache_feed(&cache, 0x36, 0x7F, 10, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_INVALID);
+}
+
 /** Ensure fragments from adjacent refreshes cannot be combined into a height. */
 static void expect_malformed_order_rejected(void)
 {
@@ -155,8 +197,14 @@ int main(void)
     expect_height(0x00, 0xDF, 0x9E, 0x9E, 820);
     expect_height(0x44, 0x5F, 0x9E, 0x9E, 1020);
     expect_height(0x44, 0x9E, 0x44, 0x44, 1210);
+    /* Original panel imperial mode: 25.0 in and inferred 40.0 in. */
+    expect_height(0x9E, 0xF3, 0x5F, 0x00, 635);
+    expect_height(0xC5, 0x7F, 0x5F, 0x00, 1016);
+    expect_invalid_height(0xBE, 0xD3, 0x5F);
+    expect_invalid_height(0x9E, 0xD3, 0x7F);
     expect_missing_mirror_recovery();
     expect_fragmented_up_cache();
+    expect_imperial_cache();
     expect_malformed_order_rejected();
 
     puts("tm1650 height golden vectors: OK");
