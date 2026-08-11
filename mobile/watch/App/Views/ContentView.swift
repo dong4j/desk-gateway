@@ -56,6 +56,8 @@ struct ContentView<Controller: DeskControlling>: View {
 
       heightDisplay
 
+      motionStatusStage
+
       controlStage
 
       if let restriction = restrictionText {
@@ -140,7 +142,20 @@ struct ContentView<Controller: DeskControlling>: View {
     }
   }
 
-  /// 控制区固定占位，STOP 和快捷高度只在舞台内部做过渡，避免整页跳动。
+  /// 状态槽始终保留一行高度；待机只隐藏文字，不能折叠并推动按钮。
+  private var motionStatusStage: some View {
+    ZStack {
+      if isMoving {
+        Text(motionText)
+          .font(.caption)
+          .foregroundStyle(effectiveDirection == .down ? .orange : .cyan)
+          .transition(.opacity.animation(.easeOut(duration: reduceMotion ? 0.1 : 0.16)))
+      }
+    }
+    .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18)
+  }
+
+  /// 控制槽固定占位，STOP 和快捷高度只替换内容，纵向坐标始终相同。
   private var controlStage: some View {
     ZStack {
       if isMoving {
@@ -186,23 +201,18 @@ struct ContentView<Controller: DeskControlling>: View {
     .accessibilityElement(children: .combine)
   }
 
-  /// 运动态用整行红色 STOP，确保固定高度按钮不会与运动命令并存。
+  /// 运动态只提供整行红色 STOP；运动文案由上方固定状态槽承载。
   private var movingControls: some View {
-    VStack(spacing: 5) {
-      Text(motionText)
-        .font(.caption)
-        .foregroundStyle(effectiveDirection == .down ? .orange : .cyan)
-      Button {
-        crown.forceStop(sendEvenIfIdle: true)
-      } label: {
-        Text("停止")
-          .font(.headline)
-          .frame(maxWidth: .infinity, minHeight: 30)
-      }
-      .buttonStyle(.borderedProminent)
-      .tint(.red)
-      .accessibilityHint("立即停止桌面运动")
+    Button {
+      crown.forceStop(sendEvenIfIdle: true)
+    } label: {
+      Text("停止")
+        .font(.headline)
+        .frame(maxWidth: .infinity, minHeight: 34)
     }
+    .buttonStyle(.borderedProminent)
+    .tint(.red)
+    .accessibilityHint("立即停止桌面运动")
   }
 
   /// 普通模式沿真实方向漂移；Reduce Motion 下只做透明度呼吸。
