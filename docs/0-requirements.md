@@ -8,7 +8,7 @@
 | 日期 | 2026-08-11 |
 | 状态 | 草案 |
 | 仓库 | 本 Git 仓库根目录 |
-| 架构 | [architecture/overview.md](./architecture/overview.md)、[平台设计定稿](./superpowers/specs/2026-08-06-desk-gateway-platform-design.md)、[小米/华为生态调研](./architecture/ecosystem-xiaomi-huawei.md)、[BLE 外设](./architecture/ble-accessory-profile.md) |
+| 架构 | [architecture/overview.md](./architecture/overview.md)、[平台设计定稿](./superpowers/specs/2026-08-06-desk-gateway-platform-design.md)、[MQTT / Home Assistant](./architecture/mqtt-home-assistant.md)、[小米/华为生态调研](./architecture/ecosystem-xiaomi-huawei.md)、[BLE 外设](./architecture/ble-accessory-profile.md) |
 
 本文是本项目的第一篇正式文档，定义要做什么、做到什么算完成，以及分阶段怎么推进。硬件原理图、协议细节、固件实现另立文档。**平台分层与 Web/Driver 契约以架构设计定稿为准**；本文侧重需求与门禁。
 

@@ -102,6 +102,7 @@ NOTICE                     Third-party attributions
 | [docs/0-requirements.md](./docs/0-requirements.md) | Requirements (Chinese) |
 | [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | Current status and prioritized backlog (Chinese) |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | Architecture overview |
+| [docs/architecture/mqtt-home-assistant.md](./docs/architecture/mqtt-home-assistant.md) | MQTT / Home Assistant integration design (Chinese) |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUIDs, byte protocol, and LightBlue test flow |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | Bring-up / acceptance checklist |
 | [docs/ui-demos/](./docs/ui-demos/) | Static Web UI style demos |

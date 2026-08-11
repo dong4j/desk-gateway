@@ -35,7 +35,7 @@ Web UI + 手机 App（BLE/REST）+ UART + BLE 外设（OLED/旋钮）
 | 高度 | 软件多地址 Slave 已接入真实 digit 帧；Web、REST、BLE 和 App 共用最后可信高度，并兼容厘米/英寸显示模式 |
 | BLE / Loctek / Jiecang | BLE GATT Server 已通过 LightBlue 和 iPhone App 核心真机控制；Loctek / Jiecang 为 stub |
 | 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | 仲裁与权限代码已实现；原厂面板透传/真屏蔽仍待面包板抓包和真机验收 |
-| HA / Matter / Siri / OTA | Phase 3+，未实现 |
+| HA / Matter / Siri / OTA | Phase 3+；[MQTT / Home Assistant 方案](./mqtt-home-assistant.md)已确认、尚未实现，其余未实现 |
 | 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](./ecosystem-xiaomi-huawei.md) |
 
 ## 仓库形状（目标）
