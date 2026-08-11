@@ -1,13 +1,13 @@
-# 键盘与语音档位控制
+# 键盘、旋钮与语音控制
 
-当前集成只做两件事：切换档位 1 和档位 4。GoatRemote 与 Karabiner
-共用 [`scripts/desk-preset.sh`](../scripts/desk-preset.sh)，不需要先调用登录接口。
+当前集成支持档位 1、档位 4、STOP 和旋钮连续升降。GoatRemote 与
+Karabiner 共用 [`scripts/desk-preset.sh`](../scripts/desk-preset.sh)，不需要先调用登录接口。
 
 脚本已经直接配置当前局域网参数：
 
 ```sh
-DESK_BASE_URL='http://192.168.21.90'
-DESK_KEY='desk-gateway'
+DESK_BASE_URL='http://192.168.21.65'
+DESK_KEY='<与 Web 登录密码一致>'
 ```
 
 如果 ESP32 地址或 Web 登录密码发生变化，直接修改这两个值。
@@ -19,7 +19,11 @@ DESK_KEY='desk-gateway'
 ```bash
 ./scripts/desk-preset.sh 1
 ./scripts/desk-preset.sh 4
+./scripts/desk-preset.sh stop
 ```
+
+`up` / `down` 是旋钮的单刻度 jog 请求，不等同于 Web 长按。单次调用只让固件
+进入待命；连续调用会让真桌运动，应使用旋钮按照下文步骤验收。
 
 成功时接口返回：
 

@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | DG-ARCH-BLE-ACC-001 |
 | 日期 | 2026-08-06 |
-| 状态 | Command / State v1 + Config v2 / System 扩展已实现，待 Config v2 真机验收 |
+| 状态 | Command / State v1 + Config v2 / System 扩展已实现；LightBlue 核心控制和 iPhone Config v2 已真机验收，异常矩阵待完成 |
 | 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
 
 ## 1. 要解决什么
@@ -221,10 +221,11 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
 | 阶段 | 内容 |
 |---|---|
 | 文档与代码（当前） | `connectivity/ble`：NimBLE GATT Server、desk_core 接入、租约、断连停止、状态 Notify |
-| 真机门禁 | 使用 LightBlue 完成本文件第 7 节，保留串口日志和实际桌面动作证据 |
+| 真机门禁 | LightBlue 核心控制和 iPhone Config v2 已通过；按本文件第 7 节补齐断连、权限和异常停止证据 |
 | 后续 | 开源「参考旋钮+OLED」固件或对接指南；可选 Central 模式适配成品外设 |
 
-本能力不改变 Web/REST 协议；BLE 与 Wi-Fi 共存和所有运动行为仍需真机验收后才能标记完成。
+本能力不改变 Web/REST 协议。BLE 与 Wi-Fi 核心控制已通过真机验收；
+断连、权限拒绝、前后台切换和异常停止矩阵仍需继续补齐。
 
 ## 9. 修订记录
 
@@ -235,3 +236,4 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
 | 1.1 | 2026-08-11 | 增加标准 Device Information / Firmware Revision String，Command / State v1 不变 |
 | 1.2 | 2026-08-11 | 增加 Config 单字段读写、设置 Notify 与独立 System 重启命令；Command / State v1 保持不变 |
 | 1.3 | 2026-08-11 | Config 升级为 v2，新增设备持久化的档位 1/4 高度并在 Web、App 间同步；保留 v1 读写兼容 |
+| 1.4 | 2026-08-11 | 记录 LightBlue 核心控制和 iPhone Config v2 真机通过；断连、权限与异常停止矩阵仍待补齐 |
