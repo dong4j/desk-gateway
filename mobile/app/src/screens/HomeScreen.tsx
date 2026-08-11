@@ -123,7 +123,6 @@ export function HomeScreen({
 
         <View style={styles.controlsRow}>
           <HoldControl
-            variant="primary"
             label="按住升"
             direction="up"
             disabled={motionBlocked}
@@ -144,7 +143,6 @@ export function HomeScreen({
             <StopIcon size={29} color={palette.white} />
           </Pressable>
           <HoldControl
-            variant="outline"
             label="按住降"
             direction="down"
             disabled={motionBlocked}
@@ -228,21 +226,18 @@ function ConnectionBadge({
 }
 
 function HoldControl({
-  variant,
   label,
   direction,
   disabled,
   onPressIn,
   onPressOut,
 }: {
-  variant: 'primary' | 'outline';
   label: string;
   direction: 'up' | 'down';
   disabled: boolean;
   onPressIn: () => void;
   onPressOut: () => void;
 }) {
-  const primary = variant === 'primary';
   return (
     <Pressable
       accessibilityRole="button"
@@ -252,7 +247,7 @@ function HoldControl({
       onPressOut={onPressOut}
       style={({ pressed }) => [
         styles.holdButton,
-        primary ? styles.holdPrimary : styles.holdOutline,
+        styles.holdOutline,
         disabled && styles.disabled,
         pressed && !disabled && styles.holdPressed,
       ]}
@@ -260,10 +255,10 @@ function HoldControl({
       <ChevronIcon
         direction={direction}
         size={27}
-        color={primary ? palette.white : palette.ink}
+        color={palette.ink}
         strokeWidth={2.2}
       />
-      <Text style={[styles.holdText, primary && styles.holdTextPrimary]}>{label}</Text>
+      <Text style={styles.holdText}>{label}</Text>
     </Pressable>
   );
 }
@@ -340,11 +335,9 @@ const styles = StyleSheet.create({
   limitText: { color: palette.gold, fontSize: 16 },
   controlsRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 11 },
   holdButton: { flex: 1, height: 76, alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 22 },
-  holdPrimary: { backgroundColor: palette.ink, ...shadows.floating },
   holdOutline: { borderWidth: 1.5, borderColor: palette.ink, backgroundColor: palette.surface },
   holdPressed: { transform: [{ scale: 0.98 }], backgroundColor: palette.gold },
   holdText: { color: palette.ink, fontSize: 16, fontWeight: '600' },
-  holdTextPrimary: { color: palette.white },
   stopButton: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.danger, borderRadius: 30, backgroundColor: palette.danger, ...shadows.floating },
   presetRow: { marginTop: 12, flexDirection: 'row', gap: 11 },
   presetCard: { flex: 1, minHeight: 70, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: palette.line, borderRadius: 16, backgroundColor: palette.surface },

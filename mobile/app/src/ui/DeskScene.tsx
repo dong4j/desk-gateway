@@ -122,7 +122,8 @@ const styles = StyleSheet.create({
   },
   ruler: {
     position: 'absolute',
-    left: 0,
+    // 给当前高度数字留出桌面右侧间距，避免与桌腿和桌板视觉重叠。
+    left: 10,
     top: 0,
     zIndex: 3,
   },
