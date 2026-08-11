@@ -316,6 +316,7 @@ export default function App() {
               ).catch(() => undefined);
             }
           }}
+          onMaxHeightStep={feedback}
           onSetConnectionSettings={(settings) => {
             selectionFeedback();
             updatePreferences({

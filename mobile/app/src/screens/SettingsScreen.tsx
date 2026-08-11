@@ -5,7 +5,7 @@
  * 写入过程中不做本地乐观切换，避免界面显示与实际安全策略不一致。
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -54,6 +54,7 @@ interface SettingsScreenProps {
   onToggleAutoConnect: () => void;
   onToggleHapticFeedback: () => void;
   onSetHapticStrength: (strength: number) => void;
+  onMaxHeightStep: () => void;
   onSetConnectionSettings: (settings: DeskConnectionSettings) => void;
   onSetChildLock: (enabled: boolean) => void;
   onSetSourceEnabled: (
@@ -81,6 +82,7 @@ export function SettingsScreen({
   onToggleAutoConnect,
   onToggleHapticFeedback,
   onSetHapticStrength,
+  onMaxHeightStep,
   onSetConnectionSettings,
   onSetChildLock,
   onSetSourceEnabled,
@@ -96,6 +98,7 @@ export function SettingsScreen({
   const maxHeightCm = maxHeightMm ? maxHeightMm / 10 : 110;
   const [maxHeightDraft, setMaxHeightDraft] = useState(String(maxHeightCm));
   const [maxHeightError, setMaxHeightError] = useState<string | null>(null);
+  const maxHeightTickRef = useRef(Math.round(maxHeightCm));
   const preset1HeightCm = (config?.preset1HeightMm ?? 640) / 10;
   const preset4HeightCm = (config?.preset4HeightMm ?? 1020) / 10;
   const [preset1Draft, setPreset1Draft] = useState(String(preset1HeightCm));
@@ -110,6 +113,7 @@ export function SettingsScreen({
   useEffect(() => {
     setMaxHeightDraft(String(maxHeightCm));
     setMaxHeightError(null);
+    maxHeightTickRef.current = Math.round(maxHeightCm);
   }, [maxHeightCm]);
 
   useEffect(() => {
@@ -303,7 +307,13 @@ export function SettingsScreen({
                 value={maxHeightSliderValue}
                 onValueChange={(value) => {
                   const clamped = Math.max(minimumAllowedMaxHeightCm, value);
-                  setMaxHeightDraft(clamped.toFixed(0));
+                  const nextTick = Math.round(clamped);
+                  // Slider 会高频回调；只在实际跨过 1 cm 刻度时反馈一次。
+                  if (nextTick !== maxHeightTickRef.current) {
+                    maxHeightTickRef.current = nextTick;
+                    onMaxHeightStep();
+                  }
+                  setMaxHeightDraft(String(nextTick));
                 }}
                 onSlidingComplete={(value) => {
                   commitMaxHeight(Math.max(minimumAllowedMaxHeightCm, value));
@@ -764,7 +774,7 @@ const styles = StyleSheet.create({
   sliderLabel: { position: 'absolute', width: 32, marginLeft: -16, color: palette.inkMuted, fontSize: 11, textAlign: 'center' },
   sliderLabelUnavailable: { color: palette.inkFaint },
   heightEditor: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  heightInput: { width: 82, height: 40, paddingHorizontal: 12, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.white, color: palette.ink, fontSize: 16 },
+  heightInput: { width: 82, height: 40, paddingHorizontal: 12, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.white, color: palette.ink, fontSize: 16, textAlign: 'center' },
   heightUnit: { color: palette.inkMuted, fontSize: 15 },
   heightSave: { minWidth: 66, height: 40, marginLeft: 'auto', alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: palette.ink },
   heightSaveText: { color: palette.white, fontSize: 15, fontWeight: '600' },
