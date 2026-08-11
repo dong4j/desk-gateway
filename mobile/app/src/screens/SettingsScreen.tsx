@@ -224,7 +224,7 @@ export function SettingsScreen({
           </View>
           <InfoRow label="当前连接" value={connectionLabel} />
           <InfoRow
-            label="固件构建时间"
+            label="固件信息"
             value={firmwareBuildTime ?? '不可用'}
             last
           />

@@ -400,7 +400,7 @@ static int system_access(uint16_t conn_handle, uint16_t attr_handle,
     return 0;
 }
 
-/** Expose the exact flashed image identity without coupling clients to HTTP. */
+/** Expose build time and Git-derived app version without coupling clients to HTTP. */
 static int firmware_revision_access(uint16_t conn_handle, uint16_t attr_handle,
                                     struct ble_gatt_access_ctxt *ctxt,
                                     void *arg)
@@ -418,9 +418,8 @@ static int firmware_revision_access(uint16_t conn_handle, uint16_t attr_handle,
     }
     char revision[DESK_BLE_FIRMWARE_REVISION_MAX_LEN];
     int length = snprintf(
-        revision, sizeof(revision), "%s %s # %02x%02x%02x%02x", app->date,
-        app->time, app->app_elf_sha256[0], app->app_elf_sha256[1],
-        app->app_elf_sha256[2], app->app_elf_sha256[3]);
+        revision, sizeof(revision), "%s %s @ %s", app->date, app->time,
+        app->version);
     if (length < 0 || (size_t)length >= sizeof(revision)) {
         return BLE_ATT_ERR_INSUFFICIENT_RES;
     }

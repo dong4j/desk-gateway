@@ -38,6 +38,7 @@ interface RestStatus {
   build_date?: string;
   build_time?: string;
   build_id?: string;
+  git_version?: string;
 }
 
 const REQUEST_TIMEOUT_MS = 3_000;
@@ -336,6 +337,10 @@ function firmwareRevision(status: RestStatus): string | null {
   const time = status.build_time?.trim();
   if (!date || !time) {
     return null;
+  }
+  const gitVersion = status.git_version?.trim();
+  if (gitVersion) {
+    return `${date} ${time} @ ${gitVersion}`;
   }
   const buildId = status.build_id?.trim();
   return `${date} ${time}${buildId ? ` # ${buildId}` : ''}`;

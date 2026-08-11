@@ -25,6 +25,7 @@ const status = {
   build_date: 'Aug 11 2026',
   build_time: '21:05:03',
   build_id: '1234abcd',
+  git_version: 'fc310ab',
 };
 
 test('connects through X-Desk-Key and maps REST status to the shared snapshot', async () => {
@@ -36,10 +37,12 @@ test('connects through X-Desk-Key and maps REST status to the shared snapshot', 
   let latestTransport: string | null = null;
   let latestHeight: number | null = null;
   let latestPreset4 = 0;
+  let latestFirmwareRevision: string | null = null;
   client.subscribe((snapshot) => {
     latestTransport = snapshot.transport;
     latestHeight = snapshot.deskState?.heightMm ?? null;
     latestPreset4 = snapshot.deskConfig?.preset4HeightMm ?? 0;
+    latestFirmwareRevision = snapshot.firmwareRevision;
   });
 
   client.configure('desk-gateway.local/', 'secret');
@@ -49,6 +52,7 @@ test('connects through X-Desk-Key and maps REST status to the shared snapshot', 
   assert.equal(latestTransport, 'wifi');
   assert.equal(latestHeight, 990);
   assert.equal(latestPreset4, 1020);
+  assert.equal(latestFirmwareRevision, 'Aug 11 2026 21:05:03 @ fc310ab');
   assert.equal(requests[0].url, 'http://desk-gateway.local/api/v1/desk/status');
   assert.equal(
     (requests[0].init?.headers as Record<string, string>)['X-Desk-Key'],

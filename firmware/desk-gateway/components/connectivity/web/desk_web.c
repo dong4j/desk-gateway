@@ -193,6 +193,8 @@ static cJSON *snapshot_json(void)
     cJSON_AddStringToObject(o, "build_date", app ? app->date : "");
     cJSON_AddStringToObject(o, "build_time", app ? app->time : "");
     cJSON_AddStringToObject(o, "build_id", build_id);
+    /* ESP-IDF 从 Git 生成 app version，用于确认当前烧录对应的提交。 */
+    cJSON_AddStringToObject(o, "git_version", app ? app->version : "");
     cJSON_AddNumberToObject(o, "ts_ms", (double)esp_log_timestamp());
     return o;
 }

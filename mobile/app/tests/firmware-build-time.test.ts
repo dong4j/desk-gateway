@@ -12,6 +12,13 @@ test('formats ESP-IDF firmware revision to minute precision', () => {
   );
 });
 
+test('keeps the Git-derived firmware version visible', () => {
+  assert.equal(
+    formatFirmwareBuildTime('Aug 11 2026 19:52:22 @ fc310ab-dirty'),
+    '2026.08.11 19:52 · fc310ab-dirty',
+  );
+});
+
 test('keeps unknown firmware revision formats intact', () => {
   assert.equal(formatFirmwareBuildTime('development-build'), 'development-build');
   assert.equal(formatFirmwareBuildTime(null), null);

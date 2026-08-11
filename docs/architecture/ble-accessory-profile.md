@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 文档 | DG-ARCH-BLE-ACC-001 |
-| 日期 | 2026-08-06 |
+| 日期 | 2026-08-11 |
 | 状态 | Command / State v1 + Config v2 / System 扩展已实现；LightBlue 核心控制和 iPhone Config v2 已真机验收，异常矩阵待完成 |
 | 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
 
@@ -59,7 +59,7 @@ Gateway 广播名为 `DeskGateway`，广播包包含 Desk Accessory Service UUID
 | Config | `7f4e0004-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Read, Notify, Write, Write Encrypted | 设备设置快照与单字段更新 |
 | System | `7f4e0005-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Write, Write Encrypted | 与运动命令隔离的管理指令 |
 | Device Information Service | `180A` | Primary Service | Bluetooth SIG 标准设备信息服务 |
-| Firmware Revision String | `2A26` | Read | ASCII：`构建日期 构建时间 # ELF短标识` |
+| Firmware Revision String | `2A26` | Read | ASCII：`构建日期 构建时间 @ Git版本` |
 
 Device Information 是向后兼容的附加服务，不改变 Desk Accessory Service 的 v1
 Command / State UUID 和字节布局。旧客户端可以完全忽略；新客户端读取失败时也不得阻断
@@ -191,7 +191,7 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
 
 2. iPhone 打开 LightBlue，扫描并连接 `DeskGateway`。
 3. 展开标准 Device Information Service `180A`，读取 Firmware Revision String
-   `2A26`；内容应与串口启动日志中的编译时间和 ELF SHA 短标识一致。
+   `2A26`；内容应与串口启动日志中的编译时间和 Git 派生 App Version 一致。
 4. 展开 Service `7f4e0001-...`，对 State `7f4e0003-...` 执行 Read，再开启
    Notify；核对 8 字节高度、状态、童锁和上限。
 5. 对 Command `7f4e0002-...` 选择 Hex、Write，写 `01`。首次写入应弹出配对；
@@ -237,3 +237,4 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
 | 1.2 | 2026-08-11 | 增加 Config 单字段读写、设置 Notify 与独立 System 重启命令；Command / State v1 保持不变 |
 | 1.3 | 2026-08-11 | Config 升级为 v2，新增设备持久化的档位 1/4 高度并在 Web、App 间同步；保留 v1 读写兼容 |
 | 1.4 | 2026-08-11 | 记录 LightBlue 核心控制和 iPhone Config v2 真机通过；断连、权限与异常停止矩阵仍待补齐 |
+| 1.5 | 2026-08-11 | Firmware Revision 改为构建时间与 Git 派生版本，移动端可确认烧录对应提交 |
