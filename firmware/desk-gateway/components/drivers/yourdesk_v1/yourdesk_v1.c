@@ -251,28 +251,26 @@ static void motion_diag_log_interval(
 
     ESP_LOGI(TAG,
              "motion_diag bus stage=%s dir=%s dt=%" PRIu32
-             "ms scl=%" PRIu32 "/%" PRIu32
-             " edge_mismatch=%" PRIu32
+             "ms worker=ulp scl=%" PRIu32 "/%" PRIu32
              " start_stop=%" PRIu32 "/%" PRIu32
-             " sda_low=%" PRIu32
              " key_addr=%" PRIu32 "/%" PRIu32
-             " key_ok_abort=%" PRIu32 "/%" PRIu32,
+             " key_ok_abort=%" PRIu32 "/%" PRIu32
+             " ring_drop=%" PRIu32 " active_dr=0x%02X",
              stage, direction, dt_ms,
              bus->scl_rising_edges - baseline->scl_rising_edges,
              bus->scl_falling_edges - baseline->scl_falling_edges,
-             bus->scl_level_mismatches - baseline->scl_level_mismatches,
              bus->recognized_starts - baseline->recognized_starts,
              bus->recognized_stops - baseline->recognized_stops,
-             bus->unexpected_sda_edges_while_scl_low -
-                 baseline->unexpected_sda_edges_while_scl_low,
              bus->key_write_addresses - baseline->key_write_addresses,
              bus->key_read_addresses - baseline->key_read_addresses,
              bus->completed_key_reads - baseline->completed_key_reads,
-             bus->aborted_key_reads - baseline->aborted_key_reads);
+             bus->aborted_key_reads - baseline->aborted_key_reads,
+             bus->digit_ring_drops - baseline->digit_ring_drops,
+             bus->active_dr);
     ESP_LOGI(TAG,
              "motion_diag state stage=%s dir=%s height=%d anchor=%d age=%dms"
              " target=%d max=%d latch=%d digit=%" PRIu32 "/%" PRIu32
-             " drop=%" PRIu32 "/%" PRIu32
+             " drop=%" PRIu32 "/%" PRIu32 "/%" PRIu32
              " unsupported=%" PRIu32
              " frame_total=%" PRIuFAST32 " cache_total=%" PRIuFAST32
              " invalid_total=%" PRIuFAST32
@@ -285,6 +283,7 @@ static void motion_diag_log_interval(
              atomic_load(&s_up_limit_latched) ? 1 : 0,
              bus->digit_write_addresses - baseline->digit_write_addresses,
              bus->digit_events - baseline->digit_events,
+             bus->digit_ring_drops - baseline->digit_ring_drops,
              bus->digit_queue_drops - baseline->digit_queue_drops,
              bus->mirror_digit_queue_drops - baseline->mirror_digit_queue_drops,
              bus->unsupported_addresses - baseline->unsupported_addresses,

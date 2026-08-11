@@ -128,10 +128,12 @@ projection keeps limiting upward travel without depending on another frame.
 Lowering the limit below the current height never moves the desk automatically;
 it only blocks further upward travel.
 
-The timing-sensitive `0x24`/digit software I2C GPIO service is installed on
-Core 1, while Wi-Fi, NimBLE, and height processing remain on Core 0. Completed
-`0x24` reads are counted without per-poll logging; a gap of at least 20 ms while
-moving emits `controller key-poll gap` for hardware diagnosis.
+The timing-sensitive `0x24`/digit software I2C state machine runs on the
+ESP32-S3 ULP RISC-V core, independently of the main CPUs, Wi-Fi, and NimBLE.
+The main CPU only updates the desired key byte through an RTC-memory mailbox and
+drains decoded digit events from a shared ring. No per-edge GPIO ISR is installed.
+Motion diagnostics report the ULP transaction counters, ring drops, and active
+key byte without logging every normal controller poll.
 
 After boot, the controller may not emit a digit frame until the display changes.
 While height is unknown, Web keeps manual UP and DOWN available so either action

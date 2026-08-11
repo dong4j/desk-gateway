@@ -13,7 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#ifdef ESP_PLATFORM
+#if defined(ESP_PLATFORM) && !defined(__riscv)
 #include "esp_attr.h"
 #define YOURDESK_SOFT_I2C_ISR_ATTR IRAM_ATTR
 #else

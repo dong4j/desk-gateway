@@ -1,314 +1,115 @@
 /**
  * @file yourdesk_soft_i2c_esp.c
- * @brief IRAM-safe GPIO bridge for the yourdesk_v1 software I2C slave.
+ * @brief Main-CPU adapter for the ULP RISC-V yourdesk I2C worker.
  *
- * External 2 kOhm pull-ups provide the bus-high level. DAT is configured as
- * open-drain and is only pulled low for ACK/data zero bits; writing one releases
- * it. No logging or allocation is performed from interrupt context.
+ * The ULP core owns every CLK/DAT transition. This adapter only initializes
+ * RTCIO, updates the desired DR mailbox, and drains completed digit events into
+ * normal FreeRTOS queues. No Wi-Fi/BLE/main-CPU interrupt can delay an I2C bit.
  */
 #include "yourdesk_soft_i2c_esp.h"
 
+#include "driver/rtc_io.h"
+#include "esp_check.h"
+#include "esp_log.h"
+#include "freertos/task.h"
+#include "sdkconfig.h"
+#include "ulp_riscv.h"
+#include "yourdesk_i2c_ulp.h"
 #include "yourdesk_soft_i2c_sm.h"
 
-#include "driver/gpio.h"
-#include "esp_check.h"
-#include "esp_intr_alloc.h"
-#include "esp_log.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
-#include "hal/gpio_ll.h"
-#include "soc/gpio_struct.h"
-#include "sdkconfig.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
-static const char *TAG = "yourdesk_soft_i2c";
+#define DIGIT_RING_CAPACITY 32u
+#define DIGIT_RING_MASK     (DIGIT_RING_CAPACITY - 1u)
+#define ULP_READY_TIMEOUT_MS 100u
+#define DIGIT_DRAIN_PERIOD_MS 2u
 
-static DRAM_ATTR yourdesk_soft_i2c_sm_t s_sm;
-static DRAM_ATTR QueueHandle_t s_digit_queue;
-static DRAM_ATTR QueueHandle_t s_mirror_digit_queue;
-static DRAM_ATTR bool s_drive_sda_low;
-static DRAM_ATTR bool s_expect_scl_rising;
-static DRAM_ATTR bool s_sda_window_open;
-static DRAM_ATTR uint32_t s_isr_core_id;
-static DRAM_ATTR yourdesk_soft_i2c_stats_t s_stats;
-static portMUX_TYPE s_sm_mux = portMUX_INITIALIZER_UNLOCKED;
+static const char *TAG = "yourdesk_i2c_ulp";
 
-typedef struct {
-    QueueHandle_t digit_queue;
-    QueueHandle_t mirror_digit_queue;
-    uint8_t initial_dr;
-    SemaphoreHandle_t done;
-    esp_err_t result;
-} soft_i2c_init_context_t;
+extern const uint8_t yourdesk_i2c_ulp_bin_start[]
+    asm("_binary_yourdesk_i2c_ulp_bin_start");
+extern const uint8_t yourdesk_i2c_ulp_bin_end[]
+    asm("_binary_yourdesk_i2c_ulp_bin_end");
 
-/** Read a GPIO level without calling Flash-resident driver code from the ISR. */
-static inline bool IRAM_ATTR line_is_high(gpio_num_t gpio)
+static QueueHandle_t s_digit_queue;
+static QueueHandle_t s_mirror_digit_queue;
+static uint32_t s_digit_read_seq;
+static uint32_t s_digit_queue_drops;
+static uint32_t s_mirror_digit_queue_drops;
+static bool s_started;
+
+/** Load one shared word after all earlier ULP writes are visible. */
+static inline uint32_t shared_load(const uint32_t *value)
 {
-    return gpio_ll_get_level(&GPIO, (uint32_t)gpio) != 0;
+    return __atomic_load_n(value, __ATOMIC_ACQUIRE);
 }
 
-/** Clear a per-pin edge latch without calling the Flash-resident GPIO driver. */
-static inline void IRAM_ATTR clear_gpio_interrupt(gpio_num_t gpio)
+/** Publish one shared word before the ULP consumes the related state. */
+static inline void shared_store(uint32_t *target, uint32_t value)
 {
-    uint32_t gpio_num = (uint32_t)gpio;
-    if (gpio_num < 32u) {
-        gpio_ll_clear_intr_status(&GPIO, 1u << gpio_num);
-    } else {
-        gpio_ll_clear_intr_status_high(&GPIO, 1u << (gpio_num - 32u));
-    }
+    __atomic_store_n(target, value, __ATOMIC_RELEASE);
 }
 
-/**
- * Enable SDA boundary detection only while SCL is high.
- *
- * Normal data and ACK transitions happen while SCL is low. Masking them in
- * hardware prevents those edges from competing with the 9.6 kHz SCL ISR.
- */
-static inline void IRAM_ATTR set_sda_window(bool open)
+/** Configure the two existing desk pins as RTCIO before the ULP takes ownership. */
+static esp_err_t configure_rtc_bus_gpio(void)
 {
-    gpio_ll_intr_disable(&GPIO, CONFIG_DESK_I2C_SDA_GPIO);
-    clear_gpio_interrupt(CONFIG_DESK_I2C_SDA_GPIO);
-    s_sda_window_open = open;
-    if (open) {
-        gpio_ll_intr_enable_on_core(&GPIO, s_isr_core_id,
-                                    CONFIG_DESK_I2C_SDA_GPIO);
-    }
-}
+    gpio_num_t scl = (gpio_num_t)CONFIG_DESK_I2C_SCL_GPIO;
+    gpio_num_t sda = (gpio_num_t)CONFIG_DESK_I2C_SDA_GPIO;
+    ESP_RETURN_ON_FALSE(rtc_gpio_is_valid_gpio(scl) &&
+                            rtc_gpio_is_valid_gpio(sda),
+                        ESP_ERR_INVALID_ARG, TAG,
+                        "SCL/SDA must be RTC-capable GPIOs");
 
-/** Arm one explicit SCL edge; ISR code never infers polarity from a late read. */
-static inline void IRAM_ATTR arm_scl_edge(bool rising)
-{
-    s_expect_scl_rising = rising;
-    gpio_ll_set_intr_type(&GPIO, CONFIG_DESK_I2C_SCL_GPIO,
-                          rising ? GPIO_INTR_POSEDGE : GPIO_INTR_NEGEDGE);
-}
+    ESP_RETURN_ON_ERROR(rtc_gpio_init(scl), TAG, "initialize CLK RTCIO");
+    ESP_RETURN_ON_ERROR(rtc_gpio_set_direction(scl, RTC_GPIO_MODE_INPUT_ONLY),
+                        TAG, "configure CLK input");
+    ESP_RETURN_ON_ERROR(rtc_gpio_pullup_dis(scl), TAG,
+                        "disable CLK internal pull-up");
+    ESP_RETURN_ON_ERROR(rtc_gpio_pulldown_dis(scl), TAG,
+                        "disable CLK internal pull-down");
 
-/** Apply the state-machine output while SDA edge detection is masked. */
-static inline void IRAM_ATTR apply_sda_output(void)
-{
-    bool drive_low = s_sm.drive_sda_low;
-    if (drive_low == s_drive_sda_low) {
-        return;
-    }
-    s_drive_sda_low = drive_low;
-    gpio_ll_set_level(&GPIO, CONFIG_DESK_I2C_SDA_GPIO, drive_low ? 0u : 1u);
-}
-
-/** Count an interrupted 0x24 response before START/STOP resets its state. */
-static inline void IRAM_ATTR count_aborted_key_read(void)
-{
-    if (s_sm.phase == YOURDESK_SOFT_I2C_TX_DATA ||
-        s_sm.phase == YOURDESK_SOFT_I2C_TX_MASTER_ACK) {
-        s_stats.aborted_key_reads++;
-    }
-}
-
-/** Classify a completed address byte without changing protocol decisions. */
-static inline void IRAM_ATTR count_address(uint8_t raw_address)
-{
-    uint8_t addr7 = (uint8_t)(raw_address >> 1);
-    bool read = (raw_address & 1u) != 0;
-    if (addr7 == 0x24u) {
-        if (read) {
-            s_stats.key_read_addresses++;
-        } else {
-            s_stats.key_write_addresses++;
-        }
-    } else if (!read && addr7 >= 0x34u && addr7 <= 0x37u) {
-        s_stats.digit_write_addresses++;
-    } else {
-        s_stats.unsupported_addresses++;
-    }
-}
-
-/** Advance receive/transmit timing on both SCL edges. */
-static void IRAM_ATTR scl_edge_isr(void *arg)
-{
-    (void)arg;
-    yourdesk_soft_i2c_digit_event_t event = {0};
-
-    portENTER_CRITICAL_ISR(&s_sm_mux);
-    bool rising = s_expect_scl_rising;
-    bool observed_high = line_is_high(CONFIG_DESK_I2C_SCL_GPIO);
-    if (observed_high != rising) {
-        /* This should stay zero; a hit means the ISR missed the half-cycle. */
-        s_stats.scl_level_mismatches++;
-    }
-
-    if (rising) {
-        /* Arm the next edge first so a later falling edge cannot be lost. */
-        arm_scl_edge(false);
-        s_stats.scl_rising_edges++;
-        yourdesk_soft_i2c_sm_scl_rising(
-            &s_sm, line_is_high(CONFIG_DESK_I2C_SDA_GPIO));
-        set_sda_window(true);
-    } else {
-        /* Data transitions below this edge must not enter the SDA ISR. */
-        set_sda_window(false);
-        arm_scl_edge(true);
-        s_stats.scl_falling_edges++;
-        yourdesk_soft_i2c_phase_t phase_before = s_sm.phase;
-        uint8_t bit_count_before = s_sm.bit_count;
-        uint8_t rx_byte_before = s_sm.rx_byte;
-        event = yourdesk_soft_i2c_sm_scl_falling(&s_sm);
-        if (phase_before == YOURDESK_SOFT_I2C_RX_ADDRESS &&
-            bit_count_before == 8) {
-            count_address(rx_byte_before);
-        }
-        apply_sda_output();
-        /* Applying ACK/data may set the disabled SDA status latch. */
-        clear_gpio_interrupt(CONFIG_DESK_I2C_SDA_GPIO);
-    }
-    if (event.key_read_completed) {
-        s_stats.completed_key_reads++;
-    }
-    if (event.ready) {
-        s_stats.digit_events++;
-    }
-    portEXIT_CRITICAL_ISR(&s_sm_mux);
-
-    if (event.ready && s_digit_queue) {
-        BaseType_t higher_priority_task_woken = pdFALSE;
-        BaseType_t digit_sent = xQueueSendFromISR(
-            s_digit_queue, &event, &higher_priority_task_woken);
-        bool digit_dropped = digit_sent != pdTRUE;
-        bool mirror_dropped = false;
-        if (s_mirror_digit_queue) {
-            BaseType_t mirror_task_woken = pdFALSE;
-            BaseType_t mirror_sent = xQueueSendFromISR(
-                s_mirror_digit_queue, &event, &mirror_task_woken);
-            mirror_dropped = mirror_sent != pdTRUE;
-            if (mirror_task_woken == pdTRUE) {
-                higher_priority_task_woken = pdTRUE;
-            }
-        }
-        if (digit_dropped || mirror_dropped) {
-            portENTER_CRITICAL_ISR(&s_sm_mux);
-            if (digit_dropped) {
-                s_stats.digit_queue_drops++;
-            }
-            if (mirror_dropped) {
-                s_stats.mirror_digit_queue_drops++;
-            }
-            portEXIT_CRITICAL_ISR(&s_sm_mux);
-        }
-        /*
-         * Do not immediately schedule height decoding between adjacent 52 us
-         * bus edges. The queue is drained on the next normal scheduler turn.
-         */
-        (void)higher_priority_task_woken;
-    }
-}
-
-/** Detect START/repeated START/STOP from DAT transitions while SCL is high. */
-static void IRAM_ATTR sda_edge_isr(void *arg)
-{
-    (void)arg;
-    portENTER_CRITICAL_ISR(&s_sm_mux);
-    if (!s_sda_window_open ||
-        !line_is_high(CONFIG_DESK_I2C_SCL_GPIO)) {
-        s_stats.unexpected_sda_edges_while_scl_low++;
-        portEXIT_CRITICAL_ISR(&s_sm_mux);
-        return;
-    }
-
-    if (line_is_high(CONFIG_DESK_I2C_SDA_GPIO)) {
-        count_aborted_key_read();
-        s_stats.recognized_stops++;
-        yourdesk_soft_i2c_sm_stop(&s_sm);
-    } else {
-        count_aborted_key_read();
-        s_stats.recognized_starts++;
-        yourdesk_soft_i2c_sm_start(&s_sm);
-    }
-    apply_sda_output();
-    /* A reset only releases SDA; suppress any self-generated status latch. */
-    clear_gpio_interrupt(CONFIG_DESK_I2C_SDA_GPIO);
-    portEXIT_CRITICAL_ISR(&s_sm_mux);
-}
-
-/** Configure and bind the GPIO service on the core executing this function. */
-static esp_err_t init_on_current_core(QueueHandle_t digit_queue,
-                                      QueueHandle_t mirror_digit_queue,
-                                      uint8_t initial_dr)
-{
-    ESP_RETURN_ON_FALSE(digit_queue, ESP_ERR_INVALID_ARG, TAG,
-                        "digit queue is required");
-
-    gpio_config_t scl_cfg = {
-        .pin_bit_mask = 1ULL << CONFIG_DESK_I2C_SCL_GPIO,
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_ANYEDGE,
-    };
-    ESP_RETURN_ON_ERROR(gpio_config(&scl_cfg), TAG, "configure CLK");
-
-    gpio_config_t sda_cfg = {
-        .pin_bit_mask = 1ULL << CONFIG_DESK_I2C_SDA_GPIO,
-        .mode = GPIO_MODE_INPUT_OUTPUT_OD,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_ANYEDGE,
-    };
-    ESP_RETURN_ON_ERROR(gpio_config(&sda_cfg), TAG, "configure DAT");
-    ESP_RETURN_ON_ERROR(gpio_set_level(CONFIG_DESK_I2C_SDA_GPIO, 1), TAG,
-                        "release DAT");
-
-    s_digit_queue = digit_queue;
-    s_mirror_digit_queue = mirror_digit_queue;
-    s_drive_sda_low = false;
-    s_expect_scl_rising = false;
-    s_sda_window_open = false;
-    s_isr_core_id = (uint32_t)xPortGetCoreID();
-    s_stats = (yourdesk_soft_i2c_stats_t){0};
-    yourdesk_soft_i2c_sm_init(&s_sm, initial_dr);
-
-    /*
-     * Level 3 on Core 1 keeps the 9.6 kHz slave ahead of Wi-Fi/NimBLE work on
-     * Core 0. FreeRTOS FromISR queue APIs remain valid at this interrupt level.
-     */
-    esp_err_t err = gpio_install_isr_service(ESP_INTR_FLAG_IRAM |
-                                             ESP_INTR_FLAG_LEVEL3);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        return err;
-    }
-    ESP_RETURN_ON_ERROR(gpio_isr_handler_add(CONFIG_DESK_I2C_SCL_GPIO,
-                                             scl_edge_isr, NULL),
-                        TAG, "attach CLK interrupt");
-    err = gpio_isr_handler_add(CONFIG_DESK_I2C_SDA_GPIO, sda_edge_isr, NULL);
-    if (err != ESP_OK) {
-        (void)gpio_isr_handler_remove(CONFIG_DESK_I2C_SCL_GPIO);
-        return err;
-    }
-
-    /*
-     * Synchronize both interrupt windows with the live idle bus. If boot lands
-     * inside a clock-low half-cycle, wait for its rising edge before accepting
-     * START/STOP transitions.
-     */
-    portENTER_CRITICAL(&s_sm_mux);
-    bool scl_high = line_is_high(CONFIG_DESK_I2C_SCL_GPIO);
-    clear_gpio_interrupt(CONFIG_DESK_I2C_SCL_GPIO);
-    arm_scl_edge(!scl_high);
-    set_sda_window(scl_high);
-    portEXIT_CRITICAL(&s_sm_mux);
-
-    ESP_LOGI(TAG,
-             "software I2C addrs=0x24,0x34-0x37 SCL=%d SDA=%d ISR-core=%d",
-             CONFIG_DESK_I2C_SCL_GPIO, CONFIG_DESK_I2C_SDA_GPIO,
-             xPortGetCoreID());
+    ESP_RETURN_ON_ERROR(rtc_gpio_init(sda), TAG, "initialize DAT RTCIO");
+    ESP_RETURN_ON_ERROR(
+        rtc_gpio_set_direction(sda, RTC_GPIO_MODE_INPUT_OUTPUT_OD), TAG,
+        "configure DAT open-drain");
+    /* Release DAT before loading or starting the coprocessor. */
+    ESP_RETURN_ON_ERROR(rtc_gpio_set_level(sda, 1), TAG, "release DAT");
+    ESP_RETURN_ON_ERROR(rtc_gpio_pullup_dis(sda), TAG,
+                        "disable DAT internal pull-up");
+    ESP_RETURN_ON_ERROR(rtc_gpio_pulldown_dis(sda), TAG,
+                        "disable DAT internal pull-down");
     return ESP_OK;
 }
 
-/** Install the global GPIO ISR service from Core 1, then wake the caller. */
-static void soft_i2c_init_task(void *arg)
+/** Copy ULP ring entries into the existing decoder and optional panel queues. */
+static void digit_drain_task(void *arg)
 {
-    soft_i2c_init_context_t *ctx = (soft_i2c_init_context_t *)arg;
-    ctx->result = init_on_current_core(ctx->digit_queue,
-                                       ctx->mirror_digit_queue,
-                                       ctx->initial_dr);
-    xSemaphoreGive(ctx->done);
-    vTaskDelete(NULL);
+    (void)arg;
+    for (;;) {
+        uint32_t write_seq = shared_load(&ulp_digit_write_seq);
+        while (s_digit_read_seq != write_seq) {
+            uint32_t packed = shared_load(
+                &ulp_digit_ring[s_digit_read_seq & DIGIT_RING_MASK]);
+            yourdesk_soft_i2c_digit_event_t event = {
+                .ready = true,
+                .key_read_completed = false,
+                .addr7 = (uint8_t)((packed >> 8) & 0xFFu),
+                .segment = (uint8_t)(packed & 0xFFu),
+            };
+            if (xQueueSend(s_digit_queue, &event, 0) != pdTRUE) {
+                s_digit_queue_drops++;
+            }
+            if (s_mirror_digit_queue &&
+                xQueueSend(s_mirror_digit_queue, &event, 0) != pdTRUE) {
+                s_mirror_digit_queue_drops++;
+            }
+            s_digit_read_seq++;
+            shared_store(&ulp_digit_read_seq, s_digit_read_seq);
+        }
+        vTaskDelay(pdMS_TO_TICKS(DIGIT_DRAIN_PERIOD_MS));
+    }
 }
 
 esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
@@ -317,36 +118,63 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
 {
     ESP_RETURN_ON_FALSE(digit_queue, ESP_ERR_INVALID_ARG, TAG,
                         "digit queue is required");
+    ESP_RETURN_ON_FALSE(!s_started, ESP_ERR_INVALID_STATE, TAG,
+                        "ULP I2C worker already started");
+    ESP_RETURN_ON_ERROR(configure_rtc_bus_gpio(), TAG,
+                        "configure desk RTCIO");
 
-    SemaphoreHandle_t done = xSemaphoreCreateBinary();
-    if (!done) {
+    size_t binary_size =
+        (size_t)(yourdesk_i2c_ulp_bin_end - yourdesk_i2c_ulp_bin_start);
+    ESP_RETURN_ON_ERROR(
+        ulp_riscv_load_binary(yourdesk_i2c_ulp_bin_start, binary_size), TAG,
+        "load ULP I2C worker");
+
+    s_digit_queue = digit_queue;
+    s_mirror_digit_queue = mirror_digit_queue;
+    s_digit_read_seq = 0;
+    s_digit_queue_drops = 0;
+    s_mirror_digit_queue_drops = 0;
+    shared_store(&ulp_desired_dr, initial_dr);
+    shared_store(&ulp_digit_read_seq, 0);
+    shared_store(&ulp_worker_ready, 0);
+
+    /* The program never returns; this period only schedules its first start. */
+    ulp_set_wakeup_period(0, 1000);
+    ESP_RETURN_ON_ERROR(ulp_riscv_run(), TAG, "start ULP I2C worker");
+
+    uint32_t waited_ms = 0;
+    while (shared_load(&ulp_worker_ready) == 0 &&
+           waited_ms < ULP_READY_TIMEOUT_MS) {
+        vTaskDelay(pdMS_TO_TICKS(1));
+        waited_ms++;
+    }
+    if (shared_load(&ulp_worker_ready) == 0) {
+        ulp_riscv_halt();
+        (void)rtc_gpio_set_level((gpio_num_t)CONFIG_DESK_I2C_SDA_GPIO, 1);
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if (xTaskCreatePinnedToCore(digit_drain_task, "yd_ulp_digit", 3072,
+                                NULL, configMAX_PRIORITIES - 5,
+                                NULL, 0) != pdPASS) {
+        ulp_riscv_halt();
+        (void)rtc_gpio_set_level((gpio_num_t)CONFIG_DESK_I2C_SDA_GPIO, 1);
         return ESP_ERR_NO_MEM;
     }
-    soft_i2c_init_context_t ctx = {
-        .digit_queue = digit_queue,
-        .mirror_digit_queue = mirror_digit_queue,
-        .initial_dr = initial_dr,
-        .done = done,
-        .result = ESP_FAIL,
-    };
-    if (xTaskCreatePinnedToCore(soft_i2c_init_task, "yd_i2c_init", 3072,
-                                &ctx, configMAX_PRIORITIES - 1,
-                                NULL, 1) != pdPASS) {
-        vSemaphoreDelete(done);
-        return ESP_ERR_NO_MEM;
-    }
 
-    /* The stack-backed context remains valid until the short init task exits. */
-    (void)xSemaphoreTake(done, portMAX_DELAY);
-    vSemaphoreDelete(done);
-    return ctx.result;
+    s_started = true;
+    ESP_LOGI(TAG,
+             "ULP multi-address I2C ready addrs=0x24,0x34-0x37 SCL=%d SDA=%d binary=%uB",
+             CONFIG_DESK_I2C_SCL_GPIO, CONFIG_DESK_I2C_SDA_GPIO,
+             (unsigned)binary_size);
+    return ESP_OK;
 }
 
 void yourdesk_soft_i2c_esp_set_dr(uint8_t dr)
 {
-    portENTER_CRITICAL(&s_sm_mux);
-    yourdesk_soft_i2c_sm_set_dr(&s_sm, dr);
-    portEXIT_CRITICAL(&s_sm_mux);
+    if (s_started) {
+        shared_store(&ulp_desired_dr, dr);
+    }
 }
 
 void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats)
@@ -354,10 +182,24 @@ void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats)
     if (!stats) {
         return;
     }
-    portENTER_CRITICAL(&s_sm_mux);
-    *stats = s_stats;
-    stats->phase = (uint8_t)s_sm.phase;
-    stats->bit_count = s_sm.bit_count;
-    stats->current_addr7 = s_sm.current_addr7;
-    portEXIT_CRITICAL(&s_sm_mux);
+    *stats = (yourdesk_soft_i2c_stats_t){
+        .scl_rising_edges = shared_load(&ulp_stat_scl_rising),
+        .scl_falling_edges = shared_load(&ulp_stat_scl_falling),
+        .recognized_starts = shared_load(&ulp_stat_starts),
+        .recognized_stops = shared_load(&ulp_stat_stops),
+        .key_write_addresses = shared_load(&ulp_stat_key_write_addresses),
+        .key_read_addresses = shared_load(&ulp_stat_key_read_addresses),
+        .completed_key_reads = shared_load(&ulp_stat_completed_key_reads),
+        .aborted_key_reads = shared_load(&ulp_stat_aborted_key_reads),
+        .digit_write_addresses = shared_load(&ulp_stat_digit_write_addresses),
+        .unsupported_addresses = shared_load(&ulp_stat_unsupported_addresses),
+        .digit_events = shared_load(&ulp_stat_digit_events),
+        .digit_ring_drops = shared_load(&ulp_stat_digit_ring_drops),
+        .digit_queue_drops = s_digit_queue_drops,
+        .mirror_digit_queue_drops = s_mirror_digit_queue_drops,
+        .phase = (uint8_t)shared_load(&ulp_state_phase),
+        .bit_count = (uint8_t)shared_load(&ulp_state_bit_count),
+        .current_addr7 = (uint8_t)shared_load(&ulp_state_current_addr7),
+        .active_dr = (uint8_t)shared_load(&ulp_active_dr),
+    };
 }

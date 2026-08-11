@@ -36,6 +36,14 @@ cc -std=c11 -Wall -Wextra -Werror \
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${DRIVER_DIR}" \
+    "${DRIVER_DIR}/yourdesk_soft_i2c_sm.c" \
+    "${DRIVER_DIR}/yourdesk_soft_i2c_sampler.c" \
+    "${DRIVER_DIR}/test/yourdesk_soft_i2c_sampler_test.c" \
+    -o "${TEST_DIR}/soft-i2c-sampler-test"
+"${TEST_DIR}/soft-i2c-sampler-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${DRIVER_DIR}" \
     "${DRIVER_DIR}/yourdesk_preset_logic.c" \
     "${DRIVER_DIR}/test/yourdesk_preset_logic_test.c" \
     -o "${TEST_DIR}/preset-logic-test"
