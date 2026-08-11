@@ -5,7 +5,15 @@
  * 控制层负责，避免视觉重构改变安全语义。
  */
 
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { DeskClientSnapshot } from '../desk/DeskClient';
@@ -35,6 +43,15 @@ interface HomeScreenProps {
   onToggleChildLock: () => void;
 }
 
+interface ErrorToastState {
+  title: string;
+  detail: string | null;
+  retryable: boolean;
+}
+
+const ERROR_TOAST_VISIBLE_MS = 2_500;
+const ERROR_TOAST_ANIMATION_MS = 180;
+
 export function HomeScreen({
   snapshot,
   onConnect,
@@ -47,6 +64,9 @@ export function HomeScreen({
   onPreset4,
   onToggleChildLock,
 }: HomeScreenProps) {
+  const [errorToast, setErrorToast] = useState<ErrorToastState | null>(null);
+  const errorToastProgress = useRef(new Animated.Value(0)).current;
+  const errorToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const state = snapshot.deskState;
   const config = snapshot.deskConfig;
   const connected = snapshot.phase === 'ready';
@@ -65,6 +85,52 @@ export function HomeScreen({
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
   const preset1HeightCm = ((config?.preset1HeightMm ?? 640) / 10).toFixed(0);
   const preset4HeightCm = ((config?.preset4HeightMm ?? 1020) / 10).toFixed(0);
+
+  // Transport 可能在下一帧清空 error；Toast 使用独立状态，确保用户能看清提示。
+  useEffect(() => {
+    if (!snapshot.error) {
+      return;
+    }
+
+    if (errorToastTimer.current !== null) {
+      clearTimeout(errorToastTimer.current);
+    }
+    errorToastProgress.stopAnimation();
+    errorToastProgress.setValue(0);
+
+    const retryable = snapshot.phase !== 'ready';
+    setErrorToast({
+      title: retryable ? '连接失败，点击重试' : '操作失败',
+      detail: retryable ? friendlyError(snapshot.error) : null,
+      retryable,
+    });
+
+    Animated.timing(errorToastProgress, {
+      toValue: 1,
+      duration: ERROR_TOAST_ANIMATION_MS,
+      useNativeDriver: true,
+    }).start();
+
+    errorToastTimer.current = setTimeout(() => {
+      Animated.timing(errorToastProgress, {
+        toValue: 0,
+        duration: ERROR_TOAST_ANIMATION_MS,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          setErrorToast(null);
+        }
+      });
+      errorToastTimer.current = null;
+    }, ERROR_TOAST_VISIBLE_MS);
+  }, [errorToastProgress, snapshot.error, snapshot.phase]);
+
+  useEffect(() => () => {
+    if (errorToastTimer.current !== null) {
+      clearTimeout(errorToastTimer.current);
+    }
+    errorToastProgress.stopAnimation();
+  }, [errorToastProgress]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -91,19 +157,6 @@ export function HomeScreen({
             </Pressable>
           </View>
         </View>
-
-        {snapshot.error ? (
-          snapshot.phase === 'ready' ? (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorTitle}>操作失败</Text>
-            </View>
-          ) : (
-            <Pressable onPress={onConnect} style={styles.errorBanner}>
-              <Text style={styles.errorTitle}>连接失败，点击重试</Text>
-              <Text style={styles.errorText}>{friendlyError(snapshot.error)}</Text>
-            </Pressable>
-          )
-        ) : null}
 
         <DeskScene
           heightMm={state?.heightKnown ? state.heightMm : null}
@@ -198,6 +251,41 @@ export function HomeScreen({
           {firmwareBuildTime ?? '构建信息不可用'}
         </Text>
       </ScrollView>
+
+      {errorToast ? (
+        <Animated.View
+          accessibilityLiveRegion="assertive"
+          pointerEvents={errorToast.retryable ? 'auto' : 'none'}
+          style={[
+            styles.errorToastLayer,
+            {
+              opacity: errorToastProgress,
+              transform: [{
+                translateY: errorToastProgress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [14, 0],
+                }),
+              }],
+            },
+          ]}
+        >
+          <Pressable
+            accessibilityRole={errorToast.retryable ? 'button' : undefined}
+            accessibilityLabel={errorToast.title}
+            disabled={!errorToast.retryable}
+            onPress={errorToast.retryable ? onConnect : undefined}
+            style={({ pressed }) => [
+              styles.errorToast,
+              pressed && errorToast.retryable && styles.pressed,
+            ]}
+          >
+            <Text style={styles.errorTitle}>{errorToast.title}</Text>
+            {errorToast.detail ? (
+              <Text style={styles.errorText}>{errorToast.detail}</Text>
+            ) : null}
+          </Pressable>
+        </Animated.View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -323,7 +411,8 @@ const styles = StyleSheet.create({
   connectionDotOff: { backgroundColor: palette.inkFaint },
   connectionText: { color: palette.greenInk, fontSize: 16, fontWeight: '500' },
   connectionTextOff: { color: palette.inkMuted },
-  errorBanner: { marginTop: 10, padding: 13, borderWidth: 1, borderColor: '#E6B7AF', borderRadius: radii.small, backgroundColor: '#FFF1EE' },
+  errorToastLayer: { position: 'absolute', left: 22, right: 22, bottom: 18, zIndex: 10 },
+  errorToast: { paddingHorizontal: 16, paddingVertical: 13, borderWidth: 1, borderColor: '#E6B7AF', borderRadius: radii.small, backgroundColor: '#FFF1EE', ...shadows.floating },
   errorTitle: { color: '#9D382D', fontSize: 14, fontWeight: '700' },
   errorText: { marginTop: 3, color: '#9D382D', fontSize: 12, lineHeight: 17 },
   heightBlock: { alignItems: 'center', marginTop: -4 },
