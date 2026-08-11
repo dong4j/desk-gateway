@@ -35,6 +35,13 @@ import {
 import { PrototypeSwitch } from '../ui/PrototypeSwitch';
 import { palette, radii } from '../ui/theme';
 
+const MIN_DESK_HEIGHT_CM = 64;
+const MAX_DESK_HEIGHT_CM = 129;
+const MAX_HEIGHT_TICKS = [
+  64, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 129,
+] as const;
+const MAX_HEIGHT_LABELS = [64, 80, 100, 120, 129] as const;
+
 interface SettingsScreenProps {
   snapshot: DeskClientSnapshot;
   autoConnect: boolean;
@@ -118,9 +125,10 @@ export function SettingsScreen({
     setConnectionError(null);
   }, [connectionMode, restHost, restKey]);
 
-  const saveMaxHeight = () => {
-    const centimetres = Number(maxHeightDraft);
-    if (!Number.isFinite(centimetres) || centimetres < 64 || centimetres > 129) {
+  const commitMaxHeight = (centimetres: number) => {
+    if (!Number.isFinite(centimetres) ||
+        centimetres < MIN_DESK_HEIGHT_CM ||
+        centimetres > MAX_DESK_HEIGHT_CM) {
       setMaxHeightError('请输入 64–129 cm');
       return;
     }
@@ -129,8 +137,10 @@ export function SettingsScreen({
       return;
     }
     setMaxHeightError(null);
+    setMaxHeightDraft(String(Math.round(centimetres)));
     onSetMaxHeightMm(Math.round(centimetres * 10));
   };
+  const saveMaxHeight = () => commitMaxHeight(Number(maxHeightDraft));
 
   const savePresetHeights = () => {
     const preset1Mm = Math.round(Number(preset1Draft) * 10);
@@ -145,8 +155,12 @@ export function SettingsScreen({
     onSetPresetHeightsMm(preset1Mm, preset4Mm);
   };
   const parsedMaxHeightDraft = Number(maxHeightDraft);
+  const minimumAllowedMaxHeightCm = Math.ceil(preset4HeightCm);
   const maxHeightSliderValue = Number.isFinite(parsedMaxHeightDraft)
-    ? Math.max(64, Math.min(129, parsedMaxHeightDraft))
+    ? Math.max(
+        minimumAllowedMaxHeightCm,
+        Math.min(MAX_DESK_HEIGHT_CM, parsedMaxHeightDraft),
+      )
     : maxHeightCm;
   const saveConnectionSettings = () => {
     const host = restHostDraft.trim();
@@ -279,22 +293,53 @@ export function SettingsScreen({
               <Text style={styles.settingTitle}>最高安全高度</Text>
               <Text style={styles.settingValue}>{maxHeightCm.toFixed(1)} cm</Text>
             </View>
-            <View style={styles.sliderRow}>
-              <Text style={styles.sliderEdge}>64</Text>
+            <View style={styles.sliderControl}>
               <Slider
                 accessibilityLabel="最高安全高度"
                 disabled={!deviceSettingsAvailable}
-                minimumValue={64}
-                maximumValue={129}
+                minimumValue={MIN_DESK_HEIGHT_CM}
+                maximumValue={MAX_DESK_HEIGHT_CM}
                 step={1}
                 value={maxHeightSliderValue}
-                onValueChange={(value) => setMaxHeightDraft(value.toFixed(0))}
+                onValueChange={(value) => {
+                  const clamped = Math.max(minimumAllowedMaxHeightCm, value);
+                  setMaxHeightDraft(clamped.toFixed(0));
+                }}
+                onSlidingComplete={(value) => {
+                  commitMaxHeight(Math.max(minimumAllowedMaxHeightCm, value));
+                }}
                 minimumTrackTintColor={palette.goldSoft}
                 maximumTrackTintColor={palette.surfaceMuted}
                 thumbTintColor={palette.gold}
                 style={styles.nativeSlider}
               />
-              <Text style={styles.sliderEdge}>129</Text>
+              <View pointerEvents="none" style={styles.sliderTicks}>
+                {MAX_HEIGHT_TICKS.map((value) => (
+                  <View
+                    key={value}
+                    style={[
+                      styles.sliderTick,
+                      value <= maxHeightSliderValue && styles.sliderTickActive,
+                      value < minimumAllowedMaxHeightCm && styles.sliderTickUnavailable,
+                      { left: maxHeightTickPosition(value) },
+                    ]}
+                  />
+                ))}
+              </View>
+              <View pointerEvents="none" style={styles.sliderLabels}>
+                {MAX_HEIGHT_LABELS.map((value) => (
+                  <Text
+                    key={value}
+                    style={[
+                      styles.sliderLabel,
+                      value < minimumAllowedMaxHeightCm && styles.sliderLabelUnavailable,
+                      { left: maxHeightTickPosition(value) },
+                    ]}
+                  >
+                    {value}
+                  </Text>
+                ))}
+              </View>
             </View>
             <View style={styles.heightEditor}>
               <TextInput
@@ -610,6 +655,14 @@ function HapticLevelSelector({
   );
 }
 
+/** Map a centimetre mark onto the fixed 64–129 cm scale. */
+function maxHeightTickPosition(value: number): `${number}%` {
+  const progress =
+    (value - MIN_DESK_HEIGHT_CM) /
+    (MAX_DESK_HEIGHT_CM - MIN_DESK_HEIGHT_CM);
+  return `${progress * 100}%`;
+}
+
 function SectionTitle({ children }: { children: ReactNode }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
 }
@@ -701,9 +754,15 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   settingTitle: { color: palette.ink, fontSize: 17, fontWeight: '500' },
   settingValue: { color: palette.ink, fontSize: 17 },
-  sliderRow: { marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 13 },
-  sliderEdge: { width: 28, color: palette.inkMuted, fontSize: 14 },
-  nativeSlider: { flex: 1, height: 32 },
+  sliderControl: { height: 66, marginTop: 13, marginHorizontal: 12 },
+  nativeSlider: { width: '100%', height: 32 },
+  sliderTicks: { position: 'absolute', left: 15, right: 15, top: 31, height: 10 },
+  sliderTick: { position: 'absolute', width: 1, height: 5, backgroundColor: palette.line },
+  sliderTickActive: { height: 8, backgroundColor: palette.goldSoft },
+  sliderTickUnavailable: { height: 4, backgroundColor: palette.disabled },
+  sliderLabels: { position: 'absolute', left: 15, right: 15, top: 43, height: 20 },
+  sliderLabel: { position: 'absolute', width: 32, marginLeft: -16, color: palette.inkMuted, fontSize: 11, textAlign: 'center' },
+  sliderLabelUnavailable: { color: palette.inkFaint },
   heightEditor: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   heightInput: { width: 82, height: 40, paddingHorizontal: 12, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.white, color: palette.ink, fontSize: 16 },
   heightUnit: { color: palette.inkMuted, fontSize: 15 },
@@ -715,7 +774,7 @@ const styles = StyleSheet.create({
   presetInputGroup: { flex: 1 },
   presetInputLabel: { marginBottom: 6, color: palette.inkMuted, fontSize: 13 },
   presetInputLine: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  presetInput: { flex: 1, minWidth: 0, height: 40, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.white, color: palette.ink, fontSize: 16 },
+  presetInput: { flex: 1, minWidth: 0, height: 40, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.white, color: palette.ink, fontSize: 16, textAlign: 'center' },
   presetSave: { minWidth: 62 },
   divider: { height: 1, backgroundColor: palette.line },
   securityRow: { minHeight: 78, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 15 },
