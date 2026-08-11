@@ -2,9 +2,12 @@
 
 Desk Gateway 的跨平台移动端工程，采用 React Native、Expo Development Build 和 TypeScript。
 
-当前状态是 **Phase 1 iOS 真机控制 UI**：已按确认原型实现 Home / Settings，并继续复用
-GATT v1 客户端。技术决策和真机门禁见
+当前状态是 **Phase 1 iOS 真机控制 UI**：已按确认原型实现 Home / Settings，并通过统一
+客户端支持 BLE GATT 与局域网 REST。技术决策和真机门禁见
 [`docs/architecture/mobile-app-technology-selection.md`](../../docs/architecture/mobile-app-technology-selection.md)。
+
+BLE 优先、Wi-Fi 回退、mDNS 和安全边界见
+[`docs/architecture/mobile-connection-transport.md`](../../docs/architecture/mobile-connection-transport.md)。
 
 iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 [`docs/guides/mobile-ios-device-deployment.md`](../../docs/guides/mobile-ios-device-deployment.md)。
@@ -12,6 +15,8 @@ iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 ## 当前能力
 
 - 扫描并连接广播名为 `DeskGateway` 的 ESP32。
+- 自动模式优先 BLE，BLE 失败或断开后回退 `desk-gateway.local` 的 REST 接口。
+- 可在设置页选择自动、仅 BLE、仅 Wi-Fi，并配置 REST 地址和 `X-Desk-Key` 密码。
 - 发现 Desk Accessory Service。
 - 读取并订阅固定 8 字节 State Characteristic。
 - 读取标准 Device Information `180A/2A26` 并显示固件构建时间。
@@ -21,7 +26,7 @@ iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 - Home 页面实时展示高度、桌面动画、长按控制、STOP、档位和童锁状态。
 - Home 与 Settings 均可写入童锁，且只展示 ESP32 回读状态。
 - Settings 页面可设置最高安全高度、REST / Bluetooth / Panel 来源权限和重启网关。
-- Settings 页面提供本地自动连接和触感偏好；开关整行可点击，不使用嵌套触摸区。
+- Settings 页面提供连接方式、本地自动连接和触感偏好；开关整行可点击，不使用嵌套触摸区。
 - 旧固件未提供 Config 时仍可控制桌子，但设备设置会明确禁用。
 
 ## 开发命令

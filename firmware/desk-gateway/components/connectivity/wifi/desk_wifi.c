@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "mdns.h"
 #include "nvs.h"
 
 #include <stdio.h>
@@ -28,6 +29,29 @@ static bool s_ap_active;
 static esp_netif_t *s_sta_netif;
 static esp_netif_t *s_ap_netif;
 static desk_wifi_ready_cb_t s_ready_cb;
+static bool s_mdns_started;
+
+/**
+ * 固定的 .local 名称让移动端不依赖 DHCP 分配的 IP；失败时 HTTP 仍照常启动，
+ * 用户可以在 App 中填写实际 IP 作为回退。
+ */
+static void start_mdns(void)
+{
+    if (s_mdns_started) {
+        return;
+    }
+    esp_err_t err = mdns_init();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "mDNS init failed: %s", esp_err_to_name(err));
+        return;
+    }
+    s_mdns_started = true;
+    ESP_ERROR_CHECK_WITHOUT_ABORT(mdns_hostname_set("desk-gateway"));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(mdns_instance_name_set("Desk Gateway"));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(
+        mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0));
+    ESP_LOGI(TAG, "mDNS ready: http://desk-gateway.local/");
+}
 
 void desk_wifi_set_ready_cb(desk_wifi_ready_cb_t cb)
 {
@@ -60,6 +84,7 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         ip_event_got_ip_t *e = (ip_event_got_ip_t *)data;
         ESP_LOGI(TAG, "got ip: " IPSTR, IP2STR(&e->ip_info.ip));
         /* STA 场景：拿到 IP 后再起 HTTP，避免 listen 过早导致局域网访问失败 */
+        start_mdns();
         notify_ready();
     }
 }
@@ -96,6 +121,7 @@ static esp_err_t start_softap(void)
     /* 配网期关闭省电，避免手机连热点后 HTTP 偶发不通 */
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
     s_ap_active = true;
+    start_mdns();
     ESP_LOGW(TAG, "SoftAP \"%s\" pass=\"%s\" → http://192.168.4.1/", AP_SSID, AP_PASS);
     notify_ready();
     return ESP_OK;

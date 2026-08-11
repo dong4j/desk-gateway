@@ -33,27 +33,13 @@ import type {
   DeskPeripheral,
   DeskState,
 } from './types';
+import type {
+  DeskClient,
+  DeskClientSnapshot,
+  DeskSnapshotListener,
+} from './DeskClient';
 
-export type DeskClientPhase =
-  | 'uninitialized'
-  | 'idle'
-  | 'scanning'
-  | 'connecting'
-  | 'pairing'
-  | 'ready'
-  | 'disconnected'
-  | 'error';
-
-export interface DeskClientSnapshot {
-  phase: DeskClientPhase;
-  peripheral: DeskPeripheral | null;
-  deskState: DeskState | null;
-  deskConfig: DeskConfig | null;
-  firmwareRevision: string | null;
-  error: string | null;
-}
-
-type SnapshotListener = (snapshot: DeskClientSnapshot) => void;
+export type { DeskClientSnapshot } from './DeskClient';
 
 const PAIRING_TIMEOUT_MS = 10_000;
 
@@ -79,24 +65,28 @@ async function withTimeout<T>(
   }
 }
 
-export class DeskBleClient {
+export class DeskBleClient implements DeskClient {
   private snapshot: DeskClientSnapshot = {
     phase: 'uninitialized',
+    transport: 'ble',
     peripheral: null,
     deskState: null,
     deskConfig: null,
     firmwareRevision: null,
     error: null,
   };
-  private listeners = new Set<SnapshotListener>();
+  private listeners = new Set<DeskSnapshotListener>();
   private stateUnsubscribe: Unsubscribe | null = null;
   private configUnsubscribe: Unsubscribe | null = null;
   private disconnectUnsubscribe: Unsubscribe | null = null;
   private writeQueue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly adapter: BleAdapter) {}
+  constructor(
+    private readonly adapter: BleAdapter,
+    private readonly scanTimeoutMs = 10_000,
+  ) {}
 
-  subscribe(listener: SnapshotListener): Unsubscribe {
+  subscribe(listener: DeskSnapshotListener): Unsubscribe {
     this.listeners.add(listener);
     listener(this.snapshot);
     return () => this.listeners.delete(listener);
@@ -119,13 +109,13 @@ export class DeskBleClient {
   }
 
   /** 扫描第一个 DeskGateway，完成服务发现、Notify 和加密 STOP 验证。 */
-  async scanAndConnect(): Promise<void> {
+  async connect(): Promise<void> {
     try {
       this.update({ phase: 'scanning', firmwareRevision: null, error: null });
       const peripheral = await this.adapter.scanForPeripheral(
         DESK_SERVICE_UUID,
         DESK_ADVERTISING_NAME,
-        10_000,
+        this.scanTimeoutMs,
       );
       this.update({ phase: 'connecting', peripheral });
       await this.adapter.connect(peripheral.id);
@@ -190,6 +180,11 @@ export class DeskBleClient {
       this.fail(error);
       throw error;
     }
+  }
+
+  /** 保留 Phase 0 调试入口，已有测试和文档无需随 Transport 抽象改名。 */
+  scanAndConnect(): Promise<void> {
+    return this.connect();
   }
 
   /**

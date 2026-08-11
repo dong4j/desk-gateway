@@ -1,14 +1,14 @@
 /**
  * Desk Gateway 正式控制首页。
  *
- * 页面只负责呈现 BLE 快照和转发用户动作；HOLD 续期、STOP 兜底及写入串行化仍由
- * DeskHoldController 和 DeskBleClient 负责，避免视觉重构改变安全语义。
+ * 页面只负责呈现统一设备快照和转发用户动作；HOLD 续期、STOP 兜底及通道切换仍由
+ * 控制层负责，避免视觉重构改变安全语义。
  */
 
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { DeskClientSnapshot } from '../desk/DeskBleClient';
+import type { DeskClientSnapshot } from '../desk/DeskClient';
 import { formatFirmwareBuildTime } from '../desk/formatFirmwareBuildTime';
 import { DeskScene } from '../ui/DeskScene';
 import {
@@ -51,8 +51,11 @@ export function HomeScreen({
   const config = snapshot.deskConfig;
   const connected = snapshot.phase === 'ready';
   const connecting = isConnecting(snapshot.phase);
+  const activeSourceAllowed = snapshot.transport === 'wifi'
+    ? config?.restAllowed !== false
+    : state?.bluetoothAllowed !== false;
   const motionBlocked =
-    !connected || state?.childLock === true || state?.bluetoothAllowed === false;
+    !connected || state?.childLock === true || !activeSourceAllowed;
   const heightCm = state?.heightKnown && state.heightMm !== null
     ? (state.heightMm / 10).toFixed(1)
     : '—';
@@ -187,7 +190,8 @@ export function HomeScreen({
         </Pressable>
 
         <Text style={styles.footer} numberOfLines={1}>
-          BLE · 固件 {firmwareBuildTime ?? '构建信息不可用'}
+          {snapshot.transport === 'wifi' ? 'Wi-Fi · REST' : 'BLE'} · 固件{' '}
+          {firmwareBuildTime ?? '构建信息不可用'}
         </Text>
       </ScrollView>
     </SafeAreaView>

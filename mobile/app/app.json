@@ -10,7 +10,16 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.dong4j.deskgateway",
-      "appleTeamId": "8WCUMGCWMB"
+      "appleTeamId": "8WCUMGCWMB",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Desk Gateway 需要访问局域网中的升降桌网关。",
+        "NSBonjourServices": [
+          "_http._tcp"
+        ],
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
       "package": "com.dong4j.deskgateway",
@@ -24,7 +33,8 @@
       "permissions": [
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
-        "android.permission.BLUETOOTH_CONNECT"
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_NETWORK_STATE"
       ]
     },
     "web": {
@@ -37,6 +47,14 @@
           "bluetoothAlwaysPermission": "Desk Gateway 需要使用蓝牙连接并控制升降桌。",
           "isBleRequired": true,
           "neverForLocation": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
         }
       ]
     ]

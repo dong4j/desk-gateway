@@ -15,11 +15,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ReactNativeBleManagerAdapter } from './src/ble/ReactNativeBleManagerAdapter';
 import { DeskCommand } from './src/desk/commands';
-import {
-  DeskBleClient,
-  type DeskClientSnapshot,
-} from './src/desk/DeskBleClient';
+import { DeskBleClient } from './src/desk/DeskBleClient';
+import type {
+  DeskClientSnapshot,
+  DeskConnectionMode,
+  DeskConnectionSettings,
+} from './src/desk/DeskClient';
+import { DeskConnectionManager } from './src/desk/DeskConnectionManager';
 import { DeskHoldController } from './src/desk/DeskHoldController';
+import { DeskRestClient } from './src/desk/DeskRestClient';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { HoldHapticController } from './src/ui/HoldHapticController';
@@ -28,6 +32,7 @@ const PREFERENCES_KEY = 'desk-gateway.mobile.preferences.v1';
 
 const initialSnapshot: DeskClientSnapshot = {
   phase: 'uninitialized',
+  transport: null,
   peripheral: null,
   deskState: null,
   deskConfig: null,
@@ -39,16 +44,22 @@ interface AppPreferences {
   autoConnect: boolean;
   hapticFeedback: boolean;
   hapticStrength: number;
+  connectionMode: DeskConnectionMode;
+  restHost: string;
+  restKey: string;
 }
 
 const defaultPreferences: AppPreferences = {
   autoConnect: true,
   hapticFeedback: true,
   hapticStrength: 70,
+  connectionMode: 'auto',
+  restHost: 'desk-gateway.local',
+  restKey: 'desk-gateway',
 };
 
 export default function App() {
-  const clientRef = useRef<DeskBleClient | null>(null);
+  const clientRef = useRef<DeskConnectionManager | null>(null);
   const holdRef = useRef<DeskHoldController | null>(null);
   const holdHapticRef = useRef<HoldHapticController | null>(null);
   const hapticFeedbackEnabledRef = useRef(defaultPreferences.hapticFeedback);
@@ -62,8 +73,10 @@ export default function App() {
   hapticStrengthRef.current = preferences.hapticStrength;
 
   if (clientRef.current === null) {
-    clientRef.current = new DeskBleClient(
-      new ReactNativeBleManagerAdapter(),
+    clientRef.current = new DeskConnectionManager(
+      new DeskBleClient(new ReactNativeBleManagerAdapter(), 5_000),
+      new DeskRestClient(),
+      connectionSettings(defaultPreferences),
     );
     holdRef.current = new DeskHoldController((command) =>
       clientRef.current!.sendCommand(command),
@@ -139,6 +152,17 @@ export default function App() {
             typeof parsed.hapticStrength === 'number'
               ? normalizeHapticStrength(parsed.hapticStrength)
               : defaultPreferences.hapticStrength,
+          connectionMode: isConnectionMode(parsed.connectionMode)
+            ? parsed.connectionMode
+            : defaultPreferences.connectionMode,
+          restHost:
+            typeof parsed.restHost === 'string'
+              ? parsed.restHost
+              : defaultPreferences.restHost,
+          restKey:
+            typeof parsed.restKey === 'string'
+              ? parsed.restKey
+              : defaultPreferences.restKey,
         });
       })
       .catch(() => undefined)
@@ -152,9 +176,13 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    clientRef.current?.configure(connectionSettings(preferences));
+  }, [preferences.connectionMode, preferences.restHost, preferences.restKey]);
+
   const connect = useCallback(async () => {
     await clientRef.current!.initialize();
-    await clientRef.current!.scanAndConnect();
+    await clientRef.current!.connect();
   }, []);
 
   useEffect(() => {
@@ -261,6 +289,9 @@ export default function App() {
           autoConnect={preferences.autoConnect}
           hapticFeedback={preferences.hapticFeedback}
           hapticStrength={preferences.hapticStrength}
+          connectionMode={preferences.connectionMode}
+          restHost={preferences.restHost}
+          restKey={preferences.restKey}
           onBack={() => {
             feedback();
             setScreen('home');
@@ -284,6 +315,16 @@ export default function App() {
                 impactStyleForStrength(normalized),
               ).catch(() => undefined);
             }
+          }}
+          onSetConnectionSettings={(settings) => {
+            selectionFeedback();
+            updatePreferences({
+              connectionMode: settings.mode,
+              restHost: settings.restHost,
+              restKey: settings.restKey,
+            });
+            clientRef.current!.configure(settings);
+            runSafely(clientRef.current!.connect());
           }}
           onSetChildLock={(enabled) =>
             runCommand(clientRef.current!.setChildLock(enabled))
@@ -340,4 +381,18 @@ function pulseIntervalForStrength(strength: number): number {
 
 function normalizeHapticStrength(strength: number): number {
   return strength < 50 ? 30 : strength < 85 ? 70 : 100;
+}
+
+function connectionSettings(
+  preferences: AppPreferences,
+): DeskConnectionSettings {
+  return {
+    mode: preferences.connectionMode,
+    restHost: preferences.restHost,
+    restKey: preferences.restKey,
+  };
+}
+
+function isConnectionMode(value: unknown): value is DeskConnectionMode {
+  return value === 'auto' || value === 'ble' || value === 'wifi';
 }

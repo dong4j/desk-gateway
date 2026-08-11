@@ -2,7 +2,7 @@
  * 首页桌面原型图与实时高度尺。
  *
  * 桌面主体直接使用已确认的原型截图，避免代码重绘造成细节偏差；右侧高度尺仍根据
- * BLE 高度独立动画，从而保留实时反馈能力。
+ * 设备高度独立动画，从而保留实时反馈能力。
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -19,7 +19,7 @@ interface DeskSceneProps {
 
 const SCENE_MIN_MM = 640;
 const SCENE_MAX_MM = 1290;
-const DESK_WORKSTATION_SOURCE = require('../../assets/desk-workstation.jpg');
+const DESK_WORKSTATION_SOURCE = require('../../assets/desk-workstation.png');
 
 export function DeskScene({
   heightMm,

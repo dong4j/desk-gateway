@@ -28,7 +28,7 @@ Development Build 是安装在 iPhone 上的原生调试 App。它包含：
 
 - React Native 和 Expo 原生运行时；
 - `react-native-ble-manager` 等原生模块；
-- 蓝牙权限和 Bundle ID；
+- 蓝牙、本地网络权限和 Bundle ID；
 - 从 Metro 加载业务代码的开发能力。
 
 本项目使用了 BLE 原生模块，因此不能使用 Expo Go 代替 Development Build。
@@ -191,6 +191,7 @@ npm run ios:device
 | BLE 协议编码、解析逻辑（纯 TypeScript） | 需要 | 不需要 |
 | 新增原生 npm 包 | 需要 | 需要 |
 | 修改蓝牙权限或 Expo Plugin 配置 | 需要 | 需要 |
+| 修改本地网络、Bonjour 或 HTTP 配置 | 需要 | 需要 |
 | 修改 Bundle ID、签名 Team | 需要 | 需要 |
 | App 被删除或换了一台 iPhone | 需要 | 需要 |
 
@@ -228,7 +229,16 @@ npx expo run:ios --device
 
 ## 7. 常见问题
 
-### 7.1 点击 App 后立即退出
+### 7.1 第一次使用 Wi-Fi REST
+
+最新 Development Build 第一次访问 ESP32 时，iOS 会询问是否允许 Desk Gateway 查找并
+连接本地网络设备。必须选择“允许”，否则 `desk-gateway.local` 和手工 IP 都无法访问。
+
+如果之前拒绝过，可以在 iPhone 的“设置 → 隐私与安全性 → 本地网络”中重新允许
+Desk Gateway。手机与 ESP32 还需要处于同一局域网；`.local` 解析失败时，在 App 设置页
+填写 ESP32 启动日志中的 IP。
+
+### 7.2 点击 App 后立即退出
 
 先确认是否误用了 Xcode 27 SDK 构建。重新执行：
 
@@ -239,7 +249,7 @@ npm run ios:device
 如果仍退出，再通过 Xcode Devices and Simulators 或系统 Crash Log 确认新的崩溃原因，
 不要直接假定仍是 `UIScene` 问题。
 
-### 7.2 App 能打开，但无法加载页面
+### 7.3 App 能打开，但无法加载页面
 
 确认 Metro 正在运行：
 
@@ -250,7 +260,7 @@ npm start
 同时确认 Mac 与 iPhone 的连接可用。Development Build 本身只提供原生容器，开发阶段的
 JavaScript Bundle 仍由 Metro 提供。
 
-### 7.3 `No profiles for 'com.dong4j.deskgateway' were found`
+### 7.4 `No profiles for 'com.dong4j.deskgateway' were found`
 
 检查：
 

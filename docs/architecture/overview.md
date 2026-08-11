@@ -5,12 +5,12 @@
 
 ## 一句话
 
-Desk Gateway 是一套跑在 ESP32-S3 上的**升降桌智能平台**：厂商差异收进 **Desk Driver**，Web / 串口 / **BLE 外设** / 未来 HA·Matter 共用 **desk_core**。
+Desk Gateway 是一套跑在 ESP32-S3 上的**升降桌智能平台**：厂商差异收进 **Desk Driver**，Web / 手机 App（BLE 或 Wi-Fi）/ 串口 / **BLE 外设** / 未来 HA·Matter 共用 **desk_core**。
 
 ## 分层
 
 ```text
-Web UI + REST/短轮询 + UART + BLE 外设（OLED/旋钮）
+Web UI + 手机 App（BLE/REST）+ UART + BLE 外设（OLED/旋钮）
               │
          desk_core          ← 急停、超时、统一命令、童锁
               │
@@ -28,7 +28,8 @@ Web UI + REST/短轮询 + UART + BLE 外设（OLED/旋钮）
 |---|---|
 | `yourdesk_v1`（I²C Slave 模拟面板） | 键通道已真机验证；实验性 GPIO 高度嗅探因干扰控桌而默认关闭 |
 | `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位、全局童锁和来源权限 |
-| WiFi + Web（局域网、密码、UI、升降动效） | 已实现；状态使用 250ms 短轮询，待板端/UI 验收 |
+| WiFi + Web（局域网、密码、UI、升降动效） | 已实现；提供 `desk-gateway.local` mDNS 名称，状态使用 250ms 短轮询，待板端/UI 验收 |
+| 手机 App 双通道 | BLE 控制已真机验证；已实现 BLE 优先、局域网 REST 回退和统一设置，Wi-Fi 回退待真机验收 |
 | 高度 | 完整 0–9 经验字模已锁定；真实总线接入待软件多地址 Slave，稳定版仅提供明确标记的 SIM |
 | BLE / Loctek / Jiecang | BLE GATT Server 已实现，待 LightBlue 真机验收；Loctek / Jiecang 为 stub |
 | 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | 仲裁与权限代码已实现；原厂面板透传/真屏蔽仍待面包板抓包和真机验收 |
@@ -54,6 +55,14 @@ docs/superpowers/specs/     ← 设计定稿
 - 控制：升 / 降 / 停 / 已支持档位 / **童锁**  
 - UI：品牌 + 升降桌示意图；`moving_up/down` 时示意图实时升降；有高度则按 mm 映射，无高度则按命令做相对动效  
 - 状态：鉴权后的 `GET /api/v1/desk/status` 每 250ms 短轮询；含真实高度、`child_lock`、`control_sources`、安全上限和动态 `upward_blocked`  
+
+## 手机 App 双通道
+
+- UI 只依赖统一 `DeskClient`，不直接感知 BLE GATT 与 REST 的差异。
+- 自动模式优先 BLE；BLE 首次连接失败或连接后断开时回退局域网 REST。
+- REST 使用现有 `X-Desk-Key`，默认访问 `desk-gateway.local`，也可手工填写 DHCP IP。
+- 通道切换不重放运动命令；长按续期、松手 STOP 和固件 `desk_core` 安全裁决保持不变。
+- 详情：[移动端 BLE / Wi-Fi 双通道方案](./mobile-connection-transport.md)
 
 ## 童锁与仲裁
 
@@ -90,6 +99,7 @@ docs/superpowers/specs/     ← 设计定稿
 | [小米/华为生态调研](./ecosystem-xiaomi-huawei.md) | 模组 vs Matter |
 | [BLE 外设 Profile](./ble-accessory-profile.md) | 旋钮/OLED 配件总线 |
 | [移动端技术选型](./mobile-app-technology-selection.md) | React Native 手机端与 BLE 验证门禁 |
+| [移动端双通道方案](./mobile-connection-transport.md) | BLE 优先、REST 回退、mDNS 与安全边界 |
 | [Apple Watch 控制方案](./apple-watch-control.md) | SwiftUI Watch App 与直连 BLE 安全边界 |
 | [需求](../0-requirements.md) | 做什么、阶段门禁 |
 | [主控板](../2-esp32-s3-n16r8-platform.md) | YD-ESP32-S3 N16R8 |

@@ -17,7 +17,11 @@ import {
 import Slider from '@react-native-community/slider';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { DeskClientSnapshot } from '../desk/DeskBleClient';
+import type {
+  DeskClientSnapshot,
+  DeskConnectionMode,
+  DeskConnectionSettings,
+} from '../desk/DeskClient';
 import { formatFirmwareBuildTime } from '../desk/formatFirmwareBuildTime';
 import {
   BluetoothIcon,
@@ -36,10 +40,14 @@ interface SettingsScreenProps {
   autoConnect: boolean;
   hapticFeedback: boolean;
   hapticStrength: number;
+  connectionMode: DeskConnectionMode;
+  restHost: string;
+  restKey: string;
   onBack: () => void;
   onToggleAutoConnect: () => void;
   onToggleHapticFeedback: () => void;
   onSetHapticStrength: (strength: number) => void;
+  onSetConnectionSettings: (settings: DeskConnectionSettings) => void;
   onSetChildLock: (enabled: boolean) => void;
   onSetSourceEnabled: (
     source: 'rest' | 'bluetooth' | 'panel',
@@ -59,10 +67,14 @@ export function SettingsScreen({
   autoConnect,
   hapticFeedback,
   hapticStrength,
+  connectionMode,
+  restHost,
+  restKey,
   onBack,
   onToggleAutoConnect,
   onToggleHapticFeedback,
   onSetHapticStrength,
+  onSetConnectionSettings,
   onSetChildLock,
   onSetSourceEnabled,
   onSetMaxHeightMm,
@@ -82,6 +94,10 @@ export function SettingsScreen({
   const [preset1Draft, setPreset1Draft] = useState(String(preset1HeightCm));
   const [preset4Draft, setPreset4Draft] = useState(String(preset4HeightCm));
   const [presetHeightError, setPresetHeightError] = useState<string | null>(null);
+  const [connectionModeDraft, setConnectionModeDraft] = useState(connectionMode);
+  const [restHostDraft, setRestHostDraft] = useState(restHost);
+  const [restKeyDraft, setRestKeyDraft] = useState(restKey);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
 
   useEffect(() => {
@@ -94,6 +110,13 @@ export function SettingsScreen({
     setPreset4Draft(String(preset4HeightCm));
     setPresetHeightError(null);
   }, [preset1HeightCm, preset4HeightCm]);
+
+  useEffect(() => {
+    setConnectionModeDraft(connectionMode);
+    setRestHostDraft(restHost);
+    setRestKeyDraft(restKey);
+    setConnectionError(null);
+  }, [connectionMode, restHost, restKey]);
 
   const saveMaxHeight = () => {
     const centimetres = Number(maxHeightDraft);
@@ -125,6 +148,24 @@ export function SettingsScreen({
   const maxHeightSliderValue = Number.isFinite(parsedMaxHeightDraft)
     ? Math.max(64, Math.min(129, parsedMaxHeightDraft))
     : maxHeightCm;
+  const saveConnectionSettings = () => {
+    const host = restHostDraft.trim();
+    if (connectionModeDraft !== 'ble' && (!host || !restKeyDraft)) {
+      setConnectionError('使用自动或局域网模式时，请填写网关地址和 REST 密码');
+      return;
+    }
+    setConnectionError(null);
+    onSetConnectionSettings({
+      mode: connectionModeDraft,
+      restHost: host,
+      restKey: restKeyDraft,
+    });
+  };
+  const connectionLabel = snapshot.transport === 'wifi'
+    ? 'Wi-Fi · REST'
+    : snapshot.transport === 'ble'
+      ? 'BLE'
+      : '未连接';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -163,12 +204,72 @@ export function SettingsScreen({
               </Text>
             </View>
           </View>
-          <InfoRow label="连接方式" value="BLE" />
+          <InfoRow label="当前连接" value={connectionLabel} />
           <InfoRow
             label="固件构建时间"
             value={firmwareBuildTime ?? '不可用'}
             last
           />
+        </View>
+
+        <SectionTitle>连接</SectionTitle>
+        <View style={styles.card}>
+          <View style={styles.connectionSetting}>
+            <Text style={styles.settingTitle}>连接策略</Text>
+            <ConnectionModeSelector
+              value={connectionModeDraft}
+              onChange={setConnectionModeDraft}
+            />
+            <Text style={styles.connectionHint}>
+              自动模式优先使用 BLE；连接失败或超出范围时回退到局域网。
+            </Text>
+            <Text style={styles.connectionInputLabel}>网关地址</Text>
+            <TextInput
+              accessibilityLabel="局域网网关地址"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={connectionModeDraft !== 'ble'}
+              placeholder="desk-gateway.local"
+              placeholderTextColor={palette.inkFaint}
+              value={restHostDraft}
+              onChangeText={setRestHostDraft}
+              style={[
+                styles.connectionInput,
+                connectionModeDraft === 'ble' && styles.disabled,
+              ]}
+            />
+            <Text style={styles.connectionInputLabel}>REST 密码</Text>
+            <View style={styles.connectionKeyRow}>
+              <TextInput
+                accessibilityLabel="REST 登录密码"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={connectionModeDraft !== 'ble'}
+                secureTextEntry
+                value={restKeyDraft}
+                onChangeText={setRestKeyDraft}
+                onSubmitEditing={saveConnectionSettings}
+                style={[
+                  styles.connectionInput,
+                  styles.connectionKeyInput,
+                  connectionModeDraft === 'ble' && styles.disabled,
+                ]}
+              />
+              <Pressable
+                accessibilityRole="button"
+                onPress={saveConnectionSettings}
+                style={({ pressed }) => [
+                  styles.connectionSave,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.heightSaveText}>保存并连接</Text>
+              </Pressable>
+            </View>
+            {connectionError ? (
+              <Text style={styles.heightError}>{connectionError}</Text>
+            ) : null}
+          </View>
         </View>
 
         <SectionTitle>安全</SectionTitle>
@@ -391,10 +492,52 @@ export function SettingsScreen({
         <Text style={styles.footer}>
           {config
             ? '设备设置以 ESP32 回读结果为准'
-            : '当前固件不支持 BLE Config，请升级并重新连接'}
+            : '当前连接暂未返回设备配置，请重新连接'}
         </Text>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/** 三种模式是连接策略而不是瞬时状态，当前实际通道在设备卡片中单独显示。 */
+function ConnectionModeSelector({
+  value,
+  onChange,
+}: {
+  value: DeskConnectionMode;
+  onChange: (value: DeskConnectionMode) => void;
+}) {
+  const modes = [
+    { label: '自动', value: 'auto' },
+    { label: 'BLE', value: 'ble' },
+    { label: '局域网', value: 'wifi' },
+  ] as const;
+  return (
+    <View style={styles.connectionModes}>
+      {modes.map((mode) => {
+        const active = mode.value === value;
+        return (
+          <Pressable
+            key={mode.value}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: active }}
+            onPress={() => onChange(mode.value)}
+            style={({ pressed }) => [
+              styles.connectionMode,
+              active && styles.connectionModeActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={[
+              styles.connectionModeText,
+              active && styles.connectionModeTextActive,
+            ]}>
+              {mode.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -542,6 +685,18 @@ const styles = StyleSheet.create({
   infoValue: { flexShrink: 1, color: palette.inkMuted, fontSize: 15, lineHeight: 20, textAlign: 'right' },
   sectionTitle: { marginTop: 24, marginBottom: 8, marginLeft: 4, color: palette.inkMuted, fontSize: 19, fontWeight: '600' },
   card: { overflow: 'hidden', borderWidth: 1, borderColor: palette.line, borderRadius: radii.medium, backgroundColor: palette.surface },
+  connectionSetting: { padding: 18 },
+  connectionModes: { marginTop: 14, flexDirection: 'row', padding: 3, borderRadius: radii.pill, backgroundColor: palette.surfaceMuted },
+  connectionMode: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill },
+  connectionModeActive: { backgroundColor: palette.ink },
+  connectionModeText: { color: palette.inkMuted, fontSize: 14, fontWeight: '600' },
+  connectionModeTextActive: { color: palette.white },
+  connectionHint: { marginTop: 11, color: palette.inkMuted, fontSize: 12, lineHeight: 18 },
+  connectionInputLabel: { marginTop: 14, marginBottom: 6, color: palette.inkMuted, fontSize: 13 },
+  connectionInput: { height: 42, paddingHorizontal: 12, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.white, color: palette.ink, fontSize: 15 },
+  connectionKeyRow: { flexDirection: 'row', gap: 9 },
+  connectionKeyInput: { flex: 1 },
+  connectionSave: { minWidth: 108, height: 42, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: palette.ink },
   heightSetting: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 17 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   settingTitle: { color: palette.ink, fontSize: 17, fontWeight: '500' },
