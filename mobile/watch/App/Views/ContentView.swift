@@ -56,10 +56,6 @@ struct ContentView<Controller: DeskControlling>: View {
 
       heightDisplay
 
-      Text("cm")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-
       controlStage
 
       if let restriction = restrictionText {
@@ -107,19 +103,15 @@ struct ContentView<Controller: DeskControlling>: View {
     }
   }
 
-  /// 数字自身保持居中，箭头通过 overlay 放到右侧，不参与布局宽度和纵向排版。
+  /// 箭头、数字和单位共用一行；固定箭头槽位避免运动状态切换时数字左右跳动。
   private var heightDisplay: some View {
-    Text(heightText)
-      .font(.system(size: 52, weight: .medium, design: .rounded))
-      .monospacedDigit()
-      .lineLimit(1)
-      .minimumScaleFactor(0.75)
-      .overlay(alignment: .trailing) {
+    HStack(alignment: .center, spacing: 6) {
+      ZStack {
         if let direction = effectiveDirection {
           Image(systemName: direction == .up ? "arrow.up" : "arrow.down")
             .font(.system(size: 22, weight: .semibold))
             .foregroundStyle(direction == .up ? .cyan : .orange)
-            .offset(x: 28, y: arrowOffset(for: direction))
+            .offset(y: arrowOffset(for: direction))
             .opacity(arrowOpacity)
             .id(direction)
             .transition(directionTransition(for: direction))
@@ -132,6 +124,20 @@ struct ContentView<Controller: DeskControlling>: View {
             .accessibilityHidden(true)
         }
       }
+      .frame(width: 22, height: 30)
+
+      HStack(alignment: .lastTextBaseline, spacing: 4) {
+        Text(heightText)
+          .font(.system(size: 52, weight: .medium, design: .rounded))
+          .monospacedDigit()
+          .lineLimit(1)
+          .minimumScaleFactor(0.75)
+
+        Text("cm")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+    }
   }
 
   /// 控制区固定占位，STOP 和快捷高度只在舞台内部做过渡，避免整页跳动。
