@@ -31,7 +31,10 @@ struct DeskGatewayWatchApp: App {
 
   var body: some Scene {
     WindowGroup {
-      ContentView(desk: desk, crown: crown)
+      // watchOS 只有在导航容器内才会呈现 topBarLeading ToolbarItem。
+      NavigationStack {
+        ContentView(desk: desk, crown: crown)
+      }
     }
   }
 }

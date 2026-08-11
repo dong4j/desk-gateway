@@ -51,7 +51,7 @@ struct ContentView<Controller: DeskControlling>: View {
   }
 
   var body: some View {
-    VStack(spacing: 3) {
+    VStack(spacing: 0) {
       heightDisplay
 
       motionStatusStage
@@ -145,7 +145,7 @@ struct ContentView<Controller: DeskControlling>: View {
     }
   }
 
-  /// 状态槽始终保留一行高度；待机只隐藏文字，不能折叠并推动按钮。
+  /// 固定文字行并提供上下对称留白；待机只隐藏内容，不能折叠并推动按钮。
   private var motionStatusStage: some View {
     Text(motionText)
       .font(.caption)
@@ -154,6 +154,7 @@ struct ContentView<Controller: DeskControlling>: View {
       .accessibilityHidden(!isMoving)
       .animation(.easeOut(duration: reduceMotion ? 0.1 : 0.16), value: isMoving)
       .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18)
+      .padding(.vertical, 8)
   }
 
   /// 两套控制始终叠放在同一中心，只改变可见性和点击能力，不触发布局切换。
