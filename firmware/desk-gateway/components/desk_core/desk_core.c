@@ -28,10 +28,10 @@ static const char *NVS_KEY_PRESET4_HEIGHT = "preset4_mm";
 #define DESK_PRESET4_HEIGHT_MM_DEFAULT 1020
 
 /*
- * 当前 YourDesk 控制盒实测：DOWN 保持 100 ms 后立即 STOP，不产生可见位移，
+ * 当前 YourDesk 控制盒实测：DOWN 保持 130 ms 后立即 STOP，不产生可见位移，
  * 但会让控制盒发送当前高度显示帧。该时长是本机硬件经验值，不是协议常量。
  */
-#define DESK_STARTUP_HEIGHT_PROBE_MS 100U
+#define DESK_STARTUP_HEIGHT_PROBE_MS 130U
 
 /*
  * 单次旋转只进入待命；700 ms 窗口内第二个同方向事件才启动。
