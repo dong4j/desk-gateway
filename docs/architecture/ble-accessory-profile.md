@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | DG-ARCH-BLE-ACC-001 |
 | 日期 | 2026-08-06 |
-| 状态 | 架构约定（GATT UUID 实现时冻结） |
+| 状态 | 协议 v1 已实现，待 LightBlue 真机验收 |
 | 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
 
 ## 1. 要解决什么
@@ -47,17 +47,65 @@ Desk Gateway **盒子本体**仍可不带旋钮/屏（纯网关），但平台�
 
 **硬规则**：外设固件禁止直接谈 I²C/UART 桌厂协议；只走 Gateway BLE Profile → `desk_core`。
 
-## 4. 数据面（逻辑，非最终 UUID）
+## 4. 已冻结的 GATT Profile v1
 
-外设至少要能：
+Gateway 广播名为 `DeskGateway`，广播包包含 Desk Accessory Service UUID。
 
-| 方向 | 内容 |
+| Attribute | UUID | Properties | 说明 |
+|---|---|---|---|
+| Desk Accessory Service | `7f4e0001-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Primary Service | 本项目原生 Profile |
+| Command | `7f4e0002-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Write, Write Encrypted | 单字节控制指令；首次写入会触发 Just Works 配对 |
+| State | `7f4e0003-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Read, Notify | 固定 8 字节、小端序状态 |
+
+Command 不实现 BLE UART，也不兼容任何第三方 App 的私有协议。客户端应按 Hex
+写入一个字节：
+
+| Hex | 指令 | 行为 |
+|---|---|---|
+| `00` | STOP | 无条件停止；同时释放 BLE 运动所有权 |
+| `01` | HOLD_UP | 开始或续期上升 |
+| `02` | HOLD_DOWN | 开始或续期下降 |
+| `11` | PRESET_1 | 闭环前往档位 1（当前驱动为 64 cm） |
+| `14` | PRESET_4 | 闭环前往档位 4（当前驱动为 102 cm） |
+
+未知指令、长度不为 1、童锁拒绝、Bluetooth 来源关闭或驱动不支持时，Write
+返回 ATT 错误，不会绕过 `desk_core`。
+
+### 4.1 HOLD 租约
+
+`01` / `02` 不是无限保持命令。每次成功写入只获得默认 `750ms` 的运动租约：
+
+- 客户端按住期间建议每 `250–400ms` 重复写入同一指令；
+- 松手立即写 `00`；即使 `00` 丢失，租约到期仍会停止；
+- BLE 断连、NimBLE stack reset、童锁开启或 Bluetooth 来源关闭都会停止；
+- 固件原有 `15s` 总运动超时与最高安全高度限制仍独立生效。
+
+档位指令由真实高度闭环停止，不使用短租约；但在运动完成前 BLE 连接断开仍会
+触发 STOP。
+
+### 4.2 State 数据
+
+| Byte | 内容 |
 |---|---|
-| Gateway → 外设（Notify/Indicate） | `height_mm`（可空）、`height_known`、`status`（idle/up/down/…）、`child_lock`、`caps` |
-| 外设 → Gateway（Write） | `stop`、`hold_up`、`hold_down`、`goto_preset(n)`（caps 允许时）、可选 `set_child_lock` |
-| 发现 | 广播名如 `DeskGateway`；Service UUID 实现期分配并写入本文件修订版 |
+| `0` | 协议版本，v1 固定 `01` |
+| `1` | 状态：`00 idle`、`01 moving_up`、`02 moving_down`、`03 goto_preset`、`04 error` |
+| `2` | flags，见下表 |
+| `3` | 保留，v1 固定 `00` |
+| `4..5` | `height_mm`，uint16 little-endian；未知为 `FF FF` |
+| `6..7` | `max_height_mm`，uint16 little-endian |
 
-推送节奏：BLE 状态变化立即 Notify；静止可 1–2s 心跳。Web 当前独立使用短轮询。无高度时外设 UI 可显示「—」或仅动画态，与 Web 动效策略一致。
+Flags：
+
+| Bit | 含义 |
+|---|---|
+| `0` | `height_known` |
+| `1` | `height_sim` |
+| `2` | `child_lock` |
+| `3` | Bluetooth 来源允许 |
+| `4` | `upward_blocked` |
+
+状态变化后最多约 `200ms` Notify；静止时每 `1s` 发送心跳。无高度时客户端显示
+`—`，不得把 `FF FF` 当成实际高度。
 
 ## 5. 交互建议（给旋钮类配件的参考，非强制）
 
@@ -73,22 +121,51 @@ Desk Gateway **盒子本体**仍可不带旋钮/屏（纯网关），但平台�
 
 ## 6. 安全与配对
 
-- 支持 BLE 配对/绑定（至少 Just Works；量产可升至 Passkey）。  
-- 未绑定设备：可仅广播状态、拒绝运动 Write；或整段加密后再开放（实现时二选一，默认 **未绑定不可运动**）。  
-- 与 Web 密码独立；物理近场假设强于公网，但仍防邻居乱控。
+- Command characteristic 强制 `WRITE_ENC`；首次写入由 NimBLE 发起 **Just Works** 配对。
+- `CONFIG_BT_NIMBLE_NVS_PERSIST=y`，绑定密钥跨重启保存；当前最多保存 3 个 bond，
+  但同时只允许 1 个连接。
+- State 可在未配对连接上读取和订阅，运动 Write 不允许明文连接。
+- BLE 与 Web 密码独立；盒子没有屏幕和键盘，因此当前不能提供 MITM 认证。
+- 已加密连接仍必须通过全局童锁和 Bluetooth 来源权限，STOP 继续保持最高优先级。
 
-## 7. 交付阶段
+## 7. 使用 LightBlue 验收
+
+1. 烧录后确认串口出现：
+
+   ```text
+   I (...) desk_ble: GATT ready lease=750 ms
+   I (...) desk_ble: advertising as DeskGateway
+   ```
+
+2. iPhone 打开 LightBlue，扫描并连接 `DeskGateway`。
+3. 展开 Service `7f4e0001-...`，对 State `7f4e0003-...` 执行 Read，再开启
+   Notify；核对 8 字节高度、状态、童锁和上限。
+4. 对 Command `7f4e0002-...` 选择 Hex、Write，写 `01`。首次写入应弹出配对；
+   完成配对后再次写 `01`，桌子只上升约 `750ms` 并自动停止。
+5. 连续每 `250–400ms` 写 `01`，桌子持续上升；停止写入后不迟于一个租约窗口停止。
+6. 写 `02` 验证下降，写 `00` 验证立即停止。
+7. 写 `11`、`14` 验证档位 1/4；运动途中主动 Disconnect，桌子必须立即停止。
+8. Web 开启童锁后写 `01` / `02` / `11` / `14`，LightBlue 应显示 Write 失败且
+   桌子不动；`00` 仍可停止。
+9. Web 关闭“允许蓝牙操作”后重复第 8 步；重新开启后恢复。
+10. 重启 ESP32，再次连接已绑定手机，确认不需要重新配对且状态 Notify 恢复。
+
+如果 LightBlue 显示旧的 GATT 表，先在 iOS 蓝牙设置中忽略 `DeskGateway`，关闭并
+重新打开 LightBlue 后重新扫描；固件协议 UUID 变化时系统缓存不会总是自动刷新。
+
+## 8. 交付阶段
 
 | 阶段 | 内容 |
 |---|---|
-| 文档（本轮） | 约定外设总线目标与角色 |
-| M3 / Phase 2 | `connectivity/ble`：GATT Server 雏形 + 与 `desk_core` 对接；可先用 nRF Connect / 简易旋钮固件联调 |
+| 文档与代码（当前） | `connectivity/ble`：NimBLE GATT Server、desk_core 接入、租约、断连停止、状态 Notify |
+| 真机门禁 | 使用 LightBlue 完成本文件第 7 节，保留串口日志和实际桌面动作证据 |
 | 后续 | 开源「参考旋钮+OLED」固件或对接指南；可选 Central 模式适配成品外设 |
 
-本能力 **不阻塞** Phase 1 Web；与 BLE stub 升级为正式 **Accessory Profile** 为同一组件演进。
+本能力不改变 Web/REST 协议；BLE 与 Wi-Fi 共存和所有运动行为仍需真机验收后才能标记完成。
 
-## 8. 修订记录
+## 9. 修订记录
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
 | 0.1 | 2026-08-06 | 初稿：Gateway 为 GATT Server；OLED/旋钮为典型外设；与 desk_core 对齐 |
+| 1.0 | 2026-08-11 | 冻结 UUID 和字节协议；实现加密 Write、HOLD 租约、断连停止、档位 1/4 与 State Notify |

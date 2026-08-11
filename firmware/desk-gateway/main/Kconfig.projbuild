@@ -60,6 +60,14 @@ menu "Desk Gateway"
         range 1000 60000
         default 15000
 
+    config DESK_BLE_HOLD_LEASE_MS
+        int "BLE hold command lease (ms)"
+        range 300 2000
+        default 750
+        help
+            BLE 上升/下降是需要续期的短租约。客户端按住期间应以小于本值的
+            周期重复写入指令；松手不再续期，即使 STOP 丢包也会自动停止。
+
     config DESK_MAX_HEIGHT_MM
         int "Default maximum safe height (mm)"
         range 640 1290

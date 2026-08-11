@@ -7,6 +7,7 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
 DRIVER_DIR="${REPO_ROOT}/firmware/desk-gateway/components/drivers/yourdesk_v1"
 CORE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_core"
+BLE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/ble"
 TEST_DIR="$(mktemp -d /tmp/desk-gateway-height-tests.XXXXXX)"
 
 cleanup() {
@@ -53,3 +54,10 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${CORE_DIR}/test/desk_control_policy_test.c" \
     -o "${TEST_DIR}/control-policy-test"
 "${TEST_DIR}/control-policy-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${BLE_DIR}/include" \
+    "${BLE_DIR}/desk_ble_protocol.c" \
+    "${BLE_DIR}/test/desk_ble_protocol_test.c" \
+    -o "${TEST_DIR}/ble-protocol-test"
+"${TEST_DIR}/ble-protocol-test"

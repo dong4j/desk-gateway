@@ -30,7 +30,7 @@ Web UI + REST/短轮询 + UART + BLE 外设（OLED/旋钮）
 | `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位、全局童锁和来源权限 |
 | WiFi + Web（局域网、密码、UI、升降动效） | 已实现；状态使用 250ms 短轮询，待板端/UI 验收 |
 | 高度 | 完整 0–9 经验字模已锁定；真实总线接入待软件多地址 Slave，稳定版仅提供明确标记的 SIM |
-| BLE / Loctek / Jiecang | BLE 仅有设计文档；Loctek / Jiecang 为 stub |
+| BLE / Loctek / Jiecang | BLE GATT Server 已实现，待 LightBlue 真机验收；Loctek / Jiecang 为 stub |
 | 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | 仲裁与权限代码已实现；原厂面板透传/真屏蔽仍待面包板抓包和真机验收 |
 | HA / Matter / Siri / OTA | Phase 3+，未实现 |
 | 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](./ecosystem-xiaomi-huawei.md) |
@@ -57,7 +57,7 @@ docs/superpowers/specs/     ← 设计定稿
 
 ## 童锁与仲裁
 
-- 童锁 ON：除 `STOP` 和解除童锁外，REST、串口、未来蓝牙及原厂面板都不能启动或维持运动  
+- 童锁 ON：除 `STOP` 和解除童锁外，REST、串口、蓝牙及原厂面板都不能启动或维持运动  
 - 童锁 OFF：每个来源还需通过自己的 NVS 权限开关；当前 Web 可配置 REST、Bluetooth 和 Panel  
 - 关闭任一来源会先停止当前运动；Panel 重新开放后必须先观察到物理按键松开，禁止解锁即误动作  
 - 优先级：急停 > 全局童锁 > 来源权限 >（未锁且允许时）面板优先 > 其他入口  
@@ -68,8 +68,9 @@ docs/superpowers/specs/     ← 设计定稿
 
 ## BLE 外设总线（摘要）
 
-- Gateway = **GATT Server**；OLED + 无限旋钮等 = Client  
-- Notify：高度 / 运动状态 / 童锁；Write：升 / 降 / 停  
+- Gateway = **NimBLE GATT Server**；LightBlue、OLED + 无限旋钮等 = Client  
+- 加密 Write：续期升 / 续期降 / 停 / 档位 1 / 档位 4；Read + Notify：高度 / 状态 / 童锁 / 来源权限 / 安全上限  
+- HOLD 使用 `750ms` 短租约；松手停止续期或连接断开都会自动停止  
 - 与 Web 同走 `desk_core`；**板载**仍无旋钮无屏  
 - 详情：[ble-accessory-profile.md](./ble-accessory-profile.md)
 

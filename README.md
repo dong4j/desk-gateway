@@ -2,7 +2,7 @@
 
 **Language:** English · [简体中文](./README.zh-CN.md)
 
-Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protocols live behind pluggable **Desk Drivers**; Web / UART (and later BLE / Matter / Home Assistant) share one control plane (`desk_core`).
+Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protocols live behind pluggable **Desk Drivers**; Web / UART / BLE (and later Matter / Home Assistant) share one control plane (`desk_core`).
 
 > **Safety:** Keep a person nearby when moving the desk. Default motion timeout is 15s. Use **LAN only** — do not expose the Web UI to the public Internet.
 
@@ -13,6 +13,7 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 - **desk_core:** hold up/down and stop; presets 1 (64 cm) and 4 (102 cm) use real-height closed-loop control; global child-lock and per-source REST/Bluetooth/panel permissions are persisted in NVS
 - **Maximum safe height:** configurable from the Web UI and persisted in NVS; a fail-closed watchdog projects the worst-case upward position between sparse height frames
 - **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
+- **BLE Accessory Profile:** native NimBLE GATT server with encrypted commands, bonded peers, hold leases, disconnect-stop, presets 1/4, and status notifications
 - **Real height:** strictly ordered TM1650 display frames are filtered and exposed by UART/Web; the last trusted value survives normal sparse refreshes
 - **Automatic resynchronisation:** the first complete controller frame of each motion becomes the new baseline; no user-entered or fabricated height can overwrite it
 
@@ -99,6 +100,7 @@ NOTICE                     Third-party attributions
 |-----|-------------|
 | [docs/0-requirements.md](./docs/0-requirements.md) | Requirements (Chinese) |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | Architecture overview |
+| [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUIDs, byte protocol, and LightBlue test flow |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | Bring-up / acceptance checklist |
 | [docs/ui-demos/](./docs/ui-demos/) | Static Web UI style demos |
 | [docs/3-protocol-reverse-notes.md](./docs/3-protocol-reverse-notes.md) | Protocol reverse notes |
@@ -107,7 +109,7 @@ NOTICE                     Third-party attributions
 
 - [x] Replace the rejected GPIO sniffer with a multi-address I²C slave for real height
 - [ ] Phase 2 dual‑RJ45 MITM + true panel blocking under child lock
-- [ ] BLE accessory profile (OLED / knob)
+- [x] BLE accessory profile firmware (LightBlue hardware acceptance pending)
 - [ ] Matter / Home Assistant integrations
 - [ ] Additional desk drivers (Loctek, Jiecang, …)
 

@@ -2,7 +2,7 @@
 
 **语言：** [English](./README.md) · 简体中文
 
-开源的 **升降桌智能网关**（ESP32-S3）。厂商协议收进可插拔 **Desk Driver**；Web / 串口（以及后续 BLE / Matter / Home Assistant）共用控制面 `desk_core`。
+开源的 **升降桌智能网关**（ESP32-S3）。厂商协议收进可插拔 **Desk Driver**；Web / 串口 / BLE（以及后续 Matter / Home Assistant）共用控制面 `desk_core`。
 
 > **安全：** 升降时请有人在旁。默认运动超时 15s。Web **仅限局域网**，不要做公网端口映射。
 
@@ -13,6 +13,7 @@
 - **desk_core：** 按住升/降与停止已真机通过；档位 1（64 cm）/4（102 cm）已按真实高度闭环实现；全局童锁与 REST/蓝牙/面板来源权限使用 NVS 保存
 - **最高安全高度：** Web 可配置并保存到 NVS，默认 `102 cm`；独立看门狗会在高度帧稀疏时按最坏上升速度提前停止
 - **Wi‑Fi + SoftAP 配网** 与带密码的 **局域网 Web**
+- **BLE Accessory Profile：** 原生 NimBLE GATT Server；控制写入需加密和绑定，支持长按租约、断连停止、档位 1/4 与状态 Notify
 - **真实高度：** 仅接受严格有序的 TM1650 完整显示帧；正常的稀疏刷新期间保留最后可信高度
 - **自动重新同步：** 每次运动的第一帧完整控制盒高度自动成为新基准，不再允许人工或模拟高度覆盖
 
@@ -96,6 +97,7 @@ NOTICE                        第三方声明
 |------|------|
 | [docs/0-requirements.md](./docs/0-requirements.md) | 需求 |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | 架构总览 |
+| [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUID、字节协议与 LightBlue 测试步骤 |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | 到货 / 真机验收 |
 | [docs/ui-demos/](./docs/ui-demos/) | Web 风格静态 Demo |
 | [docs/3-protocol-reverse-notes.md](./docs/3-protocol-reverse-notes.md) | 协议逆向笔记 |
@@ -104,7 +106,7 @@ NOTICE                        第三方声明
 
 - [x] 用多地址 I²C Slave 替换已否决的 GPIO 嗅探，实现真实高度
 - [ ] Phase 2 双 RJ45 MITM 透传恢复 + 面板权限/童锁真机验收
-- [ ] BLE 配件（OLED / 旋钮）
+- [x] BLE 配件 Profile 固件（LightBlue 真机验收待完成）
 - [ ] Matter / Home Assistant
 - [ ] 更多厂商 Driver
 

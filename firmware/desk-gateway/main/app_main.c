@@ -1,12 +1,13 @@
 /**
  * @file app_main.c
- * @brief Desk Gateway 入口：core + yourdesk_v1 + wifi + web + console
+ * @brief Desk Gateway 入口：core + yourdesk_v1 + BLE + Wi-Fi + Web + console
  *
  * HTTP 等 WiFi ready（SoftAP 就绪或 STA 拿到 IP）后再启动，
  * 避免「已 got ip 但 80 端口打不开」。
  */
 #include "console_cmd.h"
 
+#include "desk_ble.h"
 #include "desk_core.h"
 #include "desk_web.h"
 #include "desk_wifi.h"
@@ -36,6 +37,7 @@ void app_main(void)
     }
 
     ESP_ERROR_CHECK(desk_core_init(&yourdesk_v1_driver));
+    ESP_ERROR_CHECK(desk_ble_start());
 
     desk_wifi_set_ready_cb(on_wifi_ready);
     ESP_ERROR_CHECK(desk_wifi_init());

@@ -14,6 +14,11 @@ idf.py -p PORT flash monitor
 
 Requires ESP-IDF ≥ 5.2 (tested on 6.0.x). Component Manager pulls `espressif/cjson` on first build.
 
+The default configuration also enables the native NimBLE peripheral. It
+advertises as `DeskGateway`; BLE commands require a Just Works encrypted/bonded
+connection. UUIDs and LightBlue steps are documented in
+[ble-accessory-profile.md](../../docs/architecture/ble-accessory-profile.md).
+
 ## Provisioning
 
 | SoftAP | Value |

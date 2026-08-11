@@ -16,6 +16,23 @@
 - [ ] 设置最高安全高度，刷新和重启后仍显示已保存值
 - [ ] 断网提示：拔掉板子 USB 或断 WiFi 后，页面出现连接失败横幅
 
+### A.1 BLE / LightBlue（不需要额外接线）
+
+- [ ] 串口出现 `desk_ble: GATT ready lease=750 ms` 和 `advertising as DeskGateway`
+- [ ] LightBlue 能扫描并连接 `DeskGateway`
+- [ ] 能 Read/Notify State `7f4e0003-...`，高度和 Web/控制盒一致
+- [ ] 首次向 Command `7f4e0002-...` 写入时完成 Just Works 配对
+- [ ] 写 `01` 后上升约 `750ms` 自动停止；重复续期可持续上升
+- [ ] 写 `02` 后下降约 `750ms` 自动停止；写 `00` 立即停止
+- [ ] 写 `11` / `14` 可前往档位 1 / 4
+- [ ] HOLD 或档位运动期间断开 LightBlue，桌子立即停止
+- [ ] 童锁开启后所有 BLE 运动 Write 失败，桌子不动
+- [ ] 关闭 Bluetooth 来源权限后所有 BLE 运动 Write 失败；重新开启恢复
+- [ ] 重启后手机 bond 仍保留，State Notify 能重新订阅
+
+完整 UUID、字节格式和操作步骤见
+[`architecture/ble-accessory-profile.md`](./architecture/ble-accessory-profile.md)。
+
 ## B. 接线（yourdesk_v1 + RJ45）
 
 电源与安全：
@@ -189,7 +206,8 @@ I (...) yourdesk_soft_i2c: software I2C addrs=0x24,0x34-0x37 SCL=4 SDA=5
 
 - [x] 软件多地址 I²C Slave：同时处理键通道与 digit 高度通道
 - [ ] Phase 2 双 RJ45 MITM：主动事务透传代码已完成，等待真机短行程验收
-- [ ] BLE 配件 / Matter（按需）
+- [ ] BLE GATT 固件已实现，等待按 A.1 完成 LightBlue 真机验收
+- [ ] Matter（按需）
 
 ## E. 配网备忘
 

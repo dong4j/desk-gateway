@@ -8,6 +8,7 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_LIST_DIR}/components/drivers/jiecang"
     "${CMAKE_CURRENT_LIST_DIR}/components/connectivity/wifi"
     "${CMAKE_CURRENT_LIST_DIR}/components/connectivity/web"
+    "${CMAKE_CURRENT_LIST_DIR}/components/connectivity/ble"
 )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

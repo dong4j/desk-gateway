@@ -131,7 +131,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 | WiFi + 本地 Web（REST/短轮询）+ 简单认证 | **必做** | 必做 |
 | Web 现代化 UI + 升降示意图动效 | **必做** | 增强（跟真实高度） |
 | 其他厂商 Driver | stub 占位 | 按需实现 |
-| BLE 外设总线（OLED/旋钮等 GATT） | stub / 文档约定 | **必做雏形或正式**（与 Web 同级数据面） |
+| BLE 外设总线（OLED/旋钮等 GATT） | 已实现 Profile v1，待 LightBlue 真机验收 | **必做正式**（与 Web 同级数据面） |
 | 键盘 / 滚轮侧控制（经电脑或 BLE） | 可选 | 必做 |
 | USB-C 独立供电 | 开发板可先用 | 成品必做 |
 
@@ -139,7 +139,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 
 - Home Assistant / MQTT / HomeKit / Matter / Siri / OTA（预留边界，首版不交付）
 - **小米米家 / 华为智慧生活原生上架**（通常需认证模组与合作；见 [生态调研](./architecture/ecosystem-xiaomi-huawei.md)；Phase 3+）
-- 盒子上的旋钮、OLED / 数码管（**板载**不做；**外接 BLE 旋钮/OLED 配件**在 Backlog / Phase 2 支持）
+- 盒子上的旋钮、OLED / 数码管（**板载**不做；外接配件使用已实现的 BLE Accessory Profile）
 - 从 RJ45 取电作为主供电
 - 云端账号体系、远程公网控制（**仅局域网**；Web 有简单密码，仍勿做端口映射）
 - 多品牌桌子「刷固件即开箱即用」（框架就绪；真协议逐个适配）
@@ -289,7 +289,7 @@ MQTT / HA / 久坐提醒 / 更多桌型等，另开需求修订，不阻塞 Phas
 | G-A05 | 童锁开启时，立即停止当前运动；面板意图不转发，解除后必须先检测到物理按键松开才能重新接管 | P0 |
 | G-A06 | 仲裁优先级：急停 > 全局童锁 > 来源权限 >（童锁关且允许时）面板优先 > 其他入口 | P0 |
 
-### 5.5 无线与本地控制（Phase 1 起交付 Web；BLE 仍 Phase 2）
+### 5.5 无线与本地控制（Web 已交付；BLE Profile v1 已实现、待真机验收）
 
 | ID | 需求 | 优先级 |
 |---|---|---|
@@ -298,7 +298,7 @@ MQTT / HA / 久坐提醒 / 更多桌型等，另开需求修订，不阻塞 Phas
 | G-W03 | 提供短轮询状态刷新，驱动 UI 升降动效（含 `child_lock`） | P0 |
 | G-W04 | 简单密码认证（Bearer token）；默认仅局域网；无云账号 | P0 |
 | G-W05 | Web UI：现代化；含升降桌示意图；运动中实时动画；童锁开关可见 | P0 |
-| G-W06 | **BLE Accessory Profile**：Gateway 为 GATT Server；向 OLED/无限旋钮等外设 Notify 高度与状态；Write 控升降/停止；与 `desk_core` 对齐 | P0（Phase 2；文档 Phase 1 已约定） |
+| G-W06 | **BLE Accessory Profile**：Gateway 为 GATT Server；向 OLED/无限旋钮等外设 Notify 高度与状态；Write 控升降/停止；与 `desk_core` 对齐 | P0（代码已实现；LightBlue 验收待完成） |
 | G-W07 | BLE 未绑定设备默认不可下发运动指令；已绑定外设仍受全局童锁和 Bluetooth 来源权限约束 | P1 |
 | G-W08 | 支持由电脑侧程序或键盘工作流触发（如经 BLE/HTTP）；本仓库不强制实现具体键盘固件 | P1 |
 | G-W09 | （可选）Gateway 作 Central 适配「仅 Peripheral」的成品旋钮——独立适配层，不替代 G-W06 | P2 |
@@ -452,7 +452,7 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 - [ ] 短轮询驱动升降示意图动效
 - [ ] 简单密码认证可用；仅局域网
 - [ ] （可选/后门禁）上+下≈5s 重置协议已抓包并文档化
-- [ ] BLE 或键盘通道至少一条可用
+- [x] 键盘/HTTP 通道可用；BLE GATT 代码与自动化构建通过后仍需 LightBlue 真机验收
 - [ ] 异常与上电安全态验证通过
 
 ---
