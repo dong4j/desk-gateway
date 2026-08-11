@@ -208,6 +208,23 @@ I (...) yourdesk_soft_i2c: software I2C addrs=0x24,0x34-0x37 SCL=4 SDA=5
 | 恢复 | 实验开关默认关闭；不安装 GPIO ISR、不创建高度任务、Driver 不声明真实高度能力 |
 | 后续 | 已实现统一软件 I²C Slave，同时 ACK `0x24` 与 `0x34–0x37`；真机升降与高度通过 |
 
+### C.3 坑点：BLE 初始化时 Brownout 导致重复启动
+
+| 项 | 记录 |
+|---|---|
+| 现象 | 烧录后进入 monitor，启动高度探测和整段 boot log 重复出现多次 |
+| 关键日志 | `E BOD: Brownout detector was triggered`；随后出现 `rst:0x3 (RTC_SW_SYS_RST)`，Saved PC 指向 `rtc_brownout_isr_handler` |
+| 如何判断次数 | 时间戳重新从约 `240 ms` 开始且再次出现 `ESP-ROM`，表示发生了一次完整重启；高度探测本身每次启动只执行一次 |
+| 已确认原因 | ESP32-S3 电源轨在 BLE 射频初始化时跌破 Brownout 阈值；不是高度探测在同一次启动中循环执行 |
+| 常见诱因 | Hub 供电能力、USB 电缆或接插件压降，以及开发板电源路径无法承受无线初始化的瞬时电流 |
+| 处理方式 | `USB` 口继续连接 Hub 负责烧录/监视器，`COM` 口连接稳定的 5V 1A/2A USB 电源；先接稳定电源，再接 Hub 并复位 |
+| 安全约束 | 5V 不接 `3V3`；不使用桌子红线 3.3V 给 ESP32 供电；非官方或板型不明时先核对双口电源隔离 |
+| 通过标准 | 单次启动完成 BLE、Wi-Fi 和 Web 初始化；日志中不再出现 `E BOD`，也不再重复 `ESP-ROM` 启动段 |
+
+本项目曾观察到“共 4 次启动高度探测”：第一次 USB 复位启动后连续发生 3 次 Brownout，
+第四次才完整启动。它对应 4 次启动、每次各探测一次，而不是一次启动内发出 4 组 DOWN/STOP。
+供电与双 Type-C 接法详见[主控选型文档 §3.1](./2-esp32-s3-n16r8-platform.md#31-双-type-c-供电与-brownout)。
+
 ## D. 验收通过后再排期
 
 - [x] 软件多地址 I²C Slave：同时处理键通道与 digit 高度通道

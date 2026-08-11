@@ -88,6 +88,29 @@ N16R8 使用 **8 线 SPI Flash/PSRAM** 时，下列脚已用于模组内部通�
 - **成品网关**：盒子对外 USB-C 独立供电；**不以桌子 RJ45 的 3.3V 作为主供电**。
 - ESP32 与桌子总线共地（GND 相连），但 3.3V 电源域是否与面板共用，放到硬件设计里单独论证；Phase 1 飞线时优先 **共地、不回灌 3.3V 进主机**。
 
+### 3.1 双 Type-C 供电与 Brownout
+
+[YD-ESP32-S3 官方说明](https://github.com/vcc-gnd/YD-ESP32-S3)允许 USB 转 UART
+接口和 ESP32-S3 原生 USB 接口选择其一或同时供电。日常只接一个口即可；如果 Hub
+供电时在 BLE/Wi-Fi 初始化阶段出现欠压复位，可按下面方式提供更稳定的 5V：
+
+```text
+USB 口  ← 电脑 Hub：烧录、监视器和数据
+COM 口  ← 独立 5V 1A/2A USB 电源：稳定供电
+```
+
+乐鑫的 [ESP32-S3 电源设计指南](https://docs.espressif.com/projects/esp-hardware-design-guidelines/zh_CN/latest/esp32s3/schematic-checklist.html)
+要求 3.3V 电源具备至少 500mA 输出能力，并指出无线发射时的瞬时电流增长可能造成电源轨
+跌落。Hub 端口、电缆、接插件或板载电源路径的压降，即使平时可以启动，也可能在射频初始化
+时触发 Brownout。
+
+安全约束：
+
+- 使用标准 USB 5V 电源，不使用强制输出 9V/12V 的触发模块。
+- 5V 只能接 Type-C `COM` 口或开发板 `5V` 引脚，**禁止接入 `3V3` 引脚**。
+- 桌子 RJ45 红线的 3.3V 只用于总线上拉，禁止给 ESP32 供电。
+- 双口同时供电的结论针对官方 YD-ESP32-S3；来源或板型不明时先核对原理图，避免反向灌电。
+
 ---
 
 ## 4. 与升降桌总线的接线原则
