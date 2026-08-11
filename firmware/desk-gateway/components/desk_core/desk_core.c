@@ -26,12 +26,12 @@ static const char *NVS_KEY_PRESET4_HEIGHT = "preset4_mm";
 #define DESK_PRESET4_HEIGHT_MM_DEFAULT 1020
 
 /*
- * 单次旋转只进入待命；窗口内第二个同方向事件才启动。700 ms
- * 兼顾慢速旋转与停转响应；每个物理刻度直接刷新固件租约，最后一个
- * 刻度后不再收到 REST 请求时自动停止。
+ * 单次旋转只进入待命；700 ms 窗口内第二个同方向事件才启动。
+ * 每个物理刻度刷新 500 ms 运动租约，减少停转后的额外行程；
+ * 最后一个刻度后不再收到 REST 请求时自动停止。
  */
 #define DESK_JOG_START_WINDOW_MS 700U
-#define DESK_JOG_LEASE_MS 700U
+#define DESK_JOG_LEASE_MS 500U
 
 typedef enum {
     DESK_JOG_NONE = 0,
