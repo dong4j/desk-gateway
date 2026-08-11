@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-WATCH-001 |
-| 版本 | 0.11 |
+| 版本 | 0.12 |
 | 日期 | 2026-08-12 |
 | 状态 | W0 代码与 watchOS Simulator 安装完成；Apple Watch 真机验收待完成 |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
@@ -243,6 +243,8 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
   Release 构建仍使用 `DeskBLECentral`，蓝牙失败不会自动降级到 Mock；
 - Simulator 不具备本项目所需的真实 BLE、物理 Digital Crown 和升降桌环境，因此扫描、
   系统配对弹窗、Crown 手感和真实 STOP 时序仍是开放门禁。
+- Apple Watch 配对、签名、安装、首次 BLE 验收和常见问题统一维护在
+  [Watch 真机安装说明](../../mobile/watch/README.md#apple-watch-真机安装)。
 
 当前结论：**代码与静态构建 GO，真机/真实升降验收 NO-GO**。
 
