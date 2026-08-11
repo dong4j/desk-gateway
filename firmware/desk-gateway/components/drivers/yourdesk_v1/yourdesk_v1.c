@@ -216,12 +216,6 @@ static const char *motion_direction_name(uint8_t dr)
 }
 
 #if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
-/** Convert Core 1 cycle-counter gaps using the configured fixed CPU frequency. */
-static uint32_t motion_diag_cycles_to_us(uint32_t cycles)
-{
-    return cycles / CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
-}
-
 /** Return a readable snapshot label for a possibly incomplete bus transaction. */
 static const char *motion_diag_phase_name(uint8_t phase)
 {
@@ -258,26 +252,23 @@ static void motion_diag_log_interval(
     ESP_LOGI(TAG,
              "motion_diag bus stage=%s dir=%s dt=%" PRIu32
              "ms scl=%" PRIu32 "/%" PRIu32
-             " gap_max=%" PRIu32 "us start_stop=%" PRIu32 "/%" PRIu32
-             " sda_reject=%" PRIu32 "/%" PRIu32 " low=%" PRIu32
+             " edge_mismatch=%" PRIu32
+             " start_stop=%" PRIu32 "/%" PRIu32
+             " sda_low=%" PRIu32
              " key_addr=%" PRIu32 "/%" PRIu32
-             " key_ok_abort=%" PRIu32 "/%" PRIu32
-             " key_gap_max=%" PRIu32 "us",
+             " key_ok_abort=%" PRIu32 "/%" PRIu32,
              stage, direction, dt_ms,
              bus->scl_rising_edges - baseline->scl_rising_edges,
              bus->scl_falling_edges - baseline->scl_falling_edges,
-             motion_diag_cycles_to_us(bus->max_scl_edge_gap_cycles),
+             bus->scl_level_mismatches - baseline->scl_level_mismatches,
              bus->recognized_starts - baseline->recognized_starts,
              bus->recognized_stops - baseline->recognized_stops,
-             bus->rejected_starts - baseline->rejected_starts,
-             bus->rejected_stops - baseline->rejected_stops,
-             bus->ignored_sda_edges_while_scl_low -
-                 baseline->ignored_sda_edges_while_scl_low,
+             bus->unexpected_sda_edges_while_scl_low -
+                 baseline->unexpected_sda_edges_while_scl_low,
              bus->key_write_addresses - baseline->key_write_addresses,
              bus->key_read_addresses - baseline->key_read_addresses,
              bus->completed_key_reads - baseline->completed_key_reads,
-             bus->aborted_key_reads - baseline->aborted_key_reads,
-             motion_diag_cycles_to_us(bus->max_key_read_gap_cycles));
+             bus->aborted_key_reads - baseline->aborted_key_reads);
     ESP_LOGI(TAG,
              "motion_diag state stage=%s dir=%s height=%d anchor=%d age=%dms"
              " target=%d max=%d latch=%d digit=%" PRIu32 "/%" PRIu32

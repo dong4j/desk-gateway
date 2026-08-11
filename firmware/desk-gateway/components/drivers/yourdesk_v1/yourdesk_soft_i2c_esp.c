@@ -12,7 +12,6 @@
 
 #include "driver/gpio.h"
 #include "esp_check.h"
-#include "esp_cpu.h"
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
 #include "freertos/semphr.h"
@@ -27,9 +26,10 @@ static DRAM_ATTR yourdesk_soft_i2c_sm_t s_sm;
 static DRAM_ATTR QueueHandle_t s_digit_queue;
 static DRAM_ATTR QueueHandle_t s_mirror_digit_queue;
 static DRAM_ATTR bool s_drive_sda_low;
+static DRAM_ATTR bool s_expect_scl_rising;
+static DRAM_ATTR bool s_sda_window_open;
+static DRAM_ATTR uint32_t s_isr_core_id;
 static DRAM_ATTR yourdesk_soft_i2c_stats_t s_stats;
-static DRAM_ATTR uint32_t s_last_scl_edge_cycles;
-static DRAM_ATTR uint32_t s_last_key_read_cycles;
 static portMUX_TYPE s_sm_mux = portMUX_INITIALIZER_UNLOCKED;
 
 typedef struct {
@@ -46,7 +46,43 @@ static inline bool IRAM_ATTR line_is_high(gpio_num_t gpio)
     return gpio_ll_get_level(&GPIO, (uint32_t)gpio) != 0;
 }
 
-/** Apply the state-machine output; physical SDA edges are state-filtered later. */
+/** Clear a per-pin edge latch without calling the Flash-resident GPIO driver. */
+static inline void IRAM_ATTR clear_gpio_interrupt(gpio_num_t gpio)
+{
+    uint32_t gpio_num = (uint32_t)gpio;
+    if (gpio_num < 32u) {
+        gpio_ll_clear_intr_status(&GPIO, 1u << gpio_num);
+    } else {
+        gpio_ll_clear_intr_status_high(&GPIO, 1u << (gpio_num - 32u));
+    }
+}
+
+/**
+ * Enable SDA boundary detection only while SCL is high.
+ *
+ * Normal data and ACK transitions happen while SCL is low. Masking them in
+ * hardware prevents those edges from competing with the 9.6 kHz SCL ISR.
+ */
+static inline void IRAM_ATTR set_sda_window(bool open)
+{
+    gpio_ll_intr_disable(&GPIO, CONFIG_DESK_I2C_SDA_GPIO);
+    clear_gpio_interrupt(CONFIG_DESK_I2C_SDA_GPIO);
+    s_sda_window_open = open;
+    if (open) {
+        gpio_ll_intr_enable_on_core(&GPIO, s_isr_core_id,
+                                    CONFIG_DESK_I2C_SDA_GPIO);
+    }
+}
+
+/** Arm one explicit SCL edge; ISR code never infers polarity from a late read. */
+static inline void IRAM_ATTR arm_scl_edge(bool rising)
+{
+    s_expect_scl_rising = rising;
+    gpio_ll_set_intr_type(&GPIO, CONFIG_DESK_I2C_SCL_GPIO,
+                          rising ? GPIO_INTR_POSEDGE : GPIO_INTR_NEGEDGE);
+}
+
+/** Apply the state-machine output while SDA edge detection is masked. */
 static inline void IRAM_ATTR apply_sda_output(void)
 {
     bool drive_low = s_sm.drive_sda_low;
@@ -55,6 +91,15 @@ static inline void IRAM_ATTR apply_sda_output(void)
     }
     s_drive_sda_low = drive_low;
     gpio_ll_set_level(&GPIO, CONFIG_DESK_I2C_SDA_GPIO, drive_low ? 0u : 1u);
+}
+
+/** Count an interrupted 0x24 response before START/STOP resets its state. */
+static inline void IRAM_ATTR count_aborted_key_read(void)
+{
+    if (s_sm.phase == YOURDESK_SOFT_I2C_TX_DATA ||
+        s_sm.phase == YOURDESK_SOFT_I2C_TX_MASTER_ACK) {
+        s_stats.aborted_key_reads++;
+    }
 }
 
 /** Classify a completed address byte without changing protocol decisions. */
@@ -80,23 +125,26 @@ static void IRAM_ATTR scl_edge_isr(void *arg)
 {
     (void)arg;
     yourdesk_soft_i2c_digit_event_t event = {0};
-    uint32_t now_cycles = esp_cpu_get_cycle_count();
 
     portENTER_CRITICAL_ISR(&s_sm_mux);
-    if (s_last_scl_edge_cycles != 0) {
-        uint32_t gap_cycles = now_cycles - s_last_scl_edge_cycles;
-        if (gap_cycles > s_stats.max_scl_edge_gap_cycles) {
-            s_stats.max_scl_edge_gap_cycles = gap_cycles;
-        }
+    bool rising = s_expect_scl_rising;
+    bool observed_high = line_is_high(CONFIG_DESK_I2C_SCL_GPIO);
+    if (observed_high != rising) {
+        /* This should stay zero; a hit means the ISR missed the half-cycle. */
+        s_stats.scl_level_mismatches++;
     }
-    s_last_scl_edge_cycles = now_cycles;
 
-    bool scl_high = line_is_high(CONFIG_DESK_I2C_SCL_GPIO);
-    if (scl_high) {
+    if (rising) {
+        /* Arm the next edge first so a later falling edge cannot be lost. */
+        arm_scl_edge(false);
         s_stats.scl_rising_edges++;
         yourdesk_soft_i2c_sm_scl_rising(
             &s_sm, line_is_high(CONFIG_DESK_I2C_SDA_GPIO));
+        set_sda_window(true);
     } else {
+        /* Data transitions below this edge must not enter the SDA ISR. */
+        set_sda_window(false);
+        arm_scl_edge(true);
         s_stats.scl_falling_edges++;
         yourdesk_soft_i2c_phase_t phase_before = s_sm.phase;
         uint8_t bit_count_before = s_sm.bit_count;
@@ -107,15 +155,10 @@ static void IRAM_ATTR scl_edge_isr(void *arg)
             count_address(rx_byte_before);
         }
         apply_sda_output();
+        /* Applying ACK/data may set the disabled SDA status latch. */
+        clear_gpio_interrupt(CONFIG_DESK_I2C_SDA_GPIO);
     }
     if (event.key_read_completed) {
-        if (s_last_key_read_cycles != 0) {
-            uint32_t gap_cycles = now_cycles - s_last_key_read_cycles;
-            if (gap_cycles > s_stats.max_key_read_gap_cycles) {
-                s_stats.max_key_read_gap_cycles = gap_cycles;
-            }
-        }
-        s_last_key_read_cycles = now_cycles;
         s_stats.completed_key_reads++;
     }
     if (event.ready) {
@@ -161,26 +204,25 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
 {
     (void)arg;
     portENTER_CRITICAL_ISR(&s_sm_mux);
-    if (!line_is_high(CONFIG_DESK_I2C_SCL_GPIO)) {
-        s_stats.ignored_sda_edges_while_scl_low++;
+    if (!s_sda_window_open ||
+        !line_is_high(CONFIG_DESK_I2C_SCL_GPIO)) {
+        s_stats.unexpected_sda_edges_while_scl_low++;
         portEXIT_CRITICAL_ISR(&s_sm_mux);
         return;
     }
 
     if (line_is_high(CONFIG_DESK_I2C_SDA_GPIO)) {
-        if (yourdesk_soft_i2c_sm_try_stop(&s_sm)) {
-            s_stats.recognized_stops++;
-        } else {
-            s_stats.rejected_stops++;
-        }
+        count_aborted_key_read();
+        s_stats.recognized_stops++;
+        yourdesk_soft_i2c_sm_stop(&s_sm);
     } else {
-        if (yourdesk_soft_i2c_sm_try_start(&s_sm)) {
-            s_stats.recognized_starts++;
-        } else {
-            s_stats.rejected_starts++;
-        }
+        count_aborted_key_read();
+        s_stats.recognized_starts++;
+        yourdesk_soft_i2c_sm_start(&s_sm);
     }
     apply_sda_output();
+    /* A reset only releases SDA; suppress any self-generated status latch. */
+    clear_gpio_interrupt(CONFIG_DESK_I2C_SDA_GPIO);
     portEXIT_CRITICAL_ISR(&s_sm_mux);
 }
 
@@ -215,9 +257,10 @@ static esp_err_t init_on_current_core(QueueHandle_t digit_queue,
     s_digit_queue = digit_queue;
     s_mirror_digit_queue = mirror_digit_queue;
     s_drive_sda_low = false;
+    s_expect_scl_rising = false;
+    s_sda_window_open = false;
+    s_isr_core_id = (uint32_t)xPortGetCoreID();
     s_stats = (yourdesk_soft_i2c_stats_t){0};
-    s_last_scl_edge_cycles = 0;
-    s_last_key_read_cycles = 0;
     yourdesk_soft_i2c_sm_init(&s_sm, initial_dr);
 
     /*
@@ -237,6 +280,18 @@ static esp_err_t init_on_current_core(QueueHandle_t digit_queue,
         (void)gpio_isr_handler_remove(CONFIG_DESK_I2C_SCL_GPIO);
         return err;
     }
+
+    /*
+     * Synchronize both interrupt windows with the live idle bus. If boot lands
+     * inside a clock-low half-cycle, wait for its rising edge before accepting
+     * START/STOP transitions.
+     */
+    portENTER_CRITICAL(&s_sm_mux);
+    bool scl_high = line_is_high(CONFIG_DESK_I2C_SCL_GPIO);
+    clear_gpio_interrupt(CONFIG_DESK_I2C_SCL_GPIO);
+    arm_scl_edge(!scl_high);
+    set_sda_window(scl_high);
+    portEXIT_CRITICAL(&s_sm_mux);
 
     ESP_LOGI(TAG,
              "software I2C addrs=0x24,0x34-0x37 SCL=%d SDA=%d ISR-core=%d",
@@ -304,7 +359,5 @@ void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats)
     stats->phase = (uint8_t)s_sm.phase;
     stats->bit_count = s_sm.bit_count;
     stats->current_addr7 = s_sm.current_addr7;
-    s_stats.max_scl_edge_gap_cycles = 0;
-    s_stats.max_key_read_gap_cycles = 0;
     portEXIT_CRITICAL(&s_sm_mux);
 }

@@ -49,7 +49,6 @@ typedef struct {
     uint8_t tx_dr;
     bool drive_sda_low;
     bool pending_digit;
-    bool data_byte_completed;
     uint8_t pending_segment;
 } yourdesk_soft_i2c_sm_t;
 
@@ -59,20 +58,13 @@ void yourdesk_soft_i2c_sm_init(yourdesk_soft_i2c_sm_t *sm, uint8_t initial_dr);
 /** Update the byte returned by the next read from address 0x24. */
 void yourdesk_soft_i2c_sm_set_dr(yourdesk_soft_i2c_sm_t *sm, uint8_t dr);
 
-/**
- * Accept a physical START edge only at a valid transaction boundary.
- *
- * GPIO interrupts report the live SCL level rather than the level captured
- * with the SDA edge. A delayed data edge can therefore look like START after
- * SCL has already risen; rejecting mid-frame resets keeps DR transmission
- * continuous while still permitting the 0x24 register-read repeated START.
- */
-bool YOURDESK_SOFT_I2C_ISR_ATTR
-yourdesk_soft_i2c_sm_try_start(yourdesk_soft_i2c_sm_t *sm);
+/** Handle SDA high-to-low while SCL is high. */
+void YOURDESK_SOFT_I2C_ISR_ATTR
+yourdesk_soft_i2c_sm_start(yourdesk_soft_i2c_sm_t *sm);
 
-/** Accept a physical STOP edge only after a complete transaction boundary. */
-bool YOURDESK_SOFT_I2C_ISR_ATTR
-yourdesk_soft_i2c_sm_try_stop(yourdesk_soft_i2c_sm_t *sm);
+/** Handle SDA low-to-high while SCL is high. */
+void YOURDESK_SOFT_I2C_ISR_ATTR
+yourdesk_soft_i2c_sm_stop(yourdesk_soft_i2c_sm_t *sm);
 
 /** Sample one bus bit on an SCL rising edge. */
 void YOURDESK_SOFT_I2C_ISR_ATTR

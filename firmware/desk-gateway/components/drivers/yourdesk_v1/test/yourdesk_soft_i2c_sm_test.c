@@ -9,27 +9,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-/** Require a delayed SDA edge to leave an active byte completely unchanged. */
-static void assert_midframe_edges_rejected(yourdesk_soft_i2c_sm_t *sm)
-{
-    yourdesk_soft_i2c_sm_t before = *sm;
-    assert(!yourdesk_soft_i2c_sm_try_start(sm));
-    assert(sm->phase == before.phase);
-    assert(sm->bit_count == before.bit_count);
-    assert(sm->rx_byte == before.rx_byte);
-    assert(sm->current_addr7 == before.current_addr7);
-    assert(sm->drive_sda_low == before.drive_sda_low);
-    assert(sm->data_byte_completed == before.data_byte_completed);
-
-    assert(!yourdesk_soft_i2c_sm_try_stop(sm));
-    assert(sm->phase == before.phase);
-    assert(sm->bit_count == before.bit_count);
-    assert(sm->rx_byte == before.rx_byte);
-    assert(sm->current_addr7 == before.current_addr7);
-    assert(sm->drive_sda_low == before.drive_sda_low);
-    assert(sm->data_byte_completed == before.data_byte_completed);
-}
-
 /** Clock one master-written byte and return whether the slave ACKed it. */
 static bool master_write_byte(yourdesk_soft_i2c_sm_t *sm, uint8_t byte,
                               yourdesk_soft_i2c_digit_event_t *event)
@@ -50,8 +29,6 @@ static uint8_t master_read_dr(yourdesk_soft_i2c_sm_t *sm,
 {
     uint8_t value = 0;
     for (int bit = 0; bit < 8; ++bit) {
-        /* Reproduce an SDA interrupt delivered after SCL has already risen. */
-        assert_midframe_edges_rejected(sm);
         value = (uint8_t)((value << 1) | (sm->drive_sda_low ? 0u : 1u));
         yourdesk_soft_i2c_sm_scl_rising(sm, !sm->drive_sda_low);
         *event = yourdesk_soft_i2c_sm_scl_falling(sm);
@@ -67,22 +44,16 @@ static void key_poll_once(yourdesk_soft_i2c_sm_t *sm, uint8_t expected_dr)
 {
     yourdesk_soft_i2c_digit_event_t event;
 
-    assert(yourdesk_soft_i2c_sm_try_start(sm));
+    yourdesk_soft_i2c_sm_start(sm);
     assert(master_write_byte(sm, 0x48, &event)); /* 0x24 write */
-    /* Releasing the address ACK is not a transaction boundary yet. */
-    assert_midframe_edges_rejected(sm);
     assert(master_write_byte(sm, 0x01, &event));
     assert(!event.ready);
 
-    /* A real repeated START raises SCL once before SDA falls. */
-    yourdesk_soft_i2c_sm_scl_rising(sm, true);
-    assert(sm->bit_count == 1);
-    /* The register-read repeated START is the one legal RX_DATA restart. */
-    assert(yourdesk_soft_i2c_sm_try_start(sm));
+    yourdesk_soft_i2c_sm_start(sm); /* Repeated START */
     assert(master_write_byte(sm, 0x49, &event)); /* 0x24 read */
     assert(master_read_dr(sm, &event) == expected_dr);
     assert(event.key_read_completed);
-    assert(yourdesk_soft_i2c_sm_try_stop(sm));
+    yourdesk_soft_i2c_sm_stop(sm);
     assert(sm->phase == YOURDESK_SOFT_I2C_IDLE);
 }
 
@@ -118,17 +89,13 @@ static void test_digit_writes(void)
 
     for (size_t i = 0; i < sizeof(addresses); ++i) {
         yourdesk_soft_i2c_digit_event_t event = {0};
-        assert(yourdesk_soft_i2c_sm_try_start(&sm));
+        yourdesk_soft_i2c_sm_start(&sm);
         assert(master_write_byte(&sm, (uint8_t)(addresses[i] << 1), &event));
-        assert_midframe_edges_rejected(&sm);
         assert(master_write_byte(&sm, segments[i], &event));
         assert(event.ready);
         assert(event.addr7 == addresses[i]);
         assert(event.segment == segments[i]);
-        /* STOP raises SCL while SDA is still low, then releases SDA. */
-        yourdesk_soft_i2c_sm_scl_rising(&sm, false);
-        assert(sm.bit_count == 1);
-        assert(yourdesk_soft_i2c_sm_try_stop(&sm));
+        yourdesk_soft_i2c_sm_stop(&sm);
     }
 }
 
@@ -139,13 +106,13 @@ static void test_address_filter(void)
     yourdesk_soft_i2c_digit_event_t event;
     yourdesk_soft_i2c_sm_init(&sm, 0x2E);
 
-    assert(yourdesk_soft_i2c_sm_try_start(&sm));
+    yourdesk_soft_i2c_sm_start(&sm);
     assert(!master_write_byte(&sm, 0x50, &event)); /* Unknown 0x28 write. */
-    assert(yourdesk_soft_i2c_sm_try_stop(&sm));
+    yourdesk_soft_i2c_sm_stop(&sm);
 
-    assert(yourdesk_soft_i2c_sm_try_start(&sm));
+    yourdesk_soft_i2c_sm_start(&sm);
     assert(!master_write_byte(&sm, 0x69, &event)); /* Digit 0x34 read. */
-    assert(yourdesk_soft_i2c_sm_try_stop(&sm));
+    yourdesk_soft_i2c_sm_stop(&sm);
 }
 
 int main(void)

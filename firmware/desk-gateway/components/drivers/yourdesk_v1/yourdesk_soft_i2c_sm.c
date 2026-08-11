@@ -31,7 +31,6 @@ reset_transaction(yourdesk_soft_i2c_sm_t *sm,
     sm->current_addr7 = 0;
     sm->drive_sda_low = false;
     sm->pending_digit = false;
-    sm->data_byte_completed = false;
     sm->pending_segment = 0;
 }
 
@@ -51,48 +50,18 @@ void yourdesk_soft_i2c_sm_set_dr(yourdesk_soft_i2c_sm_t *sm, uint8_t dr)
     }
 }
 
-bool yourdesk_soft_i2c_sm_try_start(yourdesk_soft_i2c_sm_t *sm)
+void yourdesk_soft_i2c_sm_start(yourdesk_soft_i2c_sm_t *sm)
 {
-    if (!sm) {
-        return false;
+    if (sm) {
+        reset_transaction(sm, YOURDESK_SOFT_I2C_RX_ADDRESS);
     }
-
-    bool at_new_transaction =
-        sm->phase == YOURDESK_SOFT_I2C_IDLE ||
-        sm->phase == YOURDESK_SOFT_I2C_IGNORE ||
-        (sm->phase == YOURDESK_SOFT_I2C_RX_ADDRESS && sm->bit_count == 0);
-    bool at_key_read_restart =
-        sm->phase == YOURDESK_SOFT_I2C_RX_DATA &&
-        sm->current_addr7 == ADDR_KEY_7BIT && sm->data_byte_completed &&
-        sm->bit_count <= 1 && !sm->pending_digit && !sm->drive_sda_low;
-    if (!at_new_transaction && !at_key_read_restart) {
-        return false;
-    }
-
-    reset_transaction(sm, YOURDESK_SOFT_I2C_RX_ADDRESS);
-    return true;
 }
 
-bool yourdesk_soft_i2c_sm_try_stop(yourdesk_soft_i2c_sm_t *sm)
+void yourdesk_soft_i2c_sm_stop(yourdesk_soft_i2c_sm_t *sm)
 {
-    if (!sm) {
-        return false;
+    if (sm) {
+        reset_transaction(sm, YOURDESK_SOFT_I2C_IDLE);
     }
-
-    bool at_empty_boundary =
-        sm->phase == YOURDESK_SOFT_I2C_IDLE ||
-        sm->phase == YOURDESK_SOFT_I2C_IGNORE ||
-        (sm->phase == YOURDESK_SOFT_I2C_RX_ADDRESS && sm->bit_count == 0);
-    bool after_complete_write =
-        sm->phase == YOURDESK_SOFT_I2C_RX_DATA &&
-        sm->data_byte_completed && sm->bit_count <= 1 &&
-        !sm->pending_digit && !sm->drive_sda_low;
-    if (!at_empty_boundary && !after_complete_write) {
-        return false;
-    }
-
-    reset_transaction(sm, YOURDESK_SOFT_I2C_IDLE);
-    return true;
 }
 
 void yourdesk_soft_i2c_sm_scl_rising(yourdesk_soft_i2c_sm_t *sm, bool sda_high)
@@ -197,7 +166,6 @@ yourdesk_soft_i2c_sm_scl_falling(yourdesk_soft_i2c_sm_t *sm)
                 event.segment = sm->pending_segment;
             }
             sm->pending_digit = false;
-            sm->data_byte_completed = true;
             sm->bit_count = 0;
             sm->rx_byte = 0;
         }
