@@ -1,0 +1,41 @@
+# XcodeGen specification for the standalone watchOS validation app.
+name: DeskGatewayWatch
+
+options:
+  bundleIdPrefix: com.dong4j.deskgateway
+  deploymentTarget:
+    watchOS: "11.0"
+
+packages:
+  DeskGatewayWatchCore:
+    path: .
+
+targets:
+  DeskGatewayWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: App
+    dependencies:
+      - package: DeskGatewayWatchCore
+        product: DeskGatewayWatchCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dong4j.deskgateway.watch
+        PRODUCT_NAME: Desk Gateway
+        DEVELOPMENT_TEAM: 8WCUMGCWMB
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: minimal
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Desk Gateway
+        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: Desk Gateway 需要通过蓝牙连接升降桌网关。
+        INFOPLIST_KEY_WKApplication: YES
+        INFOPLIST_KEY_WKWatchOnly: YES
+
+schemes:
+  DeskGatewayWatch:
+    build:
+      targets:
+        DeskGatewayWatch: all
+    run:
+      config: Debug

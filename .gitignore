@@ -18,6 +18,10 @@ __pycache__/
 *.pyc
 .venv/
 .tmp_*/
+.build/
+DerivedData/
+mobile/watch/*.xcodeproj/
+mobile/watch/.swiftpm/
 
 # 本地密钥
 .env
