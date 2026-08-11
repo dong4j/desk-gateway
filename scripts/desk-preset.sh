@@ -4,7 +4,7 @@
 
 set -eu
 
-DESK_BASE_URL='http://192.168.21.90'
+DESK_BASE_URL='http://192.168.21.65'
 DESK_KEY='desk-gateway'
 
 case "${1:-}" in
