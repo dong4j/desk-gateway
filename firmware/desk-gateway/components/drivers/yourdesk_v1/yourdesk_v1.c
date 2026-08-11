@@ -259,7 +259,7 @@ static void motion_diag_log_interval(
              "motion_diag bus stage=%s dir=%s dt=%" PRIu32
              "ms scl=%" PRIu32 "/%" PRIu32
              " gap_max=%" PRIu32 "us start_stop=%" PRIu32 "/%" PRIu32
-             " sda_ignored=%" PRIu32 "/%" PRIu32
+             " sda_reject=%" PRIu32 "/%" PRIu32 " low=%" PRIu32
              " key_addr=%" PRIu32 "/%" PRIu32
              " key_ok_abort=%" PRIu32 "/%" PRIu32
              " key_gap_max=%" PRIu32 "us",
@@ -269,7 +269,8 @@ static void motion_diag_log_interval(
              motion_diag_cycles_to_us(bus->max_scl_edge_gap_cycles),
              bus->recognized_starts - baseline->recognized_starts,
              bus->recognized_stops - baseline->recognized_stops,
-             bus->ignored_own_sda_edges - baseline->ignored_own_sda_edges,
+             bus->rejected_starts - baseline->rejected_starts,
+             bus->rejected_stops - baseline->rejected_stops,
              bus->ignored_sda_edges_while_scl_low -
                  baseline->ignored_sda_edges_while_scl_low,
              bus->key_write_addresses - baseline->key_write_addresses,
