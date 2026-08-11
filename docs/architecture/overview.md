@@ -101,6 +101,7 @@ docs/superpowers/specs/     ← 设计定稿
 | [当前状态与优先级](../5-current-status-and-priorities.md) | 已完成、待验收和剩余任务的统一清单 |
 | [小米/华为生态调研](./ecosystem-xiaomi-huawei.md) | 模组 vs Matter |
 | [BLE 外设 Profile](./ble-accessory-profile.md) | 旋钮/OLED 配件总线 |
+| [BLE 三客户端与配对管理](./ble-multi-client-bond-management.md) | iPhone、Apple Watch、Android 并发连接、运动所有权与 Bond 删除 |
 | [移动端技术选型](./mobile-app-technology-selection.md) | React Native 手机端与 BLE 验证门禁 |
 | [移动端双通道方案](./mobile-connection-transport.md) | BLE 优先、REST 回退、mDNS 与安全边界 |
 | [Apple Watch 控制方案](./apple-watch-control.md) | SwiftUI Watch App 与直连 BLE 安全边界 |

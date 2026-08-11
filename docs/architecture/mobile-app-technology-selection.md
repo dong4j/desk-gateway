@@ -3,16 +3,20 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-MOBILE-001 |
-| 版本 | 0.4 |
+| 版本 | 0.5 |
 | 日期 | 2026-08-11 |
 | 状态 | iPhone 主控制与设置已完成；BLE 和指定 IP REST 已使用；Android 与自动回退矩阵待验收 |
 | 目标平台 | iOS + Android |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
+| 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
 | 视觉依据 | [`mobile/prototypes/`](../../mobile/prototypes/) |
 
 本文冻结 Desk Gateway 移动端的总体技术方向，并记录 BLE 技术验证和正式 UI 的分阶段
 边界。iOS 已按原型实现 Home / Settings，继续消费现有 ESP32 GATT v1；设备设置写入、
 震动反馈和 BLE 优先 / REST 回退代码均已落地，Android 真机和异常矩阵仍待完成。
+
+三客户端并发、Client Info 登记以及 Web / 手机端配对设备单删和全删目前仅完成设计，
+不属于现有 App 的已实现能力。
 
 ---
 

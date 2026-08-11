@@ -3,14 +3,19 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-WATCH-001 |
-| 版本 | 0.12 |
+| 版本 | 0.13 |
 | 日期 | 2026-08-12 |
 | 状态 | W0 代码与 watchOS Simulator 安装完成；Apple Watch 真机验收待完成 |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
 | 移动端方案 | [移动端技术选型与 Phase 0 方案](./mobile-app-technology-selection.md) |
+| 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
 
 本文定义 Desk Gateway 的 Apple Watch 控制方案、已确认原型和实现验收边界。
 首版创建独立 watchOS App，直接复用 ESP32 GATT v1，不修改固件协议。
+
+当前 Watch 仍受固件单 BLE Central 限制。后续三客户端阶段将让 Watch 写入加密的
+Client Info 代替正常连接时的配对 STOP，并与 iPhone、Android 同时保持连接；该能力
+目前只有设计，尚未实现。
 
 ---
 

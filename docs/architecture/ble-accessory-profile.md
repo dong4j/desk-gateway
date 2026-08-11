@@ -4,8 +4,9 @@
 |---|---|
 | 文档 | DG-ARCH-BLE-ACC-001 |
 | 日期 | 2026-08-11 |
-| 状态 | Command / State v1 + Config v2 / System 扩展已实现；LightBlue 核心控制和 iPhone Config v2 已真机验收，异常矩阵待完成 |
+| 状态 | Command / State v1 + Config v2 / System 扩展已实现；LightBlue 核心控制和 iPhone Config v2 已真机验收；三客户端与 Bond 管理仅完成设计 |
 | 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
+| 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
 
 ## 1. 要解决什么
 
@@ -50,6 +51,10 @@ Desk Gateway **盒子本体**仍可不带旋钮/屏（纯网关），但平台�
 ## 4. 已冻结的 GATT Profile v1
 
 Gateway 广播名为 `DeskGateway`，广播包包含 Desk Accessory Service UUID。
+
+当前固件仍只允许一个 BLE Central。后续三客户端实现保持下表既有 UUID 和字节布局，
+并以可选的 Client Info Characteristic 做向后兼容扩展；连接表、运动所有权和 Bond 管理
+语义以[三客户端设计](./ble-multi-client-bond-management.md)为准。
 
 | Attribute | UUID | Properties | 说明 |
 |---|---|---|---|
