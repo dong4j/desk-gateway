@@ -8,6 +8,7 @@ idf_component_register(
         "www/index.html"
         "www/app.js"
         "www/style.css"
+        "www/favicon.png"
         "www/desk-workstation.webp"
         "www/setup.html"
 )

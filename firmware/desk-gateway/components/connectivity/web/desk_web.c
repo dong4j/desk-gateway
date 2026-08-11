@@ -46,6 +46,8 @@ extern const uint8_t www_app_js_start[] asm("_binary_app_js_start");
 extern const uint8_t www_app_js_end[] asm("_binary_app_js_end");
 extern const uint8_t www_style_css_start[] asm("_binary_style_css_start");
 extern const uint8_t www_style_css_end[] asm("_binary_style_css_end");
+extern const uint8_t www_favicon_png_start[] asm("_binary_favicon_png_start");
+extern const uint8_t www_favicon_png_end[] asm("_binary_favicon_png_end");
 extern const uint8_t www_desk_workstation_webp_start[] asm("_binary_desk_workstation_webp_start");
 extern const uint8_t www_desk_workstation_webp_end[] asm("_binary_desk_workstation_webp_end");
 extern const uint8_t www_setup_html_start[] asm("_binary_setup_html_start");
@@ -469,6 +471,12 @@ static esp_err_t handler_css(httpd_req_t *req)
 {
     return send_embed(req, "text/css", www_style_css_start, www_style_css_end);
 }
+static esp_err_t handler_favicon(httpd_req_t *req)
+{
+    /* 浏览器会在登录和配网页面之前请求图标，因此保持此静态资源免鉴权。 */
+    return send_embed(req, "image/png", www_favicon_png_start,
+                      www_favicon_png_end);
+}
 static esp_err_t handler_desk_workstation(httpd_req_t *req)
 {
     return send_embed(req, "image/webp", www_desk_workstation_webp_start,
@@ -535,6 +543,7 @@ esp_err_t desk_web_start(void)
         {.uri = "/login.html", .method = HTTP_GET, .handler = handler_login_page},
         {.uri = "/app.js", .method = HTTP_GET, .handler = handler_app_js},
         {.uri = "/style.css", .method = HTTP_GET, .handler = handler_css},
+        {.uri = "/favicon.png", .method = HTTP_GET, .handler = handler_favicon},
         {.uri = "/desk-workstation.webp", .method = HTTP_GET, .handler = handler_desk_workstation},
         {.uri = "/api/v1/setup/wifi", .method = HTTP_POST, .handler = handler_setup_wifi},
         {.uri = "/api/v1/auth/login", .method = HTTP_POST, .handler = handler_login},
