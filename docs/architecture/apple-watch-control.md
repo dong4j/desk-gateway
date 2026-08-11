@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-WATCH-001 |
-| 版本 | 0.13 |
+| 版本 | 0.14 |
 | 日期 | 2026-08-12 |
 | 状态 | W0 代码与 watchOS Simulator 安装完成；Apple Watch 真机验收待完成 |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
@@ -132,8 +132,8 @@ Watch Crown 事件只表示“用户仍在旋转”，不能把 Crown 的累计�
 运动的开关：
 
 1. Crown 首个有效正向增量立即发送 `HOLD_UP`，负向增量发送 `HOLD_DOWN`；
-2. 同方向持续旋转期间约每 `300 ms` 续期；
-3. 距离最后一次 Crown 增量 `400 ms` 后立即发送 `STOP`；
+2. 运动意图有效期间由 watchdog 约每 `250 ms` 续期，不依赖真机 Crown 回调密度；
+3. 距离最后一次 Crown 增量约 `500 ms` 后立即发送 `STOP`；
 4. 方向切换先 STOP，再开始相反方向，避免命令交叉；
 5. 任一时刻最多保留一个未完成的 GATT Write；STOP 具有最高队列优先级；
 6. 点击停止、页面消失或 App 失去前台时取消续期并尽力发送 `STOP`；
@@ -235,14 +235,15 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 ### 当前实现证据（2026-08-12）
 
 - `mobile/watch/Package.swift` 提供协议和 Crown 状态机的独立测试入口；
-- `swift test` 已通过 10 个测试，覆盖固定命令字节、State/Config 解码、方向反转、
-  300 ms 续期限频和 400 ms 无输入 STOP；
+- `swift test` 已通过 12 个测试，覆盖固定命令字节、State/Config 解码、方向反转、
+  250 ms watchdog 续期和 500 ms 无输入 STOP；
 - `xcodegen generate` 可重复生成独立 watchOS 工程；
 - `xcodebuild -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`
   已通过，App 使用 `WKWatchOnly` 表达 Watch-only 形态，并包含蓝牙用途声明；
 - Apple Watch Series 11（46 mm）watchOS 27 Simulator 已完成定向构建、安装和启动；
 - Simulator Debug 构建会自动使用本地 `MockDeskController`，以 `72.4 cm` 为初始高度，
-  支持 Crown 连续升降、400 ms 无输入 STOP、固定高度和手动 STOP 的 UI 测试；页面必须
+  支持 Crown 连续升降、250 ms watchdog 续期、500 ms 无输入 STOP、固定高度和手动
+  STOP 的 UI 测试；页面必须
   显示橙色“模拟”标识；
 - Mock 的选择是 `DEBUG && targetEnvironment(simulator)` 编译期行为。真机 Debug 和所有
   Release 构建仍使用 `DeskBLECentral`，蓝牙失败不会自动降级到 Mock；
@@ -287,7 +288,7 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 | Watch UI | 原生 SwiftUI | 2026-08-11 |
 | 首版工程形态 | 独立 watchOS App；以后可嵌入手机 App | 2026-08-11 |
 | 实时控制链路 | Watch 通过 CoreBluetooth 直连 ESP32 | 2026-08-11 |
-| Crown 语义 | 有旋转增量才续期，400 ms 无增量即 STOP | 2026-08-11 |
+| Crown 语义 | 旋转建立短时意图；watchdog 每 250 ms 续期，500 ms 无增量即 STOP | 2026-08-12 |
 | 固定高度 | 请坐=档位 1；站立=档位 4 | 2026-08-11 |
 | WatchConnectivity | 仅作非实时设置同步，不承载运动命令 | 2026-08-11 |
 | REST | 仅作后续诊断或显式降级方案 | 2026-08-11 |

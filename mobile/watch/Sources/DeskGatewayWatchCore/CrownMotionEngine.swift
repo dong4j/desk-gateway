@@ -2,7 +2,7 @@
  Digital Crown 运动意图状态机。
 
  状态机只处理可测试的时间和位置增量，不发送 BLE。累计 Crown 位置不能变成持续运动
- 开关；只有新增旋转输入才能开始或续期，超时必须产生 STOP。
+ 开关；新增旋转输入建立短时运动意图，watchdog 在意图有效期内续期，超时必须产生 STOP。
  */
 
 import Foundation
@@ -34,8 +34,8 @@ public struct CrownMotionEngine: Sendable {
 
   public init(
     minimumDelta: Double = 0.001,
-    renewalInterval: TimeInterval = 0.3,
-    inactivityTimeout: TimeInterval = 0.4
+    renewalInterval: TimeInterval = 0.25,
+    inactivityTimeout: TimeInterval = 0.5
   ) {
     self.minimumDelta = minimumDelta
     self.renewalInterval = renewalInterval
@@ -71,17 +71,27 @@ public struct CrownMotionEngine: Sendable {
     return []
   }
 
-  /// Watchdog 定期调用；超过 400 ms 没有新增 Crown 输入就结束本地运动。
+  /// Watchdog 定期调用；真机 Crown 回调稀疏时仍续期，停转约 500 ms 后结束运动。
   public mutating func tick(at time: TimeInterval) -> [CrownMotionAction] {
-    guard activeDirection != nil,
-      let lastInputTime,
-      // Double 无法精确表示 0.4；容差避免恰好 400 ms 时漏掉 STOP。
-      time - lastInputTime >= inactivityTimeout - Self.timeComparisonTolerance
-    else {
+    guard let activeDirection, let lastInputTime else {
       return []
     }
-    clearMotion()
-    return [.stop]
+
+    // STOP 必须优先于续期，避免恰好到期的 tick 再延长 ESP32 HOLD 租约。
+    if time - lastInputTime >= inactivityTimeout - Self.timeComparisonTolerance {
+      clearMotion()
+      return [.stop]
+    }
+
+    // 物理 Crown 可能合并或稀疏投递回调；只要用户的短时运动意图仍有效，就由
+    // watchdog 保持固定续期节奏，不能把 BLE 安全租约绑定到 UI 回调密度。
+    if let lastRenewalTime,
+      time - lastRenewalTime >= renewalInterval - Self.timeComparisonTolerance
+    {
+      self.lastRenewalTime = time
+      return [.renew(activeDirection)]
+    }
+    return []
   }
 
   /// 页面退出、点击停止或权限变化时无条件清除本地运动状态。

@@ -13,13 +13,39 @@ func startsOnlyAfterDelta() {
   #expect(engine.activeDirection == .up)
 }
 
-@Test("Continuous input renews at 300 ms without queueing every crown event")
+@Test("Continuous input renews at 250 ms without queueing every crown event")
 func renewsAtBoundedRate() {
   var engine = CrownMotionEngine()
   _ = engine.consume(position: 0, at: 0)
   #expect(engine.consume(position: 0.1, at: 0.01) == [.start(.up)])
   #expect(engine.consume(position: 0.2, at: 0.20).isEmpty)
-  #expect(engine.consume(position: 0.3, at: 0.32) == [.renew(.up)])
+  #expect(engine.consume(position: 0.3, at: 0.26) == [.renew(.up)])
+}
+
+@Test("Watchdog renews while real crown callbacks are sparse")
+func watchdogRenewsWithoutNewInput() {
+  var engine = CrownMotionEngine()
+  _ = engine.consume(position: 0, at: 0)
+  _ = engine.consume(position: 0.1, at: 1.0)
+
+  #expect(engine.tick(at: 1.24).isEmpty)
+  #expect(engine.tick(at: 1.25) == [.renew(.up)])
+  #expect(engine.tick(at: 1.49).isEmpty)
+  #expect(engine.activeDirection == .up)
+}
+
+@Test("Sparse crown input inside five hundred milliseconds keeps motion active")
+func sparseCrownInputExtendsIntent() {
+  var engine = CrownMotionEngine()
+  _ = engine.consume(position: 0, at: 0)
+  _ = engine.consume(position: 0.1, at: 1.0)
+
+  #expect(engine.tick(at: 1.25) == [.renew(.up)])
+  #expect(engine.consume(position: 0.2, at: 1.45).isEmpty)
+  #expect(engine.tick(at: 1.50) == [.renew(.up)])
+  #expect(engine.tick(at: 1.75) == [.renew(.up)])
+  #expect(engine.tick(at: 1.94).isEmpty)
+  #expect(engine.tick(at: 1.95) == [.stop])
 }
 
 @Test("Direction reversal stops before starting the opposite direction")
@@ -32,14 +58,15 @@ func stopsBeforeDirectionChange() {
   #expect(engine.activeDirection == .down)
 }
 
-@Test("Four hundred milliseconds without input emits stop")
+@Test("Five hundred milliseconds without input emits stop before renewal")
 func stopsAfterInactivity() {
   var engine = CrownMotionEngine()
   _ = engine.consume(position: 0, at: 0)
   _ = engine.consume(position: -0.1, at: 1.0)
 
-  #expect(engine.tick(at: 1.39).isEmpty)
-  #expect(engine.tick(at: 1.40) == [.stop])
+  #expect(engine.tick(at: 1.25) == [.renew(.down)])
+  #expect(engine.tick(at: 1.49).isEmpty)
+  #expect(engine.tick(at: 1.50) == [.stop])
   #expect(engine.activeDirection == nil)
 }
 
