@@ -54,6 +54,13 @@ typedef struct desk_driver {
     esp_err_t (*set_max_height_mm)(int max_height_mm);
     /** 预测或真实触顶后，在重新获得安全下降高度前禁止继续上升。 */
     bool (*is_upward_blocked)(void);
+    /**
+     * 可选的原厂控制面板入口开关。
+     *
+     * 禁用后驱动必须立即释放面板控制权；重新启用时必须等待物理按键
+     * 先松开，禁止把锁定期间一直按住的按键直接恢复为运动。
+     */
+    esp_err_t (*set_panel_enabled)(bool enabled);
     desk_status_t (*get_status)(void);
     desk_caps_t (*get_caps)(void);
 } desk_driver_t;

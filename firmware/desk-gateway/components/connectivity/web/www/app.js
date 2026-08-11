@@ -21,8 +21,12 @@
   const firmwareBuildBadge = document.getElementById('firmwareBuildBadge');
   const maxHeightInput = document.getElementById('maxHeight');
   const upButton = document.getElementById('up');
+  const downButton = document.getElementById('down');
   const p1Button = document.getElementById('p1');
   const p4Button = document.getElementById('p4');
+  const allowRest = document.getElementById('allowRest');
+  const allowBluetooth = document.getElementById('allowBluetooth');
+  const allowPanel = document.getElementById('allowPanel');
   const restartButton = document.getElementById('restartButton');
   let failStreak = 0;
   let lastStatus = {};
@@ -61,6 +65,7 @@
     if (!r.ok) {
       const error = new Error(payload?.err || ('http ' + r.status));
       error.code = payload?.err || '';
+      error.reason = payload?.reason || '';
       error.httpStatus = r.status;
       throw error;
     }
@@ -68,6 +73,12 @@
   }
 
   function motionError(error, fallback) {
+    if (error?.code === 'ESP_ERR_NOT_ALLOWED') {
+      if (error.reason === 'child_lock' || lastStatus.child_lock) {
+        return '童锁已开启，请先解除童锁';
+      }
+      return 'REST 接口操作已关闭，请先在设置中开启';
+    }
     if (error?.code !== 'ESP_ERR_INVALID_STATE') return fallback;
     if (!lastStatus.height_known) {
       return '高度未知，请先短按下降或点击档位 1 获取高度';
@@ -96,12 +107,22 @@
       typeof s.height_mm === 'number' && typeof s.max_height_mm === 'number' &&
       s.height_mm >= s.max_height_mm - 10;
     const upwardBlocked = !!s.upward_blocked;
+    const sources = s.control_sources || {};
+    const restEnabled = sources.rest !== false;
+    const motionBlocked = !!s.child_lock || !restEnabled;
     // Manual UP must remain available after boot so it can trigger the
     // controller's first height display frame. Firmware still owns all limit
-    // checks and rejects unsafe upward travel.
-    upButton.disabled = false;
-    p4Button.disabled = heightUnknown || upwardBlocked;
-    if (heightUnknown) {
+    // checks and rejects unsafe upward travel. Permission is the only extra
+    // reason for disabling manual UP here.
+    upButton.disabled = motionBlocked;
+    downButton.disabled = motionBlocked;
+    p1Button.disabled = motionBlocked;
+    p4Button.disabled = motionBlocked || heightUnknown || upwardBlocked;
+    if (s.child_lock) {
+      stateHint.textContent = '童锁已开启；解除童锁后才能操作桌子。';
+    } else if (!restEnabled) {
+      stateHint.textContent = 'REST 接口操作已关闭；可在设置中重新开启。';
+    } else if (heightUnknown) {
       stateHint.textContent = moving
         ? '正在等待控制盒高度帧。'
         : '等待控制盒高度；可按住升或降触发显示帧。';
@@ -136,6 +157,9 @@
       ? `构建 ${buildDate} ${buildTime}${buildId ? ` · ${buildId}` : ''}`
       : '构建时间未知';
     lock.checked = !!s.child_lock;
+    allowRest.checked = restEnabled;
+    allowBluetooth.checked = sources.bluetooth !== false;
+    allowPanel.checked = sources.panel !== false;
     if (typeof s.max_height_mm === 'number') {
       const maxCm = (s.max_height_mm / 10).toFixed(1);
       maxHeightBadge.textContent = `上限 ${maxCm} cm`;
@@ -189,7 +213,7 @@
   }
 
   bindHold(upButton, '/api/v1/desk/up');
-  bindHold(document.getElementById('down'), '/api/v1/desk/down');
+  bindHold(downButton, '/api/v1/desk/down');
   document.getElementById('stop').onclick = () =>
     api('/api/v1/desk/stop', 'POST').catch(() => showBanner('停止失败'));
   p1Button.onclick = () =>
@@ -198,9 +222,39 @@
   p4Button.onclick = () =>
     api('/api/v1/desk/preset/4/goto', 'POST')
       .catch((error) => showBanner(motionError(error, '档位失败')));
-  lock.onchange = () =>
-    api('/api/v1/desk/child-lock', 'POST', { enabled: lock.checked })
-      .catch(() => showBanner('童锁设置失败'));
+  lock.onchange = async () => {
+    try {
+      await api('/api/v1/desk/child-lock', 'POST', { enabled: lock.checked });
+      await tick();
+    } catch (_) {
+      showBanner('童锁设置失败');
+      await tick();
+    }
+  };
+
+  function bindSourceToggle(input, source) {
+    input.onchange = async () => {
+      const msg = document.getElementById('accessMsg');
+      input.disabled = true;
+      try {
+        await api('/api/v1/desk/access', 'POST', {
+          source,
+          enabled: input.checked,
+        });
+        msg.textContent = `${input.nextElementSibling.textContent}已${input.checked ? '开启' : '关闭'}`;
+        await tick();
+      } catch (_) {
+        msg.textContent = '入口权限保存失败，请检查设备状态或网络';
+        await tick();
+      } finally {
+        input.disabled = false;
+      }
+    };
+  }
+
+  bindSourceToggle(allowRest, 'rest');
+  bindSourceToggle(allowBluetooth, 'bluetooth');
+  bindSourceToggle(allowPanel, 'panel');
 
   document.getElementById('maxHeightForm').onsubmit = async (e) => {
     e.preventDefault();

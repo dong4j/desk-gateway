@@ -499,6 +499,22 @@ body.is-moving .height { color: #5c4a28; }
 .settings-form .settings-danger-button {
   background: var(--danger);
 }
+.settings-form .source-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  color: var(--muted);
+  cursor: pointer;
+}
+.settings-form .source-option input {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  padding: 0;
+  accent-color: var(--fg);
+}
 .settings-note {
   margin: 0.55rem 0 0;
   color: var(--soft);

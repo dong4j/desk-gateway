@@ -124,7 +124,9 @@ static esp_err_t send_cjson(httpd_req_t *req, int status, cJSON *obj)
     }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_status(req, status == 200 ? "200 OK" :
-                                status == 401 ? "401 Unauthorized" : "400 Bad Request");
+                                status == 401 ? "401 Unauthorized" :
+                                status == 403 ? "403 Forbidden" :
+                                                "400 Bad Request");
     esp_err_t err = httpd_resp_sendstr(req, body);
     free(body);
     return err;
@@ -169,6 +171,19 @@ static cJSON *snapshot_json(void)
     cJSON_AddBoolToObject(o, "child_lock", s.child_lock);
     cJSON_AddBoolToObject(o, "upward_blocked", s.upward_blocked);
     cJSON_AddNumberToObject(o, "max_height_mm", s.max_height_mm);
+    cJSON *sources = cJSON_AddObjectToObject(o, "control_sources");
+    cJSON_AddBoolToObject(
+        sources, "rest",
+        (s.enabled_sources &
+         DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_REST)) != 0);
+    cJSON_AddBoolToObject(
+        sources, "bluetooth",
+        (s.enabled_sources &
+         DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_BLUETOOTH)) != 0);
+    cJSON_AddBoolToObject(
+        sources, "panel",
+        (s.enabled_sources &
+         DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_PANEL)) != 0);
     cJSON_AddStringToObject(o, "driver", s.driver ? s.driver : "none");
     /* 读取当前运行镜像的元数据，页面显示值可以直接用于确认烧录结果。 */
     cJSON_AddStringToObject(o, "build_date", app ? app->date : "");
@@ -190,6 +205,28 @@ static esp_err_t read_body(httpd_req_t *req, char *buf, size_t len)
     }
     buf[r] = '\0';
     return ESP_OK;
+}
+
+/** Parse only the user-configurable ingress names exposed by the REST API. */
+static bool parse_control_source(const char *name,
+                                 desk_control_source_t *out_source)
+{
+    if (!name || !out_source) {
+        return false;
+    }
+    if (strcmp(name, "rest") == 0) {
+        *out_source = DESK_CONTROL_SOURCE_REST;
+        return true;
+    }
+    if (strcmp(name, "bluetooth") == 0) {
+        *out_source = DESK_CONTROL_SOURCE_BLUETOOTH;
+        return true;
+    }
+    if (strcmp(name, "panel") == 0) {
+        *out_source = DESK_CONTROL_SOURCE_PANEL;
+        return true;
+    }
+    return false;
 }
 
 static esp_err_t handler_login(httpd_req_t *req)
@@ -294,13 +331,13 @@ static esp_err_t handler_cmd(httpd_req_t *req)
     const char *uri = req->uri;
     esp_err_t err = ESP_ERR_NOT_FOUND;
     if (strcmp(uri, "/api/v1/desk/jog/up") == 0) {
-        err = desk_core_jog_up();
+        err = desk_core_jog_up(DESK_CONTROL_SOURCE_REST);
     } else if (strcmp(uri, "/api/v1/desk/jog/down") == 0) {
-        err = desk_core_jog_down();
+        err = desk_core_jog_down(DESK_CONTROL_SOURCE_REST);
     } else if (strstr(uri, "/desk/up")) {
-        err = desk_core_hold_up();
+        err = desk_core_hold_up(DESK_CONTROL_SOURCE_REST);
     } else if (strstr(uri, "/desk/down")) {
-        err = desk_core_hold_down();
+        err = desk_core_hold_down(DESK_CONTROL_SOURCE_REST);
     } else if (strstr(uri, "/desk/stop")) {
         err = desk_core_stop();
     } else if (strstr(uri, "/max-height")) {
@@ -333,18 +370,44 @@ static esp_err_t handler_cmd(httpd_req_t *req)
         } else {
             err = ESP_ERR_INVALID_ARG;
         }
+    } else if (strstr(uri, "/access")) {
+        char body[96];
+        if (read_body(req, body, sizeof(body)) == ESP_OK) {
+            cJSON *root = cJSON_Parse(body);
+            const cJSON *source =
+                root ? cJSON_GetObjectItem(root, "source") : NULL;
+            const cJSON *en = root ? cJSON_GetObjectItem(root, "enabled") : NULL;
+            desk_control_source_t parsed_source;
+            if (cJSON_IsString(source) && cJSON_IsBool(en) &&
+                parse_control_source(source->valuestring, &parsed_source)) {
+                err = desk_core_set_source_enabled(parsed_source,
+                                                   cJSON_IsTrue(en));
+            } else {
+                err = ESP_ERR_INVALID_ARG;
+            }
+            cJSON_Delete(root);
+        } else {
+            err = ESP_ERR_INVALID_ARG;
+        }
     } else {
         int n = 0;
         if (sscanf(uri, "/api/v1/desk/preset/%d/goto", &n) == 1) {
-            err = desk_core_goto_preset((uint8_t)n);
+            err = desk_core_goto_preset(DESK_CONTROL_SOURCE_REST, (uint8_t)n);
         } else if (sscanf(uri, "/api/v1/desk/preset/%d/save", &n) == 1) {
-            err = desk_core_save_preset((uint8_t)n);
+            err = desk_core_save_preset(DESK_CONTROL_SOURCE_REST, (uint8_t)n);
         }
     }
     cJSON *o = cJSON_CreateObject();
     cJSON_AddBoolToObject(o, "ok", err == ESP_OK);
     cJSON_AddStringToObject(o, "err", esp_err_to_name(err));
-    return send_cjson(req, err == ESP_OK ? 200 : 400, o);
+    if (err == ESP_ERR_NOT_ALLOWED) {
+        desk_core_snapshot_t snapshot = desk_core_snapshot();
+        cJSON_AddStringToObject(o, "reason",
+                                snapshot.child_lock ? "child_lock" :
+                                                      "source_disabled");
+    }
+    return send_cjson(req, err == ESP_OK ? 200 :
+                           err == ESP_ERR_NOT_ALLOWED ? 403 : 400, o);
 }
 
 static esp_err_t send_embed(httpd_req_t *req, const char *type,

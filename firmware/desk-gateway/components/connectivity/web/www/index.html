@@ -159,6 +159,24 @@
           <p class="settings-note">保存后立即生效，断电或重启后仍会保留；固件会按最坏上升速度提前停止。</p>
           <p id="maxHeightMsg" class="hint"></p>
 
+          <div class="settings-form settings-divider">
+            <label>允许操作的入口</label>
+            <label class="source-option">
+              <input type="checkbox" id="allowRest" />
+              <span>REST 接口</span>
+            </label>
+            <label class="source-option">
+              <input type="checkbox" id="allowBluetooth" />
+              <span>蓝牙（接口待接入）</span>
+            </label>
+            <label class="source-option">
+              <input type="checkbox" id="allowPanel" />
+              <span>原厂控制面板（透传待验证）</span>
+            </label>
+            <p class="settings-note">童锁优先于以上所有开关；关闭某个入口时会立即停止当前运动。</p>
+          </div>
+          <p id="accessMsg" class="hint"></p>
+
           <form id="pwForm" class="settings-form settings-divider">
             <label for="newPassword">修改登录密码</label>
             <div class="settings-row">

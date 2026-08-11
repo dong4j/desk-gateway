@@ -66,27 +66,27 @@ static void handle_line(char *line)
         return;
     }
     if (!strcmp(line, "up")) {
-        desk_core_hold_up();
+        desk_core_hold_up(DESK_CONTROL_SOURCE_CONSOLE);
         return;
     }
     if (!strcmp(line, "down")) {
-        desk_core_hold_down();
+        desk_core_hold_down(DESK_CONTROL_SOURCE_CONSOLE);
         return;
     }
     if (!strcmp(line, "p1")) {
-        desk_core_goto_preset(1);
+        desk_core_goto_preset(DESK_CONTROL_SOURCE_CONSOLE, 1);
         return;
     }
     if (!strcmp(line, "p4")) {
-        desk_core_goto_preset(4);
+        desk_core_goto_preset(DESK_CONTROL_SOURCE_CONSOLE, 4);
         return;
     }
     if (!strcmp(line, "save1")) {
-        desk_core_save_preset(1);
+        desk_core_save_preset(DESK_CONTROL_SOURCE_CONSOLE, 1);
         return;
     }
     if (!strcmp(line, "save4")) {
-        desk_core_save_preset(4);
+        desk_core_save_preset(DESK_CONTROL_SOURCE_CONSOLE, 4);
         return;
     }
     if (!strcmp(line, "lock")) {

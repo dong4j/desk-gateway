@@ -237,10 +237,32 @@ static bool panel_has_priority(void)
 {
     return atomic_load(&s_panel_active);
 }
+
+/** Apply the core's effective panel permission through the tested arbiter. */
+static esp_err_t yd_set_panel_enabled(bool enabled)
+{
+    yourdesk_panel_arbiter_result_t result;
+    portENTER_CRITICAL(&s_panel_arbiter_mux);
+    yourdesk_panel_arbiter_set_enabled(&s_panel_arbiter, enabled, &result);
+    atomic_store(&s_panel_active, s_panel_arbiter.panel_active);
+    portEXIT_CRITICAL(&s_panel_arbiter_mux);
+    if (result.output_changed) {
+        publish_controller_dr(result.output_dr);
+    }
+    ESP_LOGI(TAG, "original panel input %s", enabled ? "enabled" : "disabled");
+    return ESP_OK;
+}
 #else
 static bool panel_has_priority(void)
 {
     return false;
+}
+
+
+static esp_err_t yd_set_panel_enabled(bool enabled)
+{
+    (void)enabled;
+    return ESP_ERR_NOT_SUPPORTED;
 }
 #endif
 
@@ -985,6 +1007,7 @@ const desk_driver_t yourdesk_v1_driver = {
     .get_height_mm = yd_get_height_mm,
     .set_max_height_mm = yd_set_max_height_mm,
     .is_upward_blocked = yd_is_upward_blocked,
+    .set_panel_enabled = yd_set_panel_enabled,
     .get_status = yd_get_status,
     .get_caps = yd_get_caps,
 };

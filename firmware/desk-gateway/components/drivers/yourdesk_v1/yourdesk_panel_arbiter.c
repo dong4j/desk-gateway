@@ -28,9 +28,33 @@ void yourdesk_panel_arbiter_init(yourdesk_panel_arbiter_t *arbiter,
         .idle_dr = idle_dr,
         .gateway_dr = idle_dr,
         .output_dr = idle_dr,
+        .panel_enabled = false,
         .panel_active = false,
-        .panel_suppressed = false,
+        .panel_suppressed = true,
     };
+}
+
+void yourdesk_panel_arbiter_set_enabled(
+    yourdesk_panel_arbiter_t *arbiter, bool enabled,
+    yourdesk_panel_arbiter_result_t *result)
+{
+    if (!arbiter) {
+        return;
+    }
+    uint8_t previous_output = arbiter->output_dr;
+    bool panel_released = arbiter->panel_active;
+    if (result) {
+        *result = (yourdesk_panel_arbiter_result_t){
+            .panel_released = panel_released,
+        };
+    }
+
+    arbiter->panel_enabled = enabled;
+    arbiter->panel_active = false;
+    /* Both transitions require a fresh physical release before accepting keys. */
+    arbiter->panel_suppressed = true;
+    arbiter->output_dr = arbiter->gateway_dr;
+    finish_result(arbiter, previous_output, result);
 }
 
 bool yourdesk_panel_arbiter_gateway_request(
@@ -77,6 +101,32 @@ void yourdesk_panel_arbiter_panel_update(
             .panel_started = panel_started,
             .panel_released = panel_released,
         };
+    }
+
+    if (!arbiter->panel_enabled) {
+        /* Disabled input can never own or alter the controller-facing byte. */
+        arbiter->panel_active = false;
+        arbiter->panel_suppressed = true;
+        arbiter->output_dr = arbiter->gateway_dr;
+        if (result) {
+            result->panel_started = false;
+        }
+        finish_result(arbiter, previous_output, result);
+        return;
+    }
+
+    if (arbiter->panel_suppressed) {
+        if (result) {
+            /* A held key while re-enabling is still blocked, not a takeover. */
+            result->panel_started = false;
+        }
+        if (!next_active) {
+            arbiter->panel_active = false;
+            arbiter->panel_suppressed = false;
+            arbiter->output_dr = arbiter->gateway_dr;
+        }
+        finish_result(arbiter, previous_output, result);
+        return;
     }
 
     if (panel_started) {

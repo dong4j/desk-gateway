@@ -10,7 +10,7 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 
 - **Phase 1 — panel emulation:** software I²C slave serves key address `0x24` and height digits `0x34–0x37`
 - **Pluggable drivers:** `yourdesk_v1` implemented; Loctek / Jiecang stubs
-- **desk_core:** hold up/down and stop; presets 1 (64 cm) and 4 (102 cm) use real-height closed-loop control; child-lock state is persisted in NVS
+- **desk_core:** hold up/down and stop; presets 1 (64 cm) and 4 (102 cm) use real-height closed-loop control; global child-lock and per-source REST/Bluetooth/panel permissions are persisted in NVS
 - **Maximum safe height:** configurable from the Web UI and persisted in NVS; a fail-closed watchdog projects the worst-case upward position between sparse height frames
 - **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
 - **Real height:** strictly ordered TM1650 display frames are filtered and exposed by UART/Web; the last trusted value survives normal sparse refreshes
@@ -20,8 +20,8 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 > UP/DOWN and release-to-stop passed on the real desk after restoring the panel's
 > two external pull-ups. The unified multi-address software slave then passed
 > real-desk movement and `64–80 cm` height tracking. Closed-loop presets,
-> predictive maximum-height enforcement, timeout/power-cycle safety, and the child-lock state flow still require hardware acceptance. Phase 2 MITM,
-> panel arbitration, and effective panel lockout are not implemented.
+> predictive maximum-height enforcement, timeout/power-cycle safety, and the global child-lock flow still require hardware acceptance. Panel arbitration and
+> lockout are implemented in firmware, but original-panel pass-through still awaits the blocked breadboard capture and real-hardware acceptance.
 
 ## Hardware
 

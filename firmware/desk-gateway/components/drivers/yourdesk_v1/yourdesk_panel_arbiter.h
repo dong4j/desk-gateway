@@ -19,6 +19,7 @@ typedef struct {
     uint8_t idle_dr;
     uint8_t gateway_dr;
     uint8_t output_dr;
+    bool panel_enabled;
     bool panel_active;
     bool panel_suppressed;
 } yourdesk_panel_arbiter_t;
@@ -33,6 +34,17 @@ typedef struct {
 /** Initialize both sources and the controller-facing output to idle. */
 void yourdesk_panel_arbiter_init(yourdesk_panel_arbiter_t *arbiter,
                                  uint8_t idle_dr);
+
+/**
+ * Enable or disable the physical panel source.
+ *
+ * The arbiter starts disabled (fail closed). Re-enabling keeps the panel
+ * suppressed until an idle key sample is observed, preventing a held key from
+ * starting the desk immediately after child-lock release.
+ */
+void yourdesk_panel_arbiter_set_enabled(
+    yourdesk_panel_arbiter_t *arbiter, bool enabled,
+    yourdesk_panel_arbiter_result_t *result);
 
 /**
  * Apply a gateway command.

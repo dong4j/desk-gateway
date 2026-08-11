@@ -6,6 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
 DRIVER_DIR="${REPO_ROOT}/firmware/desk-gateway/components/drivers/yourdesk_v1"
+CORE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_core"
 TEST_DIR="$(mktemp -d /tmp/desk-gateway-height-tests.XXXXXX)"
 
 cleanup() {
@@ -45,3 +46,10 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${DRIVER_DIR}/test/yourdesk_panel_arbiter_test.c" \
     -o "${TEST_DIR}/panel-arbiter-test"
 "${TEST_DIR}/panel-arbiter-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${CORE_DIR}/include" \
+    "${CORE_DIR}/desk_control_policy.c" \
+    "${CORE_DIR}/test/desk_control_policy_test.c" \
+    -o "${TEST_DIR}/control-policy-test"
+"${TEST_DIR}/control-policy-test"

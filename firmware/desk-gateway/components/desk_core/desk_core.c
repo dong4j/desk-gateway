@@ -1,9 +1,9 @@
 /**
  * @file desk_core.c
- * @brief 运动超时、童锁、可选 SIM 高度
+ * @brief 运动超时、统一入口权限、童锁和可选 SIM 高度
  *
  * 超时放在 core：驱动只负责协议字节，避免各入口漏 stop。
- * 童锁 Phase1 仅持久化状态；真屏蔽面板在 Phase2 MITM。
+ * 童锁优先于所有入口开关；所有运动命令必须携带来源并在此授权。
  * SIM 高度：驱动无 digit 时本地推算，仅演示，禁止当真实高度。
  */
 #include "desk_core.h"
@@ -18,6 +18,7 @@ static const char *TAG = "desk_core";
 static const char *NVS_NS = "desk_core";
 static const char *NVS_KEY_LOCK = "child_lock";
 static const char *NVS_KEY_MAX_HEIGHT = "max_height_mm";
+static const char *NVS_KEY_SOURCES = "ctrl_sources";
 
 /*
  * 单次旋转只进入待命；窗口内第二个同方向事件才启动。运动后如果事件流
@@ -33,7 +34,10 @@ typedef enum {
 } desk_jog_direction_t;
 
 static esp_timer_handle_t s_hold_timer;
-static bool s_child_lock;
+static desk_control_policy_t s_control_policy = {
+    .child_lock = false,
+    .enabled_sources = DESK_CONTROL_SOURCE_DEFAULT_MASK,
+};
 static int s_max_height_mm = CONFIG_DESK_MAX_HEIGHT_MM;
 static desk_jog_direction_t s_jog_pending_direction;
 static uint32_t s_jog_last_event_ms;
@@ -125,7 +129,7 @@ static esp_err_t load_child_lock(void)
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NS, NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
-        s_child_lock = false;
+        s_control_policy.child_lock = false;
         return ESP_OK;
     }
     if (err != ESP_OK) {
@@ -135,13 +139,13 @@ static esp_err_t load_child_lock(void)
     err = nvs_get_u8(h, NVS_KEY_LOCK, &v);
     nvs_close(h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
-        s_child_lock = false;
+        s_control_policy.child_lock = false;
         return ESP_OK;
     }
     if (err != ESP_OK) {
         return err;
     }
-    s_child_lock = (v != 0);
+    s_control_policy.child_lock = (v != 0);
     return ESP_OK;
 }
 
@@ -152,7 +156,55 @@ static esp_err_t save_child_lock(void)
     if (err != ESP_OK) {
         return err;
     }
-    err = nvs_set_u8(h, NVS_KEY_LOCK, s_child_lock ? 1 : 0);
+    err = nvs_set_u8(h, NVS_KEY_LOCK,
+                     s_control_policy.child_lock ? 1 : 0);
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    return err;
+}
+
+/** Load per-source switches; unknown future bits are ignored until supported. */
+static esp_err_t load_control_sources(void)
+{
+    s_control_policy.enabled_sources = DESK_CONTROL_SOURCE_DEFAULT_MASK;
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READONLY, &h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    uint32_t value = 0;
+    err = nvs_get_u32(h, NVS_KEY_SOURCES, &value);
+    nvs_close(h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    const uint32_t known_mask =
+        (DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_COUNT) - UINT32_C(1));
+    s_control_policy.enabled_sources = value & known_mask;
+    /* Console is a local diagnostic path, but still remains below child lock. */
+    s_control_policy.enabled_sources |=
+        DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_CONSOLE);
+    return ESP_OK;
+}
+
+/** Persist all known source bits as one extensible NVS mask. */
+static esp_err_t save_control_sources(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_set_u32(h, NVS_KEY_SOURCES,
+                      s_control_policy.enabled_sources);
     if (err == ESP_OK) {
         err = nvs_commit(h);
     }
@@ -213,6 +265,7 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
     };
     ESP_ERROR_CHECK(esp_timer_create(&args, &s_hold_timer));
     (void)load_child_lock();
+    (void)load_control_sources();
     (void)load_max_height();
 #if CONFIG_DESK_SIM_HEIGHT
     sim_init();
@@ -230,8 +283,20 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
         }
     }
     (void)desk_core_stop();
-    ESP_LOGI(TAG, "init ok; child_lock=%d; max_height=%d mm; motion_timeout=%d ms",
-             (int)s_child_lock, s_max_height_mm, CONFIG_DESK_MOTION_TIMEOUT_MS);
+    if (drv->set_panel_enabled) {
+        bool panel_enabled = desk_control_policy_allows(
+            &s_control_policy, DESK_CONTROL_SOURCE_PANEL);
+        err = drv->set_panel_enabled(panel_enabled);
+        if (err != ESP_OK && err != ESP_ERR_NOT_SUPPORTED) {
+            return err;
+        }
+    }
+    ESP_LOGI(TAG,
+             "init ok; child_lock=%d; sources=0x%08lx; max_height=%d mm; "
+             "motion_timeout=%d ms",
+             (int)s_control_policy.child_lock,
+             (unsigned long)s_control_policy.enabled_sources,
+             s_max_height_mm, CONFIG_DESK_MOTION_TIMEOUT_MS);
     return ESP_OK;
 }
 
@@ -244,6 +309,23 @@ esp_err_t desk_core_stop(void)
         return ESP_ERR_INVALID_STATE;
     }
     return drv->stop();
+}
+
+/** Reject every motion source below child lock and its own persisted switch. */
+static esp_err_t authorize_source(desk_control_source_t source)
+{
+    if (!desk_control_source_is_valid(source)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!desk_control_policy_allows(&s_control_policy, source)) {
+        ESP_LOGW(TAG, "reject source=%s child_lock=%d enabled=%d",
+                 desk_control_source_name(source),
+                 (int)s_control_policy.child_lock,
+                 (int)desk_control_policy_source_enabled(&s_control_policy,
+                                                         source));
+        return ESP_ERR_NOT_ALLOWED;
+    }
+    return ESP_OK;
 }
 
 static esp_err_t hold_up_for_ms(uint32_t timeout_ms)
@@ -307,14 +389,22 @@ static esp_err_t hold_down_for_ms(uint32_t timeout_ms)
     return err;
 }
 
-esp_err_t desk_core_hold_up(void)
+esp_err_t desk_core_hold_up(desk_control_source_t source)
 {
+    esp_err_t err = authorize_source(source);
+    if (err != ESP_OK) {
+        return err;
+    }
     s_jog_pending_direction = DESK_JOG_NONE;
     return hold_up_for_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
 }
 
-esp_err_t desk_core_hold_down(void)
+esp_err_t desk_core_hold_down(desk_control_source_t source)
 {
+    esp_err_t err = authorize_source(source);
+    if (err != ESP_OK) {
+        return err;
+    }
     s_jog_pending_direction = DESK_JOG_NONE;
     return hold_down_for_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
 }
@@ -366,18 +456,30 @@ static esp_err_t jog_event(desk_jog_direction_t direction)
                : hold_down_for_ms(DESK_JOG_LEASE_MS);
 }
 
-esp_err_t desk_core_jog_up(void)
+esp_err_t desk_core_jog_up(desk_control_source_t source)
 {
+    esp_err_t err = authorize_source(source);
+    if (err != ESP_OK) {
+        return err;
+    }
     return jog_event(DESK_JOG_UP);
 }
 
-esp_err_t desk_core_jog_down(void)
+esp_err_t desk_core_jog_down(desk_control_source_t source)
 {
+    esp_err_t err = authorize_source(source);
+    if (err != ESP_OK) {
+        return err;
+    }
     return jog_event(DESK_JOG_DOWN);
 }
 
-esp_err_t desk_core_goto_preset(uint8_t n)
+esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
 {
+    esp_err_t auth_err = authorize_source(source);
+    if (auth_err != ESP_OK) {
+        return auth_err;
+    }
     s_jog_pending_direction = DESK_JOG_NONE;
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->goto_preset) {
@@ -398,8 +500,12 @@ esp_err_t desk_core_goto_preset(uint8_t n)
     return err;
 }
 
-esp_err_t desk_core_save_preset(uint8_t n)
+esp_err_t desk_core_save_preset(desk_control_source_t source, uint8_t n)
 {
+    esp_err_t auth_err = authorize_source(source);
+    if (auth_err != ESP_OK) {
+        return auth_err;
+    }
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->save_preset) {
         return ESP_ERR_NOT_SUPPORTED;
@@ -420,15 +526,99 @@ esp_err_t desk_core_save_preset(uint8_t n)
 
 esp_err_t desk_core_set_child_lock(bool enabled)
 {
-    s_child_lock = enabled;
+    if (enabled == s_control_policy.child_lock) {
+        return ESP_OK;
+    }
+
+    const desk_driver_t *drv = desk_driver_get_active();
+    if (enabled) {
+        /* Set the runtime lock first so no concurrent source can start again. */
+        s_control_policy.child_lock = true;
+        esp_err_t stop_err = desk_core_stop();
+        if (drv && drv->set_panel_enabled) {
+            (void)drv->set_panel_enabled(false);
+        }
+        esp_err_t persist_err = save_child_lock();
+        ESP_LOGI(TAG, "child_lock -> 1");
+        return persist_err != ESP_OK ? persist_err : stop_err;
+    }
+
+    /* Do not reopen any source until the unlocked state is durable. */
+    s_control_policy.child_lock = false;
     esp_err_t err = save_child_lock();
-    ESP_LOGI(TAG, "child_lock -> %d", (int)enabled);
+    if (err != ESP_OK) {
+        s_control_policy.child_lock = true;
+        return err;
+    }
+    if (drv && drv->set_panel_enabled) {
+        bool panel_enabled = desk_control_policy_source_enabled(
+            &s_control_policy, DESK_CONTROL_SOURCE_PANEL);
+        err = drv->set_panel_enabled(panel_enabled);
+        if (err == ESP_ERR_NOT_SUPPORTED) {
+            err = ESP_OK;
+        }
+    }
+    ESP_LOGI(TAG, "child_lock -> 0");
     return err;
 }
 
 bool desk_core_get_child_lock(void)
 {
-    return s_child_lock;
+    return s_control_policy.child_lock;
+}
+
+esp_err_t desk_core_set_source_enabled(desk_control_source_t source,
+                                       bool enabled)
+{
+    if (!desk_control_source_is_valid(source) ||
+        (DESK_CONTROL_SOURCE_BIT(source) &
+         DESK_CONTROL_SOURCE_CONFIGURABLE_MASK) == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    bool previous = desk_control_policy_source_enabled(&s_control_policy,
+                                                       source);
+    if (previous == enabled) {
+        return ESP_OK;
+    }
+
+    uint32_t bit = DESK_CONTROL_SOURCE_BIT(source);
+    if (enabled) {
+        s_control_policy.enabled_sources |= bit;
+    } else {
+        s_control_policy.enabled_sources &= ~bit;
+        /* Administrative revocation is fail-safe: cancel any in-flight motion. */
+        (void)desk_core_stop();
+    }
+
+    const desk_driver_t *drv = desk_driver_get_active();
+    if (source == DESK_CONTROL_SOURCE_PANEL && drv &&
+        drv->set_panel_enabled) {
+        bool effective = enabled && !s_control_policy.child_lock;
+        (void)drv->set_panel_enabled(effective);
+    }
+
+    esp_err_t err = save_control_sources();
+    if (err != ESP_OK) {
+        if (previous) {
+            s_control_policy.enabled_sources |= bit;
+        } else {
+            s_control_policy.enabled_sources &= ~bit;
+        }
+        if (source == DESK_CONTROL_SOURCE_PANEL && drv &&
+            drv->set_panel_enabled) {
+            bool effective = previous && !s_control_policy.child_lock;
+            (void)drv->set_panel_enabled(effective);
+        }
+        return err;
+    }
+    ESP_LOGI(TAG, "source %s -> %d", desk_control_source_name(source),
+             (int)enabled);
+    return ESP_OK;
+}
+
+bool desk_core_get_source_enabled(desk_control_source_t source)
+{
+    return desk_control_policy_source_enabled(&s_control_policy, source);
 }
 
 esp_err_t desk_core_set_max_height_mm(int max_height_mm)
@@ -466,9 +656,10 @@ desk_core_snapshot_t desk_core_snapshot(void)
         .height_mm = -1,
         .height_known = false,
         .height_sim = false,
-        .child_lock = s_child_lock,
+        .child_lock = s_control_policy.child_lock,
         .upward_blocked = false,
         .max_height_mm = s_max_height_mm,
+        .enabled_sources = s_control_policy.enabled_sources,
         .driver = "none",
     };
     const desk_driver_t *drv = desk_driver_get_active();

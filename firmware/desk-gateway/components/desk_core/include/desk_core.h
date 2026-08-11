@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "desk_control_policy.h"
 #include "desk_driver.h"
 
 #include "esp_err.h"
@@ -25,21 +26,26 @@ typedef struct {
     bool child_lock;
     bool upward_blocked;
     int max_height_mm;
+    uint32_t enabled_sources;
     const char *driver;
 } desk_core_snapshot_t;
 
 esp_err_t desk_core_init(const desk_driver_t *drv);
+/** STOP 是安全操作，不受童锁或来源开关限制。 */
 esp_err_t desk_core_stop(void);
-esp_err_t desk_core_hold_up(void);
-esp_err_t desk_core_hold_down(void);
+esp_err_t desk_core_hold_up(desk_control_source_t source);
+esp_err_t desk_core_hold_down(desk_control_source_t source);
 /** Submit an upward rotary event; continuous events start and maintain motion. */
-esp_err_t desk_core_jog_up(void);
+esp_err_t desk_core_jog_up(desk_control_source_t source);
 /** Submit a downward rotary event; continuous events start and maintain motion. */
-esp_err_t desk_core_jog_down(void);
-esp_err_t desk_core_goto_preset(uint8_t n);
-esp_err_t desk_core_save_preset(uint8_t n);
+esp_err_t desk_core_jog_down(desk_control_source_t source);
+esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n);
+esp_err_t desk_core_save_preset(desk_control_source_t source, uint8_t n);
 esp_err_t desk_core_set_child_lock(bool enabled);
 bool desk_core_get_child_lock(void);
+esp_err_t desk_core_set_source_enabled(desk_control_source_t source,
+                                       bool enabled);
+bool desk_core_get_source_enabled(desk_control_source_t source);
 esp_err_t desk_core_set_max_height_mm(int max_height_mm);
 int desk_core_get_max_height_mm(void);
 desk_core_snapshot_t desk_core_snapshot(void);

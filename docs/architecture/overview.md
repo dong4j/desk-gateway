@@ -21,17 +21,17 @@ Web UI + REST/短轮询 + UART + BLE 外设（OLED/旋钮）
 
 ## 当前状态
 
-> 截至 2026-08-10：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
+> 截至 2026-08-11：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
 > 不代表真机验收完成；硬件结论以 [`bringup-checklist.md`](../bringup-checklist.md) 为准。
 
 | 层 | 状态 |
 |---|---|
 | `yourdesk_v1`（I²C Slave 模拟面板） | 键通道已真机验证；实验性 GPIO 高度嗅探因干扰控桌而默认关闭 |
-| `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位与童锁状态 |
+| `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位、全局童锁和来源权限 |
 | WiFi + Web（局域网、密码、UI、升降动效） | 已实现；状态使用 250ms 短轮询，待板端/UI 验收 |
 | 高度 | 完整 0–9 经验字模已锁定；真实总线接入待软件多地址 Slave，稳定版仅提供明确标记的 SIM |
 | BLE / Loctek / Jiecang | BLE 仅有设计文档；Loctek / Jiecang 为 stub |
-| 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | Phase 2，未实现 |
+| 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | 仲裁与权限代码已实现；原厂面板透传/真屏蔽仍待面包板抓包和真机验收 |
 | HA / Matter / Siri / OTA | Phase 3+，未实现 |
 | 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](./ecosystem-xiaomi-huawei.md) |
 
@@ -53,13 +53,14 @@ docs/superpowers/specs/     ← 设计定稿
 - **仅局域网**；简单 Bearer 密码登录  
 - 控制：升 / 降 / 停 / 已支持档位 / **童锁**  
 - UI：品牌 + 升降桌示意图；`moving_up/down` 时示意图实时升降；有高度则按 mm 映射，无高度则按命令做相对动效  
-- 状态：鉴权后的 `GET /api/v1/desk/status` 每 250ms 短轮询；含真实高度、`child_lock`、安全上限和动态 `upward_blocked`  
+- 状态：鉴权后的 `GET /api/v1/desk/status` 每 250ms 短轮询；含真实高度、`child_lock`、`control_sources`、安全上限和动态 `upward_blocked`  
 
 ## 童锁与仲裁
 
-- 童锁 ON 的终局语义是**原厂面板不能控桌**；当前 Phase 1 只有状态/API/UI，Phase 2 MITM 才真屏蔽  
-- 童锁 OFF：面板优先于无线  
-- 优先级：急停 > 童锁 >（未锁时）面板优先 > 无线  
+- 童锁 ON：除 `STOP` 和解除童锁外，REST、串口、未来蓝牙及原厂面板都不能启动或维持运动  
+- 童锁 OFF：每个来源还需通过自己的 NVS 权限开关；当前 Web 可配置 REST、Bluetooth 和 Panel  
+- 关闭任一来源会先停止当前运动；Panel 重新开放后必须先观察到物理按键松开，禁止解锁即误动作  
+- 优先级：急停 > 全局童锁 > 来源权限 >（未锁且允许时）面板优先 > 其他入口  
 
 ## 待逆向（协议）
 
