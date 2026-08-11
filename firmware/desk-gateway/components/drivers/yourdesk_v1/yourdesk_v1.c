@@ -78,7 +78,10 @@ static const char *TAG = "yourdesk_v1";
 #define HEIGHT_DIGIT_CACHE_MS           1500
 #define HEIGHT_MAX_SPEED_MM_PER_S       35
 #define HEIGHT_STEP_SLACK_MM            20
-#define HEIGHT_SAFETY_POLL_MS           50
+#define HEIGHT_SAFETY_POLL_MS           100
+/* Five missed 3.7 ms controller polls are enough to explain a visible pause. */
+#define KEY_READ_GAP_WARN_MS             20
+#define KEY_READ_GAP_LOG_COOLDOWN_MS     1000
 /* Unknown-height UP is allowed only long enough to obtain the first real frame. */
 #define HEIGHT_ACQUIRE_TIMEOUT_MS        2000
 
@@ -133,6 +136,7 @@ static atomic_int s_preset_direction;
 static atomic_int s_safety_anchor_mm;
 static atomic_bool s_up_limit_latched;
 static atomic_uint_fast32_t s_motion_epoch;
+static TickType_t s_last_key_gap_warning_tick;
 static atomic_uint_fast32_t s_height_epoch;
 static atomic_uint_fast32_t s_height_tick;
 static atomic_uint_fast32_t s_safety_anchor_tick;
@@ -297,11 +301,29 @@ static void height_safety_task(void *arg)
     (void)arg;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(HEIGHT_SAFETY_POLL_MS));
-        if ((uint8_t)atomic_load(&s_dr) != DR_UP) {
+        TickType_t now = xTaskGetTickCount();
+        uint8_t dr = (uint8_t)atomic_load(&s_dr);
+#if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+        yourdesk_soft_i2c_stats_t stats;
+        yourdesk_soft_i2c_esp_take_stats(&stats);
+        if (dr == DR_UP || dr == DR_DOWN) {
+            if (stats.max_key_read_gap_ms >= KEY_READ_GAP_WARN_MS &&
+                (s_last_key_gap_warning_tick == 0 ||
+                 now - s_last_key_gap_warning_tick >=
+                     pdMS_TO_TICKS(KEY_READ_GAP_LOG_COOLDOWN_MS))) {
+                s_last_key_gap_warning_tick = now;
+                ESP_LOGW(TAG,
+                         "controller key-poll gap: max=%" PRIu32
+                         " ms reads=%" PRIu32 " DR=0x%02X",
+                         stats.max_key_read_gap_ms,
+                         stats.completed_key_reads, dr);
+            }
+        }
+#endif
+        if (dr != DR_UP) {
             continue;
         }
 
-        TickType_t now = xTaskGetTickCount();
         int anchor_mm = atomic_load(&s_safety_anchor_mm);
         int anchor_age_ms = elapsed_ms_since(
             atomic_load(&s_safety_anchor_tick), now);
@@ -590,11 +612,16 @@ static void height_decode_task(void *arg)
                          cached_oldest_age_ms, cache.digits[0],
                          cache.digits[1], cache.digits[2]);
             }
-        } else if (!accepted) {
+        } else if (!accepted && complete_frame) {
             ESP_LOGW(TAG,
                      "reject height transition: previous=%d candidate=%d elapsed=%d ms direction=%d source=%s",
                      previous, height_mm, elapsed_ms, (int)direction,
-                     complete_frame ? "frame" : "cache");
+                     "frame");
+        } else if (!accepted) {
+            /* Mixed cache values are expected while decimal digits roll over. */
+            ESP_LOGD(TAG,
+                     "reject cached height transition: previous=%d candidate=%d elapsed=%d ms direction=%d",
+                     previous, height_mm, elapsed_ms, (int)direction);
         }
         if (accepted) {
             stop_preset_if_reached(height_mm);

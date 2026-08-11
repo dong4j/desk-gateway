@@ -185,6 +185,8 @@ yourdesk_soft_i2c_sm_scl_falling(yourdesk_soft_i2c_sm_t *sm)
 
     case YOURDESK_SOFT_I2C_TX_MASTER_ACK:
         if (sm->bit_count == 1) {
+            /* The controller sampled the whole DR byte and its ACK completed. */
+            event.key_read_completed = true;
             sm->drive_sda_low = false;
             sm->phase = YOURDESK_SOFT_I2C_IGNORE;
             sm->bit_count = 0;

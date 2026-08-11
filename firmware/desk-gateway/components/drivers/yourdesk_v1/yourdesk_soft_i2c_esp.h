@@ -18,6 +18,12 @@
 extern "C" {
 #endif
 
+typedef struct {
+    uint32_t completed_key_reads;
+    uint32_t last_key_read_ms;
+    uint32_t max_key_read_gap_ms;
+} yourdesk_soft_i2c_stats_t;
+
 /**
  * Configure CLK/DAT and start the software multi-address I2C slave.
  *
@@ -31,6 +37,14 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
 
 /** Update the key byte returned by the next 0x24 read transaction. */
 void yourdesk_soft_i2c_esp_set_dr(uint8_t dr);
+
+/**
+ * Copy controller-poll telemetry and clear the accumulated maximum gap.
+ *
+ * The 0x24 bus normally completes one key read about every 3.7 ms. The caller
+ * may sample this structure slowly; no per-poll logging is performed.
+ */
+void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats);
 
 #ifdef __cplusplus
 }

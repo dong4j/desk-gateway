@@ -24,17 +24,18 @@ static bool master_write_byte(yourdesk_soft_i2c_sm_t *sm, uint8_t byte,
 }
 
 /** Read the one-byte DR response, then provide the controller's observed ACK. */
-static uint8_t master_read_dr(yourdesk_soft_i2c_sm_t *sm)
+static uint8_t master_read_dr(yourdesk_soft_i2c_sm_t *sm,
+                              yourdesk_soft_i2c_digit_event_t *event)
 {
     uint8_t value = 0;
     for (int bit = 0; bit < 8; ++bit) {
         value = (uint8_t)((value << 1) | (sm->drive_sda_low ? 0u : 1u));
         yourdesk_soft_i2c_sm_scl_rising(sm, !sm->drive_sda_low);
-        (void)yourdesk_soft_i2c_sm_scl_falling(sm);
+        *event = yourdesk_soft_i2c_sm_scl_falling(sm);
     }
     assert(!sm->drive_sda_low);
     yourdesk_soft_i2c_sm_scl_rising(sm, false); /* Controller ACKs, then STOPs. */
-    (void)yourdesk_soft_i2c_sm_scl_falling(sm);
+    *event = yourdesk_soft_i2c_sm_scl_falling(sm);
     return value;
 }
 
@@ -52,7 +53,8 @@ static void test_key_read(void)
 
     yourdesk_soft_i2c_sm_start(&sm); /* Repeated START */
     assert(master_write_byte(&sm, 0x49, &event)); /* 0x24 read */
-    assert(master_read_dr(&sm) == 0x47);
+    assert(master_read_dr(&sm, &event) == 0x47);
+    assert(event.key_read_completed);
     yourdesk_soft_i2c_sm_stop(&sm);
     assert(sm.phase == YOURDESK_SOFT_I2C_IDLE);
 }

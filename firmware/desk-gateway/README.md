@@ -121,12 +121,17 @@ The authenticated Web settings panel stores `max_height_mm` in NVS. The default
 is `1020 mm`, with an accepted range of `640–1290 mm`. Both `desk_core` and the
 active driver reject upward travel when height is unknown or already at the
 limit. During movement, `yourdesk_v1` checks strict, ordered display frames and
-runs an independent 50 ms watchdog. Between sparse frames it projects a
+runs an independent 100 ms watchdog. Between sparse frames it projects a
 worst-case upward position and sends idle before the configured ceiling. Normal
 multi-second gaps between display frames do not interrupt movement; the same
 projection keeps limiting upward travel without depending on another frame.
 Lowering the limit below the current height never moves the desk automatically;
 it only blocks further upward travel.
+
+The timing-sensitive `0x24`/digit software I2C GPIO service is installed on
+Core 1, while Wi-Fi, NimBLE, and height processing remain on Core 0. Completed
+`0x24` reads are counted without per-poll logging; a gap of at least 20 ms while
+moving emits `controller key-poll gap` for hardware diagnosis.
 
 After boot, the controller may not emit a digit frame until the display changes.
 While height is unknown, Web keeps manual UP and DOWN available so either action

@@ -14,6 +14,8 @@
 #include "esp_check.h"
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
 #include "hal/gpio_ll.h"
 #include "soc/gpio_struct.h"
 #include "sdkconfig.h"
@@ -25,7 +27,18 @@ static DRAM_ATTR QueueHandle_t s_digit_queue;
 static DRAM_ATTR QueueHandle_t s_mirror_digit_queue;
 static DRAM_ATTR bool s_drive_sda_low;
 static DRAM_ATTR bool s_ignore_own_sda_edge;
+static DRAM_ATTR uint32_t s_completed_key_reads;
+static DRAM_ATTR uint32_t s_last_key_read_ms;
+static DRAM_ATTR uint32_t s_max_key_read_gap_ms;
 static portMUX_TYPE s_sm_mux = portMUX_INITIALIZER_UNLOCKED;
+
+typedef struct {
+    QueueHandle_t digit_queue;
+    QueueHandle_t mirror_digit_queue;
+    uint8_t initial_dr;
+    SemaphoreHandle_t done;
+    esp_err_t result;
+} soft_i2c_init_context_t;
 
 /** Read a GPIO level without calling Flash-resident driver code from the ISR. */
 static inline bool IRAM_ATTR line_is_high(gpio_num_t gpio)
@@ -62,6 +75,18 @@ static void IRAM_ATTR scl_edge_isr(void *arg)
         event = yourdesk_soft_i2c_sm_scl_falling(&s_sm);
         apply_sda_output();
     }
+    if (event.key_read_completed) {
+        uint32_t now_ms =
+            (uint32_t)xTaskGetTickCountFromISR() * portTICK_PERIOD_MS;
+        if (s_last_key_read_ms != 0) {
+            uint32_t gap_ms = now_ms - s_last_key_read_ms;
+            if (gap_ms > s_max_key_read_gap_ms) {
+                s_max_key_read_gap_ms = gap_ms;
+            }
+        }
+        s_last_key_read_ms = now_ms;
+        s_completed_key_reads++;
+    }
     portEXIT_CRITICAL_ISR(&s_sm_mux);
 
     if (event.ready && s_digit_queue) {
@@ -76,9 +101,11 @@ static void IRAM_ATTR scl_edge_isr(void *arg)
                 higher_priority_task_woken = pdTRUE;
             }
         }
-        if (higher_priority_task_woken == pdTRUE) {
-            portYIELD_FROM_ISR();
-        }
+        /*
+         * Do not immediately schedule height decoding between adjacent 52 us
+         * bus edges. The queue is drained on the next normal scheduler turn.
+         */
+        (void)higher_priority_task_woken;
     }
 }
 
@@ -106,9 +133,10 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
     portEXIT_CRITICAL_ISR(&s_sm_mux);
 }
 
-esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
-                                    QueueHandle_t mirror_digit_queue,
-                                    uint8_t initial_dr)
+/** Configure and bind the GPIO service on the core executing this function. */
+static esp_err_t init_on_current_core(QueueHandle_t digit_queue,
+                                      QueueHandle_t mirror_digit_queue,
+                                      uint8_t initial_dr)
 {
     ESP_RETURN_ON_FALSE(digit_queue, ESP_ERR_INVALID_ARG, TAG,
                         "digit queue is required");
@@ -137,9 +165,17 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
     s_mirror_digit_queue = mirror_digit_queue;
     s_drive_sda_low = false;
     s_ignore_own_sda_edge = false;
+    s_completed_key_reads = 0;
+    s_last_key_read_ms = 0;
+    s_max_key_read_gap_ms = 0;
     yourdesk_soft_i2c_sm_init(&s_sm, initial_dr);
 
-    esp_err_t err = gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
+    /*
+     * Level 3 on Core 1 keeps the 9.6 kHz slave ahead of Wi-Fi/NimBLE work on
+     * Core 0. FreeRTOS FromISR queue APIs remain valid at this interrupt level.
+     */
+    esp_err_t err = gpio_install_isr_service(ESP_INTR_FLAG_IRAM |
+                                             ESP_INTR_FLAG_LEVEL3);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
         return err;
     }
@@ -152,14 +188,71 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
         return err;
     }
 
-    ESP_LOGI(TAG, "software I2C addrs=0x24,0x34-0x37 SCL=%d SDA=%d",
-             CONFIG_DESK_I2C_SCL_GPIO, CONFIG_DESK_I2C_SDA_GPIO);
+    ESP_LOGI(TAG,
+             "software I2C addrs=0x24,0x34-0x37 SCL=%d SDA=%d ISR-core=%d",
+             CONFIG_DESK_I2C_SCL_GPIO, CONFIG_DESK_I2C_SDA_GPIO,
+             xPortGetCoreID());
     return ESP_OK;
+}
+
+/** Install the global GPIO ISR service from Core 1, then wake the caller. */
+static void soft_i2c_init_task(void *arg)
+{
+    soft_i2c_init_context_t *ctx = (soft_i2c_init_context_t *)arg;
+    ctx->result = init_on_current_core(ctx->digit_queue,
+                                       ctx->mirror_digit_queue,
+                                       ctx->initial_dr);
+    xSemaphoreGive(ctx->done);
+    vTaskDelete(NULL);
+}
+
+esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
+                                    QueueHandle_t mirror_digit_queue,
+                                    uint8_t initial_dr)
+{
+    ESP_RETURN_ON_FALSE(digit_queue, ESP_ERR_INVALID_ARG, TAG,
+                        "digit queue is required");
+
+    SemaphoreHandle_t done = xSemaphoreCreateBinary();
+    if (!done) {
+        return ESP_ERR_NO_MEM;
+    }
+    soft_i2c_init_context_t ctx = {
+        .digit_queue = digit_queue,
+        .mirror_digit_queue = mirror_digit_queue,
+        .initial_dr = initial_dr,
+        .done = done,
+        .result = ESP_FAIL,
+    };
+    if (xTaskCreatePinnedToCore(soft_i2c_init_task, "yd_i2c_init", 3072,
+                                &ctx, configMAX_PRIORITIES - 1,
+                                NULL, 1) != pdPASS) {
+        vSemaphoreDelete(done);
+        return ESP_ERR_NO_MEM;
+    }
+
+    /* The stack-backed context remains valid until the short init task exits. */
+    (void)xSemaphoreTake(done, portMAX_DELAY);
+    vSemaphoreDelete(done);
+    return ctx.result;
 }
 
 void yourdesk_soft_i2c_esp_set_dr(uint8_t dr)
 {
     portENTER_CRITICAL(&s_sm_mux);
     yourdesk_soft_i2c_sm_set_dr(&s_sm, dr);
+    portEXIT_CRITICAL(&s_sm_mux);
+}
+
+void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats)
+{
+    if (!stats) {
+        return;
+    }
+    portENTER_CRITICAL(&s_sm_mux);
+    stats->completed_key_reads = s_completed_key_reads;
+    stats->last_key_read_ms = s_last_key_read_ms;
+    stats->max_key_read_gap_ms = s_max_key_read_gap_ms;
+    s_max_key_read_gap_ms = 0;
     portEXIT_CRITICAL(&s_sm_mux);
 }
