@@ -109,7 +109,7 @@ static void IRAM_ATTR scl_edge_isr(void *arg)
     }
 }
 
-/** Accept only transaction-boundary START edges; STOP is self-framed by bytes. */
+/** Detect START/repeated START/STOP from DAT transitions while SCL is high. */
 static void IRAM_ATTR sda_edge_isr(void *arg)
 {
     (void)arg;
@@ -124,14 +124,10 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
         return;
     }
 
-    if (!line_is_high(CONFIG_DESK_I2C_SDA_GPIO)) {
-        /*
-         * The GPIO peripheral does not latch SCL together with a DAT edge. A
-         * delayed data edge may therefore arrive after SCL has already risen.
-         * Only a state that is genuinely waiting for the next address may be
-         * reset by START; mid-frame edges must never destroy an active poll.
-         */
-        (void)yourdesk_soft_i2c_sm_try_start(&s_sm);
+    if (line_is_high(CONFIG_DESK_I2C_SDA_GPIO)) {
+        yourdesk_soft_i2c_sm_stop(&s_sm);
+    } else {
+        yourdesk_soft_i2c_sm_start(&s_sm);
     }
     apply_sda_output();
     portEXIT_CRITICAL_ISR(&s_sm_mux);

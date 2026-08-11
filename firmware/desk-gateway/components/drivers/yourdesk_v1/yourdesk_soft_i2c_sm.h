@@ -62,16 +62,6 @@ void yourdesk_soft_i2c_sm_set_dr(yourdesk_soft_i2c_sm_t *sm, uint8_t dr);
 void YOURDESK_SOFT_I2C_ISR_ATTR
 yourdesk_soft_i2c_sm_start(yourdesk_soft_i2c_sm_t *sm);
 
-/**
- * Accept START only while waiting for a transaction boundary.
- *
- * GPIO edge delivery may be delayed beyond the SCL edge that caused it. This
- * guard prevents a stale DAT edge from resetting an address or data byte that
- * is already being clocked.
- */
-bool YOURDESK_SOFT_I2C_ISR_ATTR
-yourdesk_soft_i2c_sm_try_start(yourdesk_soft_i2c_sm_t *sm);
-
 /** Handle SDA low-to-high while SCL is high. */
 void YOURDESK_SOFT_I2C_ISR_ATTR
 yourdesk_soft_i2c_sm_stop(yourdesk_soft_i2c_sm_t *sm);

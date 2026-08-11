@@ -57,22 +57,6 @@ void yourdesk_soft_i2c_sm_start(yourdesk_soft_i2c_sm_t *sm)
     }
 }
 
-bool yourdesk_soft_i2c_sm_try_start(yourdesk_soft_i2c_sm_t *sm)
-{
-    if (!sm) {
-        return false;
-    }
-    bool waiting_for_boundary =
-        sm->phase == YOURDESK_SOFT_I2C_IDLE ||
-        sm->phase == YOURDESK_SOFT_I2C_IGNORE ||
-        (sm->phase == YOURDESK_SOFT_I2C_RX_ADDRESS && sm->bit_count == 0);
-    if (!waiting_for_boundary) {
-        return false;
-    }
-    reset_transaction(sm, YOURDESK_SOFT_I2C_RX_ADDRESS);
-    return true;
-}
-
 void yourdesk_soft_i2c_sm_stop(yourdesk_soft_i2c_sm_t *sm)
 {
     if (sm) {
@@ -181,12 +165,9 @@ yourdesk_soft_i2c_sm_scl_falling(yourdesk_soft_i2c_sm_t *sm)
                 event.addr7 = sm->current_addr7;
                 event.segment = sm->pending_segment;
             }
-            /*
-             * Every observed yourdesk/TM1650 write is exactly one data byte.
-             * Return to address reception here instead of depending on a
-             * separately delivered STOP edge to frame the next transaction.
-             */
-            reset_transaction(sm, YOURDESK_SOFT_I2C_RX_ADDRESS);
+            sm->pending_digit = false;
+            sm->bit_count = 0;
+            sm->rx_byte = 0;
         }
         break;
 
@@ -206,8 +187,9 @@ yourdesk_soft_i2c_sm_scl_falling(yourdesk_soft_i2c_sm_t *sm)
         if (sm->bit_count == 1) {
             /* The controller sampled the whole DR byte and its ACK completed. */
             event.key_read_completed = true;
-            /* The controller reads one DR byte, then starts a new transaction. */
-            reset_transaction(sm, YOURDESK_SOFT_I2C_RX_ADDRESS);
+            sm->drive_sda_low = false;
+            sm->phase = YOURDESK_SOFT_I2C_IGNORE;
+            sm->bit_count = 0;
         }
         break;
 
