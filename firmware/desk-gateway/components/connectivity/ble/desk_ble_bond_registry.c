@@ -240,6 +240,71 @@ bool desk_ble_bond_registry_remove(
     return true;
 }
 
+void desk_ble_bond_mark_delete_pending(desk_ble_bond_record_t *record,
+                                       bool waiting_disconnect,
+                                       uint16_t conn_handle,
+                                       uint32_t generation,
+                                       uint32_t deadline_ms)
+{
+    if (!record || !record->in_use) {
+        return;
+    }
+    record->delete_state = DESK_BLE_DELETE_PENDING;
+    record->delete_error[0] = '\0';
+    record->delete_waiting_disconnect = waiting_disconnect;
+    record->delete_conn_handle = waiting_disconnect ? conn_handle : 0;
+    record->delete_generation = waiting_disconnect ? generation : 0;
+    record->delete_deadline_ms = waiting_disconnect ? deadline_ms : 0;
+}
+
+void desk_ble_bond_mark_delete_failed(desk_ble_bond_record_t *record,
+                                      const char *reason)
+{
+    if (!record || !record->in_use) {
+        return;
+    }
+    record->delete_state = DESK_BLE_DELETE_FAILED;
+    record->delete_waiting_disconnect = false;
+    record->delete_conn_handle = 0;
+    record->delete_generation = 0;
+    record->delete_deadline_ms = 0;
+    if (!reason) {
+        reason = "unknown";
+    }
+    size_t length = strlen(reason);
+    if (length >= sizeof(record->delete_error)) {
+        length = sizeof(record->delete_error) - 1;
+    }
+    memcpy(record->delete_error, reason, length);
+    record->delete_error[length] = '\0';
+}
+
+bool desk_ble_bond_delete_matches_disconnect(
+    const desk_ble_bond_record_t *record, uint16_t conn_handle,
+    uint32_t generation)
+{
+    return record && record->in_use &&
+           record->delete_state == DESK_BLE_DELETE_PENDING &&
+           record->delete_waiting_disconnect &&
+           record->delete_conn_handle == conn_handle &&
+           record->delete_generation == generation;
+}
+
+bool desk_ble_bond_registry_has_delete_conflict(
+    const desk_ble_bond_registry_t *registry)
+{
+    if (!registry) {
+        return false;
+    }
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        const desk_ble_bond_record_t *record = &registry->records[i];
+        if (record->in_use && record->delete_state != DESK_BLE_DELETE_IDLE) {
+            return true;
+        }
+    }
+    return false;
+}
+
 const char *desk_ble_client_kind_name(desk_ble_client_kind_t kind)
 {
     switch (kind) {

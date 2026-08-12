@@ -31,6 +31,13 @@ typedef struct {
     desk_ble_peer_identity_t identity;
     uint8_t opaque_id[DESK_BLE_BOND_OPAQUE_ID_LENGTH];
     desk_ble_client_kind_t client_kind;
+    /* 删除状态是运行期诊断信息，不写入 NVS，重启后从 idle 开始。 */
+    desk_ble_delete_state_t delete_state;
+    char delete_error[DESK_BLE_DELETE_ERROR_MAX_LENGTH];
+    bool delete_waiting_disconnect;
+    uint16_t delete_conn_handle;
+    uint32_t delete_generation;
+    uint32_t delete_deadline_ms;
 } desk_ble_bond_record_t;
 
 typedef struct {
@@ -68,6 +75,20 @@ bool desk_ble_bond_registry_reconcile(
 bool desk_ble_bond_registry_remove(
     desk_ble_bond_registry_t *registry,
     const desk_ble_peer_identity_t *identity);
+
+/** 标记在线/离线删除；在线目标同时冻结句柄、代次和等待截止时间。 */
+void desk_ble_bond_mark_delete_pending(desk_ble_bond_record_t *record,
+                                       bool waiting_disconnect,
+                                       uint16_t conn_handle,
+                                       uint32_t generation,
+                                       uint32_t deadline_ms);
+void desk_ble_bond_mark_delete_failed(desk_ble_bond_record_t *record,
+                                      const char *reason);
+bool desk_ble_bond_delete_matches_disconnect(
+    const desk_ble_bond_record_t *record, uint16_t conn_handle,
+    uint32_t generation);
+bool desk_ble_bond_registry_has_delete_conflict(
+    const desk_ble_bond_registry_t *registry);
 
 /** 固定输出 `bond_<12位小写十六进制>`，缓冲区至少 18 字节。 */
 bool desk_ble_bond_format_id(const desk_ble_bond_record_t *record,

@@ -96,10 +96,50 @@ static void test_failed_reconcile_is_atomic(void)
     assert(desk_ble_bond_registry_count(&registry) == 0);
 }
 
+static void test_delete_state_matches_handle_and_generation(void)
+{
+    const uint8_t random_values[][DESK_BLE_BOND_OPAQUE_ID_LENGTH] = {
+        {1, 2, 3, 4, 5, 6},
+    };
+    random_fixture_t fixture = {
+        .values = random_values,
+        .count = 1,
+    };
+    desk_ble_bond_registry_t registry;
+    desk_ble_bond_registry_init(&registry);
+    desk_ble_peer_identity_t peer = identity(60);
+    assert(desk_ble_bond_registry_reconcile(
+        &registry, &peer, 1, fixture_random, &fixture, NULL));
+    desk_ble_bond_record_t *record =
+        desk_ble_bond_registry_find_identity(&registry, &peer);
+    assert(record);
+
+    desk_ble_bond_mark_delete_pending(record, true, 7, 42, 1000);
+    assert(desk_ble_bond_registry_has_delete_conflict(&registry));
+    assert(desk_ble_bond_delete_matches_disconnect(record, 7, 42));
+    assert(!desk_ble_bond_delete_matches_disconnect(record, 7, 43));
+    assert(!desk_ble_bond_delete_matches_disconnect(record, 8, 42));
+
+    desk_ble_bond_mark_delete_failed(record, "disconnect timeout");
+    assert(record->delete_state == DESK_BLE_DELETE_FAILED);
+    assert(strcmp(record->delete_error, "disconnect timeout") == 0);
+    assert(!desk_ble_bond_delete_matches_disconnect(record, 7, 42));
+
+    /* 对账保留同一 Identity 的运行期失败状态，删除孤儿时才一并清理。 */
+    assert(desk_ble_bond_registry_reconcile(
+        &registry, &peer, 1, fixture_random, &fixture, NULL));
+    record = desk_ble_bond_registry_find_identity(&registry, &peer);
+    assert(record && record->delete_state == DESK_BLE_DELETE_FAILED);
+    assert(desk_ble_bond_registry_reconcile(
+        &registry, NULL, 0, fixture_random, &fixture, NULL));
+    assert(!desk_ble_bond_registry_has_delete_conflict(&registry));
+}
+
 int main(void)
 {
     test_reconcile_collision_and_orphan_cleanup();
     test_failed_reconcile_is_atomic();
+    test_delete_state_matches_handle_and_generation();
     puts("desk_ble_bond_registry_test: OK");
     return 0;
 }

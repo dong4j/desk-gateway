@@ -18,6 +18,7 @@
 #include "esp_random.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "host/ble_att.h"
 #include "host/ble_gap.h"
@@ -46,6 +47,34 @@ void ble_store_config_init(void);
 #define DESK_BLE_FIRMWARE_REVISION_MAX_LEN 64
 #define DESK_BLE_RESTART_DELAY_MS 500
 #define DESK_BLE_ATT_ERR_BUSY 0x80
+#define DESK_BLE_MANAGEMENT_QUEUE_CAPACITY 4
+#define DESK_BLE_MANAGEMENT_WAIT_MS 1000
+#define DESK_BLE_DELETE_TIMEOUT_MS 10000
+#define DESK_BLE_DELETE_TIMEOUT_POLL_MS 500
+
+typedef enum {
+    MANAGEMENT_COMMAND_OPEN_PAIRING = 0,
+    MANAGEMENT_COMMAND_CLOSE_PAIRING,
+    MANAGEMENT_COMMAND_DELETE_ONE,
+    MANAGEMENT_COMMAND_DELETE_ALL,
+} management_command_kind_t;
+
+typedef enum {
+    MANAGEMENT_SLOT_FREE = 0,
+    MANAGEMENT_SLOT_QUEUED,
+    MANAGEMENT_SLOT_PROCESSING,
+    MANAGEMENT_SLOT_DONE,
+} management_slot_state_t;
+
+typedef struct {
+    management_slot_state_t state;
+    bool waiter_abandoned;
+    management_command_kind_t command;
+    char bond_id[DESK_BLE_BOND_ID_TEXT_LENGTH];
+    desk_ble_management_result_t result;
+    StaticSemaphore_t completion_storage;
+    SemaphoreHandle_t completion;
+} management_command_slot_t;
 
 /* Canonical UUID: 7f4e0001-6d4c-4f4b-9f7a-3c1d2e5a9b10. */
 static const ble_uuid128_t s_service_uuid = BLE_UUID128_INIT(
@@ -83,10 +112,19 @@ static uint16_t s_config_value_handle;
 static desk_ble_session_t s_session;
 static desk_ble_bond_registry_t s_bond_registry;
 static struct ble_npl_callout s_hold_lease_callout;
+static struct ble_npl_callout s_delete_timeout_callout;
 static struct ble_npl_event s_core_event;
+static struct ble_npl_event s_management_event;
 static portMUX_TYPE s_core_event_lock = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE s_management_queue_lock = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE s_management_snapshot_lock = portMUX_INITIALIZER_UNLOCKED;
+static management_command_slot_t
+    s_management_queue[DESK_BLE_MANAGEMENT_QUEUE_CAPACITY];
+static desk_ble_management_snapshot_t s_management_snapshot;
+static uint32_t s_management_pairing_deadline_ms;
 static bool s_core_release_pending;
 static bool s_core_event_posted;
+static volatile bool s_management_ready;
 static volatile bool s_stack_synced;
 static volatile size_t s_connection_count;
 static volatile bool s_any_state_subscribed;
@@ -95,6 +133,7 @@ static volatile bool s_motion_owner_active;
 static volatile bool s_restart_pending;
 
 static void start_advertising(void);
+static void publish_management_snapshot(void);
 
 static desk_ble_peer_identity_t identity_from_ble_addr(
     const ble_addr_t *address)
@@ -206,6 +245,77 @@ static void populate_slot_identity(desk_ble_connection_slot_t *slot,
     slot->client_kind = record->client_kind;
 }
 
+static desk_ble_connection_slot_t *find_slot_by_identity(
+    const desk_ble_peer_identity_t *identity)
+{
+    if (!identity) {
+        return NULL;
+    }
+    for (size_t i = 0; i < DESK_BLE_MAX_CONNECTIONS; ++i) {
+        desk_ble_connection_slot_t *slot = &s_session.slots[i];
+        if (slot->in_use && slot->peer_identity_valid &&
+            desk_ble_peer_identity_equal(&slot->peer_identity, identity)) {
+            return slot;
+        }
+    }
+    return NULL;
+}
+
+static desk_ble_bond_record_t *find_pending_delete_by_handle(
+    uint16_t conn_handle)
+{
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        desk_ble_bond_record_t *record = &s_bond_registry.records[i];
+        if (record->in_use &&
+            record->delete_state == DESK_BLE_DELETE_PENDING &&
+            record->delete_waiting_disconnect &&
+            record->delete_conn_handle == conn_handle) {
+            return record;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * Host 先组装不含 Identity 的本地副本，再在极短临界区发布给 REST 查询。
+ * 配对截止时间单独保存，读取方可实时计算倒计时而不访问 Host 会话。
+ */
+static void publish_management_snapshot(void)
+{
+    desk_ble_management_snapshot_t snapshot = {
+        .capacity = DESK_BLE_BOND_CAPACITY,
+        .pairing_window_open = s_session.pairing_window_open,
+    };
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        const desk_ble_bond_record_t *record = &s_bond_registry.records[i];
+        if (!record->in_use ||
+            snapshot.device_count >= DESK_BLE_MANAGEMENT_MAX_DEVICES) {
+            continue;
+        }
+        desk_ble_bond_view_t *view =
+            &snapshot.devices[snapshot.device_count++];
+        (void)desk_ble_bond_format_id(record, view->id, sizeof(view->id));
+        (void)snprintf(view->kind, sizeof(view->kind), "%s",
+                       desk_ble_client_kind_name(record->client_kind));
+        (void)desk_ble_bond_format_label(record, view->label,
+                                         sizeof(view->label));
+        desk_ble_connection_slot_t *slot =
+            find_slot_by_identity(&record->identity);
+        view->connected = slot != NULL;
+        view->controlling = slot && desk_ble_session_is_motion_owner(
+                                      &s_session, slot->conn_handle,
+                                      slot->generation);
+        view->delete_state = (uint8_t)record->delete_state;
+        (void)snprintf(view->delete_error, sizeof(view->delete_error), "%s",
+                       record->delete_error);
+    }
+    uint32_t deadline = s_session.pairing_window_deadline_ms;
+    portENTER_CRITICAL(&s_management_snapshot_lock);
+    s_management_snapshot = snapshot;
+    s_management_pairing_deadline_ms = deadline;
+    portEXIT_CRITICAL(&s_management_snapshot_lock);
+}
+
 /** Host 上下文每次改槽位后刷新只读聚合值，通知任务不直接读会话表。 */
 static void update_session_aggregates(void)
 {
@@ -223,6 +333,7 @@ static void update_session_aggregates(void)
     s_any_state_subscribed = any_state;
     s_any_config_subscribed = any_config;
     s_motion_owner_active = s_session.motion_owner.valid;
+    publish_management_snapshot();
 }
 
 static void cancel_hold_lease(void)
@@ -300,6 +411,294 @@ static void core_event_cb(struct ble_npl_event *event)
         cancel_hold_lease();
         desk_ble_session_release_motion(&s_session);
         update_session_aggregates();
+    }
+}
+
+static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
+{
+    return (int32_t)(now_ms - deadline_ms) >= 0;
+}
+
+static ble_addr_t ble_addr_from_identity(
+    const desk_ble_peer_identity_t *identity)
+{
+    ble_addr_t address = {0};
+    if (identity) {
+        address.type = identity->type;
+        memcpy(address.val, identity->value, sizeof(address.val));
+    }
+    return address;
+}
+
+static void mark_delete_failed(desk_ble_bond_record_t *record,
+                               const char *reason)
+{
+    if (!record) {
+        return;
+    }
+    desk_ble_connection_slot_t *slot =
+        find_slot_by_identity(&record->identity);
+    if (slot) {
+        desk_ble_session_mark_delete_failed(slot, reason);
+    }
+    desk_ble_bond_mark_delete_failed(record, reason);
+    publish_management_snapshot();
+}
+
+/**
+ * 删除顺序以 NimBLE Store 为事实源：Store 成功后再原子保存元数据副本。
+ * 若第二步失败，保留 failed 元数据供显式重试；下一次启动对账也会清理孤儿。
+ */
+static bool delete_bond_from_store(
+    const desk_ble_peer_identity_t *identity)
+{
+    desk_ble_bond_record_t *record =
+        desk_ble_bond_registry_find_identity(&s_bond_registry, identity);
+    if (!record) {
+        return true;
+    }
+    ble_addr_t address = ble_addr_from_identity(identity);
+    int rc = ble_store_util_delete_peer(&address);
+    if (rc != 0 && rc != BLE_HS_ENOENT) {
+        ESP_LOGE(TAG, "delete BLE bond store entry failed: %d", rc);
+        mark_delete_failed(record, "删除蓝牙密钥失败，请重试");
+        return false;
+    }
+
+    desk_ble_bond_registry_t candidate = s_bond_registry;
+    if (!desk_ble_bond_registry_remove(&candidate, identity)) {
+        return true;
+    }
+    esp_err_t err = desk_ble_bond_storage_save(&candidate);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "save BLE bond deletion failed: %s",
+                 esp_err_to_name(err));
+        record = desk_ble_bond_registry_find_identity(&s_bond_registry,
+                                                      identity);
+        mark_delete_failed(record, "保存删除结果失败，请重试");
+        return false;
+    }
+    s_bond_registry = candidate;
+    publish_management_snapshot();
+    return true;
+}
+
+static void arm_delete_timeout_scan(void)
+{
+    ble_npl_error_t rc = ble_npl_callout_reset(
+        &s_delete_timeout_callout,
+        pdMS_TO_TICKS(DESK_BLE_DELETE_TIMEOUT_POLL_MS));
+    if (rc != BLE_NPL_OK) {
+        ESP_LOGE(TAG, "arm BLE delete timeout scan failed: %d", rc);
+    }
+}
+
+static desk_ble_management_result_t execute_delete_one(
+    const char *bond_id)
+{
+    desk_ble_bond_record_t *record =
+        desk_ble_bond_registry_find_id(&s_bond_registry, bond_id);
+    if (!record) {
+        return DESK_BLE_MANAGEMENT_NOT_FOUND;
+    }
+    if (record->delete_state == DESK_BLE_DELETE_PENDING) {
+        return DESK_BLE_MANAGEMENT_ACCEPTED;
+    }
+
+    desk_ble_connection_slot_t *slot =
+        find_slot_by_identity(&record->identity);
+    if (!slot) {
+        desk_ble_peer_identity_t identity = record->identity;
+        desk_ble_bond_mark_delete_pending(record, false, 0, 0, 0);
+        publish_management_snapshot();
+        return delete_bond_from_store(&identity)
+                   ? DESK_BLE_MANAGEMENT_OK
+                   : DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    }
+
+    if (desk_ble_session_is_motion_owner(
+            &s_session, slot->conn_handle, slot->generation)) {
+        stop_owned_motion("deleting BLE motion owner");
+    }
+    uint32_t now_ms = esp_log_timestamp();
+    desk_ble_bond_mark_delete_pending(
+        record, true, slot->conn_handle, slot->generation,
+        now_ms + DESK_BLE_DELETE_TIMEOUT_MS);
+    desk_ble_session_mark_delete_pending(slot);
+    publish_management_snapshot();
+    int rc = ble_gap_terminate(slot->conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "terminate BLE bond target failed: %d", rc);
+        mark_delete_failed(record, "断开设备失败，请重试");
+        return DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    }
+    arm_delete_timeout_scan();
+    return DESK_BLE_MANAGEMENT_ACCEPTED;
+}
+
+static desk_ble_management_result_t execute_delete_all(void)
+{
+    if (desk_ble_bond_registry_has_delete_conflict(&s_bond_registry)) {
+        return DESK_BLE_MANAGEMENT_CONFLICT;
+    }
+
+    /* 全删是安全动作，即使当前无 BLE 所有者也要向 desk_core 发送 STOP。 */
+    cancel_hold_lease();
+    (void)desk_ble_session_release_motion(&s_session);
+    update_session_aggregates();
+    (void)desk_core_stop();
+    desk_ble_session_close_pairing_window(&s_session);
+
+    desk_ble_peer_identity_t identities[DESK_BLE_BOND_CAPACITY];
+    size_t count = 0;
+    uint32_t now_ms = esp_log_timestamp();
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        desk_ble_bond_record_t *record = &s_bond_registry.records[i];
+        if (!record->in_use) {
+            continue;
+        }
+        identities[count++] = record->identity;
+        desk_ble_connection_slot_t *slot =
+            find_slot_by_identity(&record->identity);
+        if (slot) {
+            desk_ble_bond_mark_delete_pending(
+                record, true, slot->conn_handle, slot->generation,
+                now_ms + DESK_BLE_DELETE_TIMEOUT_MS);
+            desk_ble_session_mark_delete_pending(slot);
+        } else {
+            desk_ble_bond_mark_delete_pending(record, false, 0, 0, 0);
+        }
+    }
+    publish_management_snapshot();
+
+    bool online_accepted = false;
+    bool failed = false;
+    for (size_t i = 0; i < count; ++i) {
+        desk_ble_bond_record_t *record =
+            desk_ble_bond_registry_find_identity(&s_bond_registry,
+                                                 &identities[i]);
+        if (!record) {
+            continue;
+        }
+        if (!record->delete_waiting_disconnect) {
+            failed |= !delete_bond_from_store(&identities[i]);
+            continue;
+        }
+        int rc = ble_gap_terminate(record->delete_conn_handle,
+                                   BLE_ERR_REM_USER_CONN_TERM);
+        if (rc != 0) {
+            ESP_LOGE(TAG, "terminate BLE bond target failed: %d", rc);
+            mark_delete_failed(record, "断开设备失败，请重试");
+            failed = true;
+        } else {
+            online_accepted = true;
+        }
+    }
+    if (online_accepted) {
+        arm_delete_timeout_scan();
+    }
+    if (failed) {
+        return DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    }
+    return online_accepted ? DESK_BLE_MANAGEMENT_ACCEPTED
+                           : DESK_BLE_MANAGEMENT_OK;
+}
+
+static desk_ble_management_result_t execute_management_command(
+    management_command_kind_t command, const char *bond_id)
+{
+    if (!s_stack_synced) {
+        return DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    }
+    switch (command) {
+    case MANAGEMENT_COMMAND_OPEN_PAIRING:
+        if (desk_ble_bond_registry_count(&s_bond_registry) >=
+            DESK_BLE_BOND_CAPACITY) {
+            return DESK_BLE_MANAGEMENT_CONFLICT;
+        }
+        desk_ble_session_open_pairing_window(&s_session,
+                                             esp_log_timestamp());
+        publish_management_snapshot();
+        return DESK_BLE_MANAGEMENT_OK;
+    case MANAGEMENT_COMMAND_CLOSE_PAIRING:
+        desk_ble_session_close_pairing_window(&s_session);
+        publish_management_snapshot();
+        return DESK_BLE_MANAGEMENT_OK;
+    case MANAGEMENT_COMMAND_DELETE_ONE:
+        return execute_delete_one(bond_id);
+    case MANAGEMENT_COMMAND_DELETE_ALL:
+        return execute_delete_all();
+    default:
+        return DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    }
+}
+
+static void management_event_cb(struct ble_npl_event *event)
+{
+    (void)event;
+    for (;;) {
+        size_t index = DESK_BLE_MANAGEMENT_QUEUE_CAPACITY;
+        management_command_kind_t command = MANAGEMENT_COMMAND_OPEN_PAIRING;
+        char bond_id[DESK_BLE_BOND_ID_TEXT_LENGTH] = {0};
+        portENTER_CRITICAL(&s_management_queue_lock);
+        for (size_t i = 0; i < DESK_BLE_MANAGEMENT_QUEUE_CAPACITY; ++i) {
+            if (s_management_queue[i].state == MANAGEMENT_SLOT_QUEUED) {
+                index = i;
+                s_management_queue[i].state = MANAGEMENT_SLOT_PROCESSING;
+                command = s_management_queue[i].command;
+                memcpy(bond_id, s_management_queue[i].bond_id,
+                       sizeof(bond_id));
+                break;
+            }
+        }
+        portEXIT_CRITICAL(&s_management_queue_lock);
+        if (index == DESK_BLE_MANAGEMENT_QUEUE_CAPACITY) {
+            return;
+        }
+
+        desk_ble_management_result_t result =
+            execute_management_command(command, bond_id);
+        bool notify_waiter = false;
+        portENTER_CRITICAL(&s_management_queue_lock);
+        management_command_slot_t *slot = &s_management_queue[index];
+        if (slot->waiter_abandoned) {
+            slot->state = MANAGEMENT_SLOT_FREE;
+            slot->waiter_abandoned = false;
+        } else {
+            slot->result = result;
+            slot->state = MANAGEMENT_SLOT_DONE;
+            notify_waiter = true;
+        }
+        portEXIT_CRITICAL(&s_management_queue_lock);
+        if (notify_waiter) {
+            xSemaphoreGive(slot->completion);
+        }
+    }
+}
+
+static void delete_timeout_event_cb(struct ble_npl_event *event)
+{
+    (void)event;
+    uint32_t now_ms = esp_log_timestamp();
+    bool still_pending = false;
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        desk_ble_bond_record_t *record = &s_bond_registry.records[i];
+        if (!record->in_use ||
+            record->delete_state != DESK_BLE_DELETE_PENDING ||
+            !record->delete_waiting_disconnect) {
+            continue;
+        }
+        if (!deadline_reached(now_ms, record->delete_deadline_ms)) {
+            still_pending = true;
+            continue;
+        }
+        ESP_LOGE(TAG, "BLE bond disconnect timed out handle=%u generation=%lu",
+                 record->delete_conn_handle,
+                 (unsigned long)record->delete_generation);
+        mark_delete_failed(record, "等待设备断开超时，请重试");
+    }
+    if (still_pending) {
+        arm_delete_timeout_scan();
     }
 }
 
@@ -660,6 +1059,7 @@ static int client_info_access(uint16_t conn_handle, uint16_t attr_handle,
         return BLE_ATT_ERR_UNLIKELY;
     }
     slot->client_kind = kind;
+    publish_management_snapshot();
     ESP_LOGI(TAG, "client info handle=%u kind=%s", conn_handle,
              desk_ble_client_kind_name(kind));
     return 0;
@@ -765,11 +1165,11 @@ static int gap_event(struct ble_gap_event *event, void *arg)
                                        BLE_ERR_CONN_LIMIT);
                 return 0;
             }
-            update_session_aggregates();
             struct ble_gap_conn_desc desc;
             if (ble_gap_conn_find(slot->conn_handle, &desc) == 0) {
                 populate_slot_identity(slot, &desc.peer_id_addr);
             }
+            update_session_aggregates();
             ESP_LOGI(TAG, "client connected handle=%u generation=%lu count=%u",
                      slot->conn_handle, (unsigned long)slot->generation,
                      (unsigned)s_connection_count);
@@ -788,12 +1188,36 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         bool was_owner = false;
         if (slot) {
             uint32_t generation = slot->generation;
+            desk_ble_peer_identity_t identity = slot->peer_identity;
+            bool identity_valid = slot->peer_identity_valid;
+            desk_ble_bond_record_t *record =
+                identity_valid
+                    ? desk_ble_bond_registry_find_identity(&s_bond_registry,
+                                                           &identity)
+                    : NULL;
+            desk_ble_bond_record_t *pending_by_handle =
+                find_pending_delete_by_handle(conn_handle);
+            if (pending_by_handle &&
+                pending_by_handle->delete_generation != generation) {
+                ESP_LOGW(TAG,
+                         "ignore stale disconnect handle=%u expected_generation=%lu current=%lu",
+                         conn_handle,
+                         (unsigned long)pending_by_handle->delete_generation,
+                         (unsigned long)generation);
+                return 0;
+            }
+            bool complete_delete = record &&
+                desk_ble_bond_delete_matches_disconnect(
+                    record, conn_handle, generation);
             if (desk_ble_session_disconnect(&s_session, conn_handle,
                                             generation, &was_owner) &&
                 was_owner) {
                 cancel_hold_lease();
                 ESP_LOGW(TAG, "BLE owner disconnected -> stop");
                 (void)desk_core_stop();
+            }
+            if (complete_delete) {
+                (void)delete_bond_from_store(&identity);
             }
         }
         update_session_aggregates();
@@ -894,6 +1318,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
             desk_ble_session_close_pairing_window(&s_session);
             ESP_LOGI(TAG, "pairing window closed: bond capacity reached");
         }
+        publish_management_snapshot();
         return 0;
     }
 
@@ -930,6 +1355,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
                 return BLE_GAP_REPEAT_PAIRING_IGNORE;
             }
             s_bond_registry = candidate;
+            publish_management_snapshot();
         }
         desk_ble_connection_slot_t *slot = desk_ble_session_find(
             &s_session, event->repeat_pairing.conn_handle);
@@ -1017,6 +1443,7 @@ static void on_stack_sync(void)
                  esp_err_to_name(metadata_err));
         return;
     }
+    publish_management_snapshot();
     s_stack_synced = true;
     start_advertising();
 }
@@ -1105,8 +1532,130 @@ static void state_notify_task(void *arg)
     }
 }
 
+static void init_management_queue(void)
+{
+    memset(s_management_queue, 0, sizeof(s_management_queue));
+    for (size_t i = 0; i < DESK_BLE_MANAGEMENT_QUEUE_CAPACITY; ++i) {
+        s_management_queue[i].completion = xSemaphoreCreateBinaryStatic(
+            &s_management_queue[i].completion_storage);
+    }
+    ble_npl_event_init(&s_management_event, management_event_cb, NULL);
+    s_management_ready = true;
+}
+
+static desk_ble_management_result_t submit_management_command(
+    management_command_kind_t command, const char *bond_id)
+{
+    if (!s_management_ready ||
+        (command == MANAGEMENT_COMMAND_DELETE_ONE &&
+         (!bond_id || strlen(bond_id) >= DESK_BLE_BOND_ID_TEXT_LENGTH))) {
+        return command == MANAGEMENT_COMMAND_DELETE_ONE
+                   ? DESK_BLE_MANAGEMENT_NOT_FOUND
+                   : DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    }
+
+    size_t index = DESK_BLE_MANAGEMENT_QUEUE_CAPACITY;
+    portENTER_CRITICAL(&s_management_queue_lock);
+    for (size_t i = 0; i < DESK_BLE_MANAGEMENT_QUEUE_CAPACITY; ++i) {
+        if (s_management_queue[i].state == MANAGEMENT_SLOT_FREE) {
+            index = i;
+            management_command_slot_t *slot = &s_management_queue[i];
+            slot->state = MANAGEMENT_SLOT_QUEUED;
+            slot->waiter_abandoned = false;
+            slot->command = command;
+            slot->bond_id[0] = '\0';
+            if (bond_id) {
+                memcpy(slot->bond_id, bond_id, strlen(bond_id) + 1);
+            }
+            break;
+        }
+    }
+    portEXIT_CRITICAL(&s_management_queue_lock);
+    if (index == DESK_BLE_MANAGEMENT_QUEUE_CAPACITY) {
+        return DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    }
+
+    management_command_slot_t *slot = &s_management_queue[index];
+    /* 槽位只有在上一次 waiter 已消费后才回到 FREE，这里仅做防御性排空。 */
+    (void)xSemaphoreTake(slot->completion, 0);
+    ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &s_management_event);
+    if (xSemaphoreTake(slot->completion,
+                       pdMS_TO_TICKS(DESK_BLE_MANAGEMENT_WAIT_MS)) == pdTRUE) {
+        desk_ble_management_result_t result =
+            DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+        portENTER_CRITICAL(&s_management_queue_lock);
+        if (slot->state == MANAGEMENT_SLOT_DONE) {
+            result = slot->result;
+            slot->state = MANAGEMENT_SLOT_FREE;
+        } else {
+            slot->waiter_abandoned = true;
+        }
+        portEXIT_CRITICAL(&s_management_queue_lock);
+        return result;
+    }
+
+    /* 超时后命令可能仍在 Host 执行；槽位由 Host 完成时回收，避免悬空 waiter。 */
+    desk_ble_management_result_t result = DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    portENTER_CRITICAL(&s_management_queue_lock);
+    if (slot->state == MANAGEMENT_SLOT_DONE) {
+        result = slot->result;
+        slot->state = MANAGEMENT_SLOT_FREE;
+    } else {
+        slot->waiter_abandoned = true;
+    }
+    portEXIT_CRITICAL(&s_management_queue_lock);
+    return result;
+}
+
+bool desk_ble_get_management_snapshot(
+    desk_ble_management_snapshot_t *out_snapshot)
+{
+    if (!out_snapshot || !s_management_ready) {
+        return false;
+    }
+    uint32_t deadline_ms;
+    portENTER_CRITICAL(&s_management_snapshot_lock);
+    *out_snapshot = s_management_snapshot;
+    deadline_ms = s_management_pairing_deadline_ms;
+    portEXIT_CRITICAL(&s_management_snapshot_lock);
+
+    if (out_snapshot->pairing_window_open) {
+        uint32_t now_ms = esp_log_timestamp();
+        if (deadline_reached(now_ms, deadline_ms)) {
+            out_snapshot->pairing_window_open = false;
+            out_snapshot->pairing_window_remaining_seconds = 0;
+        } else {
+            uint32_t remaining_ms = deadline_ms - now_ms;
+            out_snapshot->pairing_window_remaining_seconds =
+                (remaining_ms + 999U) / 1000U;
+        }
+    }
+    return true;
+}
+
+desk_ble_management_result_t desk_ble_open_pairing_window(void)
+{
+    return submit_management_command(MANAGEMENT_COMMAND_OPEN_PAIRING, NULL);
+}
+
+desk_ble_management_result_t desk_ble_close_pairing_window(void)
+{
+    return submit_management_command(MANAGEMENT_COMMAND_CLOSE_PAIRING, NULL);
+}
+
+desk_ble_management_result_t desk_ble_delete_bond(const char *bond_id)
+{
+    return submit_management_command(MANAGEMENT_COMMAND_DELETE_ONE, bond_id);
+}
+
+desk_ble_management_result_t desk_ble_delete_all_bonds(void)
+{
+    return submit_management_command(MANAGEMENT_COMMAND_DELETE_ALL, NULL);
+}
+
 esp_err_t desk_ble_start(void)
 {
+    s_management_ready = false;
     desk_ble_session_init(&s_session);
     update_session_aggregates();
     esp_err_t storage_err = desk_ble_bond_storage_load(&s_bond_registry);
@@ -1126,6 +1675,9 @@ esp_err_t desk_ble_start(void)
     ble_npl_callout_init(&s_hold_lease_callout,
                          nimble_port_get_dflt_eventq(),
                          hold_lease_event_cb, NULL);
+    ble_npl_callout_init(&s_delete_timeout_callout,
+                         nimble_port_get_dflt_eventq(),
+                         delete_timeout_event_cb, NULL);
     ble_npl_event_init(&s_core_event, core_event_cb, NULL);
     desk_core_set_event_listener(core_event_listener, NULL);
 
@@ -1155,6 +1707,8 @@ esp_err_t desk_ble_start(void)
     ble_hs_cfg.sm_their_key_dist |=
         BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
     ble_store_config_init();
+    init_management_queue();
+    publish_management_snapshot();
 
     /* 该入口不仅创建 host task，还会启用 ESP32 蓝牙控制器。 */
     nimble_port_freertos_init(nimble_host_task);
