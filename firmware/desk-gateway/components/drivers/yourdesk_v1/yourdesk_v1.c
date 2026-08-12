@@ -79,6 +79,7 @@ static const char *TAG = "yourdesk_v1";
 #define HEIGHT_MAX_SPEED_MM_PER_S       35
 #define HEIGHT_STEP_SLACK_MM            20
 #define HEIGHT_SAFETY_POLL_MS           50
+#define HEIGHT_MOTION_DIAG_INTERVAL_MS  1000
 /* Do not amplify the 10 mm early-stop margin with an indefinitely old frame. */
 #define HEIGHT_MARGIN_PROJECTION_MAX_AGE_MS 500
 
@@ -295,9 +296,16 @@ static void stop_up_if_max_height_reached(int height_mm)
 static void height_safety_task(void *arg)
 {
     (void)arg;
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    TickType_t last_diag_tick = 0;
+#endif
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(HEIGHT_SAFETY_POLL_MS));
-        if ((uint8_t)atomic_load(&s_dr) != DR_UP) {
+        uint8_t dr = (uint8_t)atomic_load(&s_dr);
+        if (dr != DR_UP && dr != DR_DOWN) {
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+            last_diag_tick = 0;
+#endif
             continue;
         }
 
@@ -305,6 +313,25 @@ static void height_safety_task(void *arg)
         int anchor_mm = atomic_load(&s_safety_anchor_mm);
         int anchor_age_ms = elapsed_ms_since(
             atomic_load(&s_safety_anchor_tick), now);
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+        if (last_diag_tick == 0 ||
+            elapsed_ms_since((uint_fast32_t)last_diag_tick, now) >=
+                HEIGHT_MOTION_DIAG_INTERVAL_MS) {
+            int height_mm = atomic_load(&s_height_mm);
+            int height_age_ms = elapsed_ms_since(
+                atomic_load(&s_height_tick), now);
+            ESP_LOGI(TAG,
+                     "motion state dir=%s dr=0x%02X height=%d height_age=%d ms max=%d anchor=%d anchor_age=%d ms latch=%d target=%d",
+                     dr == DR_UP ? "up" : "down", dr, height_mm,
+                     height_age_ms, atomic_load(&s_max_height_mm), anchor_mm,
+                     anchor_age_ms, (int)atomic_load(&s_up_limit_latched),
+                     atomic_load(&s_preset_target_mm));
+            last_diag_tick = now;
+        }
+#endif
+        if (dr != DR_UP) {
+            continue;
+        }
         if (anchor_mm < YOURDESK_HEIGHT_FEEDBACK_MIN_MM) {
             /*
              * Height acquisition is observational: a temporarily missing

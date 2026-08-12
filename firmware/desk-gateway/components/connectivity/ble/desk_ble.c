@@ -134,6 +134,9 @@ static esp_err_t execute_command(desk_ble_command_t command)
     esp_err_t err;
     switch (command) {
     case DESK_BLE_COMMAND_STOP:
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+        ESP_LOGI(TAG, "motion ingress source=bluetooth command=stop");
+#endif
         cancel_hold_lease();
         take_motion_ownership(false);
         return desk_core_stop();

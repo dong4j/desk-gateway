@@ -349,6 +349,9 @@ static esp_err_t handler_cmd(httpd_req_t *req)
     } else if (strstr(uri, "/desk/down")) {
         err = desk_core_hold_down(DESK_CONTROL_SOURCE_REST);
     } else if (strstr(uri, "/desk/stop")) {
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+        ESP_LOGI(TAG, "motion ingress source=rest command=stop uri=%s", uri);
+#endif
         err = desk_core_stop();
     } else if (strstr(uri, "/presets")) {
         char body[96];

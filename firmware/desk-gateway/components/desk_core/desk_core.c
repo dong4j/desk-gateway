@@ -58,6 +58,53 @@ static int s_preset4_height_mm = DESK_PRESET4_HEIGHT_MM_DEFAULT;
 static desk_jog_direction_t s_jog_pending_direction;
 static uint32_t s_jog_last_event_ms;
 
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+/** Keep UP and DOWN diagnostics structurally identical for direct comparison. */
+static const char *motion_status_name(desk_status_t status)
+{
+    switch (status) {
+    case DESK_STATUS_IDLE:
+        return "idle";
+    case DESK_STATUS_MOVING_UP:
+        return "moving_up";
+    case DESK_STATUS_MOVING_DOWN:
+        return "moving_down";
+    case DESK_STATUS_GOTO_PRESET:
+        return "goto_preset";
+    case DESK_STATUS_ERROR:
+        return "error";
+    default:
+        return "unknown";
+    }
+}
+
+/** Log a manual hold without calling any extra driver getter with side effects. */
+static void log_hold_request(const desk_driver_t *drv,
+                             desk_control_source_t source, bool upward,
+                             uint32_t lease_ms)
+{
+    desk_status_t status = drv && drv->get_status ? drv->get_status()
+                                                   : DESK_STATUS_ERROR;
+    desk_status_t expected = upward ? DESK_STATUS_MOVING_UP
+                                    : DESK_STATUS_MOVING_DOWN;
+    ESP_LOGI(TAG,
+             "motion request source=%s mode=hold dir=%s action=%s status=%s lease=%lu ms",
+             desk_control_source_name(source), upward ? "up" : "down",
+             status == expected ? "renew" : "start",
+             motion_status_name(status), (unsigned long)lease_ms);
+}
+
+static void log_hold_result(desk_control_source_t source, bool upward,
+                            esp_err_t err)
+{
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "motion request source=%s mode=hold dir=%s rejected=%s",
+                 desk_control_source_name(source), upward ? "up" : "down",
+                 esp_err_to_name(err));
+    }
+}
+#endif
+
 #if CONFIG_DESK_SIM_HEIGHT
 static int s_sim_mm;
 static int64_t s_sim_last_us;
@@ -125,7 +172,8 @@ static void hold_timer_cb(void *arg)
     if (drv && drv->stop) {
         (void)drv->stop();
     }
-    ESP_LOGW(TAG, "%s", was_jog ? "jog event gap -> stop" : "hold timeout -> stop");
+    ESP_LOGW(TAG, "motion stop source=core reason=%s",
+             was_jog ? "jog_event_gap" : "hold_timeout");
 }
 
 static void arm_hold_ms(uint32_t ms)
@@ -452,6 +500,12 @@ esp_err_t desk_core_stop(void)
     if (!drv || !drv->stop) {
         return ESP_ERR_INVALID_STATE;
     }
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    desk_status_t status = drv->get_status ? drv->get_status()
+                                           : DESK_STATUS_ERROR;
+    ESP_LOGI(TAG, "motion stop source=core reason=explicit status=%s",
+             motion_status_name(status));
+#endif
     return drv->stop();
 }
 
@@ -550,7 +604,15 @@ esp_err_t desk_core_hold_up(desk_control_source_t source)
         return err;
     }
     s_jog_pending_direction = DESK_JOG_NONE;
-    return hold_up_for_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    const desk_driver_t *drv = desk_driver_get_active();
+    log_hold_request(drv, source, true, CONFIG_DESK_MOTION_TIMEOUT_MS);
+#endif
+    err = hold_up_for_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    log_hold_result(source, true, err);
+#endif
+    return err;
 }
 
 esp_err_t desk_core_hold_down(desk_control_source_t source)
@@ -560,14 +622,26 @@ esp_err_t desk_core_hold_down(desk_control_source_t source)
         return err;
     }
     s_jog_pending_direction = DESK_JOG_NONE;
-    return hold_down_for_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    const desk_driver_t *drv = desk_driver_get_active();
+    log_hold_request(drv, source, false, CONFIG_DESK_MOTION_TIMEOUT_MS);
+#endif
+    err = hold_down_for_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    log_hold_result(source, false, err);
+#endif
+    return err;
 }
 
 /**
  * 将离散旋钮事件转换成类似长按的运动：首次事件只待命，连续事件启动并续租。
  */
-static esp_err_t jog_event(desk_jog_direction_t direction)
+static esp_err_t jog_event(desk_jog_direction_t direction,
+                           desk_control_source_t source)
 {
+#if !CONFIG_DESK_MOTION_DIAGNOSTICS
+    (void)source;
+#endif
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->get_status) {
         return ESP_ERR_NOT_SUPPORTED;
@@ -580,6 +654,13 @@ static esp_err_t jog_event(desk_jog_direction_t direction)
                                         : DESK_STATUS_MOVING_DOWN;
 
     if (status == expected_status) {
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+        ESP_LOGI(TAG,
+                 "motion request source=%s mode=jog dir=%s action=renew status=%s lease=%u ms",
+                 desk_control_source_name(source),
+                 direction == DESK_JOG_UP ? "up" : "down",
+                 motion_status_name(status), DESK_JOG_LEASE_MS);
+#endif
         s_jog_pending_direction = direction;
         s_jog_last_event_ms = now_ms;
         return direction == DESK_JOG_UP
@@ -603,8 +684,22 @@ static esp_err_t jog_event(desk_jog_direction_t direction)
     s_jog_last_event_ms = now_ms;
 
     if (!should_start) {
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+        ESP_LOGI(TAG,
+                 "motion request source=%s mode=jog dir=%s action=armed status=%s window=%u ms",
+                 desk_control_source_name(source),
+                 direction == DESK_JOG_UP ? "up" : "down",
+                 motion_status_name(status), DESK_JOG_START_WINDOW_MS);
+#endif
         return ESP_OK;
     }
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    ESP_LOGI(TAG,
+             "motion request source=%s mode=jog dir=%s action=start status=%s lease=%u ms",
+             desk_control_source_name(source),
+             direction == DESK_JOG_UP ? "up" : "down",
+             motion_status_name(status), DESK_JOG_LEASE_MS);
+#endif
     return direction == DESK_JOG_UP
                ? hold_up_for_ms(DESK_JOG_LEASE_MS)
                : hold_down_for_ms(DESK_JOG_LEASE_MS);
@@ -616,7 +711,7 @@ esp_err_t desk_core_jog_up(desk_control_source_t source)
     if (err != ESP_OK) {
         return err;
     }
-    return jog_event(DESK_JOG_UP);
+    return jog_event(DESK_JOG_UP, source);
 }
 
 esp_err_t desk_core_jog_down(desk_control_source_t source)
@@ -625,7 +720,7 @@ esp_err_t desk_core_jog_down(desk_control_source_t source)
     if (err != ESP_OK) {
         return err;
     }
-    return jog_event(DESK_JOG_DOWN);
+    return jog_event(DESK_JOG_DOWN, source);
 }
 
 esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)

@@ -60,6 +60,14 @@ menu "Desk Gateway"
         range 1000 60000
         default 15000
 
+    config DESK_MOTION_DIAGNOSTICS
+        bool "Enable detailed motion diagnostics"
+        default y
+        help
+            输出升降入口、首次启动/续租、停止原因，以及运动期间每秒一次的
+            驱动状态快照。用于真机排查断续运动；定位完成后可关闭，且不会
+            改变运动控制、高度解析或安全限制逻辑。
+
     config DESK_BLE_HOLD_LEASE_MS
         int "BLE hold command lease (ms)"
         range 300 2000
