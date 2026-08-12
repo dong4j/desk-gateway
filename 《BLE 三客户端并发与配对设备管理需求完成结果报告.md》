@@ -1,0 +1,127 @@
+# BLE 三客户端并发与配对设备管理需求完成结果报告
+
+## 项目目标
+
+在不改变既有 GATT v1 运动与安全边界的前提下，使 Desk Gateway 支持最多三台 BLE 客户端并发连接、单一运动控制权、显式新设备配对窗口、稳定的 Bond 身份与安全删除，并在 Web、React Native 手机端和 watchOS 端形成一致闭环。
+
+## 最终完成状态
+
+- 软件开发：**完成**
+- 文档、checklist 与工程进度同步：**完成**
+- 主机测试与静态构建：**通过**
+- 三轮完整审查：**通过，已发现问题全部修复**
+- 三台真实设备与升降桌安全矩阵：**未完成**
+- 最终结论：**代码 GO，产品验收 NO-GO**
+
+真实硬件门禁未取得证据，因此本报告不把“软件实现完成”表述为“产品已经验收完成”。
+
+## 完成内容与功能清单
+
+### 固件
+
+- 固定三槽位连接表、连接 generation、防句柄复用误清理与持续广播。
+- State / Config 多订阅 Notify。
+- 单一 BLE 运动 owner、Desk Busy ATT Application Error `0x80`、任意 STOP 与 owner 断连安全停止。
+- Client Info 特征，登记 `watchOS / iOS / Android / unknown`。
+- 配对窗口默认关闭、固定 120 秒、容量 3、满额拒绝且不淘汰旧 Bond。
+- NimBLE Store 与 NVS 匿名 Bond 注册表对账，不向客户端暴露蓝牙地址。
+- Host 命令队列、单删、全删、在线异步断开、`pending/failed` 与可重试原因。
+- Repeat Pairing 清理及 NVS 失败可见状态。
+- 已认证 REST API：查询、开启/关闭配对窗口、单删、全删。
+
+### Web
+
+- 配对设备数量、类型、在线/控制/删除状态展示。
+- 配对窗口倒计时与容量门禁。
+- 单删、全删系统确认，异步轮询，失败原因与逐台重试。
+
+### 手机端
+
+- iOS / Android 在加密连接后写 Client Info，不再用 STOP 作为握手。
+- Busy `0x80` 映射为“另一台设备正在控制”，保持 BLE ready。
+- BLE 活跃时 Bond 管理仍走独立 REST 通道。
+- 配对设备卡片、倒计时、单删/全删确认、失败重试、容量和删除冲突门禁。
+- 缺少 REST 地址或密码时禁用入口并提示“需先配置局域网管理”。
+
+### Apple Watch
+
+- watchOS Client Info 登记。
+- 兼容无 Client Info 的旧固件，且不发送握手 STOP。
+- Busy `0x80` 不断连，保留 STOP 安全写并清理其他排队运动命令。
+- 配对失败提供系统蓝牙设置处理提示。
+
+## 文档同步情况
+
+已经同步：
+
+- `docs/architecture/ble-multi-client-bond-management.md`
+- `docs/architecture/ble-accessory-profile.md`
+- `docs/architecture/apple-watch-control.md`
+- `docs/architecture/mobile-app-technology-selection.md`
+- `docs/architecture/overview.md`
+- `docs/0-requirements.md`
+- `docs/5-current-status-and-priorities.md`
+- `docs/bringup-checklist.md`
+- 根目录中英文 README、手机端 README、Watch README
+
+实施 checklist 中所有可自动验证的开发项均已回填；真实三设备硬件矩阵保持未勾选，符合实际证据。
+
+## 测试情况
+
+| 范围 | 结果 |
+|---|---|
+| ESP-IDF 环境 | `ESP-IDF v6.0.2` 已确认 |
+| 固件 Host 测试 | 全部通过，包含 BLE protocol/session/Bond、Web API/Bond、控制策略与既有驱动向量 |
+| ESP32-S3 隔离构建 | 通过；`desk-gateway.bin` 剩余 18% app 分区空间 |
+| React Native TypeScript | `npm run typecheck` 通过 |
+| React Native 测试 | 36 项全部通过 |
+| Watch Swift 测试 | 14 项全部通过 |
+| 通用 watchOS 构建 | `CODE_SIGNING_ALLOWED=NO` 构建通过 |
+| 差异检查 | `git diff --check` 通过 |
+
+## 审查轮次
+
+### 第 1 轮
+
+- 发现 Repeat Pairing 删除 Store 密钥后 NVS 保存失败会留下运行时正常态旧记录。
+- 修复为可见 `failed` 状态并支持显式重试，补充状态转换测试。
+- 修复提交：`1520bb2c`。
+
+### 第 2 轮
+
+- 发现手机端删除冲突时仍可全删，以及满容量配对按钮视觉状态不一致。
+- 提取纯策略、统一按钮门禁并新增两项测试。
+- 修复提交：`e4d18f4a`。
+
+### 第 3 轮
+
+- 对文档、代码、测试与工程进度做发布前交叉复核。
+- 未发现新的软件问题，全部自动化门禁再次通过。
+- 报告提交：`3d259539`。
+
+审查报告保存在：
+
+- `审查报告/第1轮审查报告.md`
+- `审查报告/第2轮审查报告.md`
+- `审查报告/第3轮审查报告.md`
+
+## 本地提交情况
+
+本需求累计形成 18 个独立本地提交（包含本结果报告提交），覆盖设计冻结、固件小功能、Web、手机、Watch、文档进度与三轮审查修复。除最早已有的设计提交外，本轮执行产生的提交信息均使用中文。未执行 push。
+
+## 遗留问题
+
+唯一未关闭项是 iPhone、Apple Watch、Android 与真实升降桌三台并发安全矩阵，包含同时连接、Notify、Busy、STOP、owner 断连、在线/离线删除、删全部、第四台拒绝、重启恢复和 Wi-Fi 共存续租。
+
+本机只发现已配对但当前未连接的实体 iPhone 12 Pro Max 与 Apple Watch Series 6；未发现可用 Android `adb` 环境。虽然存在多个 USB modem 设备节点，但没有足够证据安全识别目标 ESP32 与桌子现场状态。未执行固件烧录或升降动作。
+
+完成该门禁需要：
+
+1. Android 真机与可用 `adb` 环境；
+2. iPhone、Apple Watch、Android 同时可操作；
+3. 明确目标 ESP32 串口并烧录本次固件；
+4. 人在升降桌旁，逐项执行 `docs/bringup-checklist.md` 的 A.3 矩阵并留存日志。
+
+## 最终状态
+
+**软件实现、文档同步、自动化测试和三轮审查已经完成；真实三客户端硬件验收尚未完成。当前可以合入代码进行硬件验收，但不能宣称产品验收通过。**
