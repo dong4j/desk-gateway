@@ -41,6 +41,28 @@ interface RestStatus {
   git_version?: string;
 }
 
+export type DeskBondKind = 'unknown' | 'watchos' | 'ios' | 'android';
+export type DeskBondDeleteState = 'idle' | 'pending' | 'failed';
+
+export interface DeskBondDevice {
+  id: string;
+  kind: DeskBondKind;
+  label: string;
+  connected: boolean;
+  controlling: boolean;
+  delete_state: DeskBondDeleteState;
+  delete_error: string | null;
+}
+
+export interface DeskBondSnapshot {
+  devices: DeskBondDevice[];
+  capacity: number;
+  pairing_window: {
+    open: boolean;
+    remaining_seconds: number;
+  };
+}
+
 const REQUEST_TIMEOUT_MS = 3_000;
 const MOVING_POLL_MS = 250;
 const IDLE_POLL_MS = 1_000;
@@ -88,12 +110,7 @@ export class DeskRestClient implements DeskClient {
   }
 
   async connect(): Promise<void> {
-    if (!this.baseUrl) {
-      throw this.connectionError('请先设置局域网网关地址');
-    }
-    if (!this.restKey) {
-      throw this.connectionError('请先设置 REST 密码');
-    }
+    this.ensureConfigured();
 
     this.stopPolling();
     this.update({
@@ -159,6 +176,34 @@ export class DeskRestClient implements DeskClient {
     );
     this.stopPolling();
     this.update({ phase: 'disconnected' });
+  }
+
+  /** Bond 管理始终走已认证 REST，即使当前控制通道是 BLE。 */
+  async getBluetoothBonds(): Promise<DeskBondSnapshot> {
+    this.ensureConfigured();
+    return this.request<DeskBondSnapshot>('/api/v1/bluetooth/bonds');
+  }
+
+  async setBluetoothPairingWindow(open: boolean): Promise<void> {
+    this.ensureConfigured();
+    await this.request('/api/v1/bluetooth/pairing-window', {
+      method: open ? 'POST' : 'DELETE',
+    });
+  }
+
+  async deleteBluetoothBond(id: string): Promise<void> {
+    this.ensureConfigured();
+    if (!/^bond_[0-9a-f]{12}$/.test(id)) {
+      throw new Error('无效的蓝牙配对设备 ID');
+    }
+    await this.request(`/api/v1/bluetooth/bonds/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteAllBluetoothBonds(): Promise<void> {
+    this.ensureConfigured();
+    await this.request('/api/v1/bluetooth/bonds', { method: 'DELETE' });
   }
 
   async disconnect(): Promise<void> {
@@ -292,8 +337,10 @@ export class DeskRestClient implements DeskClient {
       const text = await response.text();
       const payload = text ? JSON.parse(text) as Record<string, unknown> : {};
       if (!response.ok) {
-        const code = typeof payload.err === 'string'
-          ? payload.err
+        const code = typeof payload.error === 'string'
+          ? payload.error
+          : typeof payload.err === 'string'
+            ? payload.err
           : `HTTP ${response.status}`;
         const reason = typeof payload.reason === 'string'
           ? ` (${payload.reason})`
@@ -310,6 +357,15 @@ export class DeskRestClient implements DeskClient {
     const error = new Error(message);
     this.update({ phase: 'error', error: message });
     return error;
+  }
+
+  private ensureConfigured(): void {
+    if (!this.baseUrl) {
+      throw this.connectionError('请先设置局域网网关地址');
+    }
+    if (!this.restKey) {
+      throw this.connectionError('请先设置 REST 密码');
+    }
   }
 
   private update(patch: Partial<DeskClientSnapshot>): void {

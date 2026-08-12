@@ -92,6 +92,72 @@ test('maps shared commands and configuration writes to existing REST endpoints',
   client.dispose();
 });
 
+test('queries and manages Bluetooth bonds through authenticated REST endpoints', async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const bonds = {
+    devices: [{
+      id: 'bond_73c98f21a1b2',
+      kind: 'ios',
+      label: 'iPhone · A1B2',
+      connected: true,
+      controlling: false,
+      delete_state: 'idle',
+      delete_error: null,
+    }],
+    capacity: 3,
+    pairing_window: { open: true, remaining_seconds: 119 },
+  };
+  const client = new DeskRestClient(async (url, init) => {
+    requests.push({ url, init });
+    return jsonResponse(url.endsWith('/bonds') && init?.method !== 'DELETE'
+      ? bonds
+      : { ok: true }, init?.method === 'DELETE' ? 202 : 200);
+  });
+  client.configure('desk-gateway.local', 'secret');
+
+  const snapshot = await client.getBluetoothBonds();
+  await client.setBluetoothPairingWindow(true);
+  await client.setBluetoothPairingWindow(false);
+  await client.deleteBluetoothBond('bond_73c98f21a1b2');
+  await client.deleteAllBluetoothBonds();
+
+  assert.equal(snapshot.devices[0].label, 'iPhone · A1B2');
+  assert.deepEqual(
+    requests.map((request) => [
+      new URL(request.url).pathname,
+      request.init?.method ?? 'GET',
+    ]),
+    [
+      ['/api/v1/bluetooth/bonds', 'GET'],
+      ['/api/v1/bluetooth/pairing-window', 'POST'],
+      ['/api/v1/bluetooth/pairing-window', 'DELETE'],
+      ['/api/v1/bluetooth/bonds/bond_73c98f21a1b2', 'DELETE'],
+      ['/api/v1/bluetooth/bonds', 'DELETE'],
+    ],
+  );
+  assert.equal(
+    (requests[4].init?.headers as Record<string, string>)['X-Desk-Key'],
+    'secret',
+  );
+  client.dispose();
+});
+
+test('preserves firmware Bond errors and rejects unsafe IDs locally', async () => {
+  const client = new DeskRestClient(async () =>
+    jsonResponse({ error: 'delete_conflict' }, 409));
+  client.configure('desk-gateway.local', 'secret');
+
+  await assert.rejects(
+    client.deleteAllBluetoothBonds(),
+    /delete_conflict/,
+  );
+  await assert.rejects(
+    client.deleteBluetoothBond('../status'),
+    /无效的蓝牙配对设备 ID/,
+  );
+  client.dispose();
+});
+
 function jsonResponse(payload: unknown, statusCode = 200): Response {
   return new Response(JSON.stringify(payload), {
     status: statusCode,
