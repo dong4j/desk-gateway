@@ -13,7 +13,7 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 - **desk_core:** hold up/down and stop; global child-lock and per-source REST/Bluetooth/panel permissions are persisted in NVS
 - **Height settings retained:** preset and ceiling values remain synchronized and persisted, but are not used for motion until TOF200C provides validated height
 - **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
-- **BLE Accessory Profile:** native NimBLE GATT server with encrypted commands, bonded peers, hold leases, disconnect-stop, and status notifications; closed-loop presets wait for TOF200C
+- **BLE Accessory Profile:** up to three connected Centrals, one motion owner, encrypted Client Info, explicit pairing windows, Bond management, hold leases, disconnect-stop, and status notifications; closed-loop presets wait for TOF200C
 - **Honest unknown height:** Web/REST/BLE keep the height fields but report unknown; SIM and control-box digit parsing are disabled
 
 > The main firmware builds with ESP-IDF 6.0.2. On 2026-08-10, Web hold-to-move
@@ -23,7 +23,9 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 > path validated by commit `3269faa`. LightBlue and the iPhone App have passed their
 > core control paths; closed-loop presets and height limiting now wait for TOF200C.
 > The consolidated abnormal-stop matrix, Android acceptance, and original-panel
-> pass-through / lockout remain open; see the prioritized status document below.
+> pass-through / lockout remain open. The three-client firmware, Web/mobile Bond
+> management, and Watch/mobile Client Info code pass automated gates, but the
+> iPhone + Apple Watch + Android hardware matrix remains open; see the status below.
 
 ## Hardware
 
@@ -105,6 +107,7 @@ NOTICE                     Third-party attributions
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | Architecture overview |
 | [docs/architecture/mqtt-home-assistant.md](./docs/architecture/mqtt-home-assistant.md) | MQTT / Home Assistant integration design (Chinese) |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUIDs, byte protocol, and LightBlue test flow |
+| [docs/architecture/ble-multi-client-bond-management.md](./docs/architecture/ble-multi-client-bond-management.md) | Three-client ownership, pairing windows, and Bond management |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | Bring-up / acceptance checklist |
 | [docs/ui-demos/](./docs/ui-demos/) | Static Web UI style demos |
 | [docs/3-protocol-reverse-notes.md](./docs/3-protocol-reverse-notes.md) | Protocol reverse notes |
@@ -114,10 +117,13 @@ NOTICE                     Third-party attributions
 - [x] Restore hardware I²C Slave `@0x24` as the stable movement transport
 - [x] Validate BLE control with LightBlue and the iPhone App on the real desk
 - [x] Deliver BLE-first / REST-fallback mobile control and synchronized device settings
+- [x] Implement three-client BLE ownership, Client Info, pairing windows, and Web/mobile Bond management
 - [ ] Phase 2 dual‑RJ45 MITM + true panel blocking under child lock
 - [ ] Complete the abnormal-stop matrix and Android hardware acceptance
 - [ ] Integrate TOF200C height, then restore closed-loop presets and the safe ceiling
-- [ ] Apple Watch and dual-ToF implementations (designs are documented)
+- [x] Implement the Apple Watch app and multi-client handshake (hardware acceptance remains open)
+- [ ] Complete the iPhone + Apple Watch + Android three-client hardware matrix
+- [ ] Implement and validate the dual-ToF height source
 - [ ] Matter / Home Assistant integrations
 - [ ] Additional desk drivers (Loctek, Jiecang, …)
 

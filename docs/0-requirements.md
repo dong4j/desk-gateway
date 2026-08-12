@@ -4,18 +4,20 @@
 |---|---|
 | 项目 | Desk Gateway（多厂商升降桌智能网关平台） |
 | 文档编号 | DG-REQ-001 |
-| 版本 | 0.2.8 |
-| 日期 | 2026-08-12 |
+| 版本 | 0.2.9 |
+| 日期 | 2026-08-13 |
 | 状态 | 草案 |
 | 仓库 | 本 Git 仓库根目录 |
 | 架构 | [architecture/overview.md](./architecture/overview.md)、[平台设计定稿](./superpowers/specs/2026-08-06-desk-gateway-platform-design.md)、[MQTT / Home Assistant](./architecture/mqtt-home-assistant.md)、[小米/华为生态调研](./architecture/ecosystem-xiaomi-huawei.md)、[BLE 外设](./architecture/ble-accessory-profile.md) |
 
 本文是本项目的第一篇正式文档，定义要做什么、做到什么算完成，以及分阶段怎么推进。硬件原理图、协议细节、固件实现另立文档。**平台分层与 Web/Driver 契约以架构设计定稿为准**；本文侧重需求与门禁。
 
-> **实现状态（2026-08-12）**：Web、REST、BLE、iPhone App、童锁和来源权限的基础代码已落地。
+> **实现状态（2026-08-13）**：Web、REST、BLE、iPhone App、童锁和来源权限的基础代码已落地。
 > 当前产品固件恢复为硬件 I²C Slave `@0x24`，只负责稳定升、降和停止；控制盒 digit
 > 高度解析与软件模拟 I²C 已停用。高度、闭环档位和最高安全高度运动拦截等待 TOF200C
-> 独立高度源，配置值仍持久化和同步。异常停止矩阵、Android 真机以及双 RJ45 原厂面板
+> 独立高度源，配置值仍持久化和同步。BLE 三连接、运动所有权、配对窗口、Bond 管理、
+> Watch 和手机端适配已经通过自动化与静态构建；三台真机并发、异常停止矩阵、Android
+> 真机以及双 RJ45 原厂面板
 > 透传仍待完成；唯一汇总状态以 [当前状态与任务优先级](./5-current-status-and-priorities.md)
 > 为准，排查决策见 [硬件 I²C 恢复排查记录](./7-hardware-i2c-restoration-investigation.md)。
 
@@ -133,7 +135,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 | WiFi + 本地 Web（REST/短轮询）+ 简单认证 | **必做** | 必做 |
 | Web 现代化 UI + 升降示意图动效 | **必做** | 增强（跟真实高度） |
 | 其他厂商 Driver | stub 占位 | 按需实现 |
-| BLE 外设总线（OLED/旋钮等 GATT） | Command / State v1 与 Config v2 已实现；LightBlue 和 iPhone App 核心路径已验收 | **必做正式**（与 Web 同级数据面） |
+| BLE 外设总线（OLED/旋钮等 GATT） | 三连接、运动所有权、配对窗口和 Bond 管理已实现；LightBlue 和 iPhone App 核心路径已验收，三台真机并发待验收 | **必做正式**（与 Web 同级数据面） |
 | 键盘 / 滚轮侧控制（经电脑或 BLE） | 可选 | 必做 |
 | USB-C 独立供电 | 开发板可先用 | 成品必做 |
 
@@ -306,7 +308,9 @@ MQTT / HA / 久坐提醒 / 更多桌型等，另开需求修订，不阻塞 Phas
 | G-W06 | **BLE Accessory Profile**：Gateway 为 GATT Server；向 OLED/无限旋钮等外设 Notify 高度与状态；Write 控升降/停止；与 `desk_core` 对齐 | P0（代码已实现；LightBlue 与 iPhone App 核心路径已验收） |
 | G-W07 | BLE 未绑定设备默认不可下发运动指令；已绑定外设仍受全局童锁和 Bluetooth 来源权限约束 | P1 |
 | G-W08 | 支持由电脑侧程序或键盘工作流触发（如经 BLE/HTTP）；本仓库不强制实现具体键盘固件 | P1 |
-| G-W09 | （可选）Gateway 作 Central 适配「仅 Peripheral」的成品旋钮——独立适配层，不替代 G-W06 | P2 |
+| G-W09 | 最多三个 BLE Central 同时在线；单一运动所有者，非所有者返回 Desk Busy，任意 STOP 始终有效 | P0（代码与自动化已完成；真机待验收） |
+| G-W10 | 已认证 Web / 手机端支持 120 秒配对窗口、匿名 Bond 列表、单删和全删；Bond 满额不得自动淘汰旧设备 | P0（代码与自动化已完成；真机待验收） |
+| G-W11 | （可选）Gateway 作 Central 适配「仅 Peripheral」的成品旋钮——独立适配层，不替代 G-W06 | P2 |
 
 ### 5.6 配置与运维
 
@@ -459,6 +463,8 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 - [x] 简单密码认证可用；仅局域网
 - [ ] （可选/后门禁）上+下≈5s 重置协议已抓包并文档化
 - [x] 键盘/HTTP 通道可用；BLE GATT 已通过 LightBlue 和 iPhone App 核心真机控制
+- [x] BLE 三连接、运动所有权、配对窗口、Bond 管理和三端 Client Info 代码与自动化完成
+- [ ] iPhone、Apple Watch、Android 三台真机并发与 Bond 删除安全矩阵通过
 - [ ] 异常与上电安全态验证通过
 
 ---

@@ -3,8 +3,8 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-STATUS-001 |
-| 版本 | 1.1 |
-| 日期 | 2026-08-12 |
+| 版本 | 1.2 |
+| 日期 | 2026-08-13 |
 | 作用 | 当前完成度和后续任务的唯一汇总入口 |
 
 本文汇总当前代码状态和用户真机验证结果。协议细节、接线步骤和分层设计仍分别以
@@ -59,6 +59,8 @@
 | P1 | BLE / Wi-Fi 自动回退 | BLE 和指定 IP 的 REST 基本路径已使用；超距自动回退和恢复时序未完整验收 | 不重放运动命令，切换后状态和配置一致 |
 | P1 | Android 真机 | 跨平台代码已存在，尚未完成 Android BLE 权限、配对和控制验收 | Android 完成扫描、配对、Notify、Write 和异常停止 |
 | P1 | iOS 连接稳定性 | 已完成日常控制，尚未执行连续 20 次连接/断开及权限异常矩阵 | 无需重启手机或 ESP32 即可恢复 |
+| P0 | BLE 三客户端与 Bond 管理 | 固件、Web、手机和 Watch 代码及自动化已完成；尚未在 iPhone、Apple Watch、Android 与真实桌子上执行并发安全矩阵 | 三台同时在线，所有权、任意 STOP、断连、单删/全删、配对窗口和重启全部通过 |
+| P1 | Apple Watch 真机 | SwiftUI/CoreBluetooth App、Client Info、Busy 处理、14 项测试和通用构建已完成 | 真机扫描、配对、Notify、Crown 安全停止及三客户端并发通过 |
 | P1 | Karabiner 旋钮连续升降 | 每个刻度直接发送一次 jog REST 请求，ESP32 使用 700 ms 启动窗口和 500 ms 运动租约；真桌连续升降与停转距离已验收 | 连续旋转无意外中断，停转约 500 ms、反向和断网均可及时停止 |
 | P1 | 移动端发布 | 当前为 Development Build | 完成 TestFlight、Android 内测、签名和发布说明 |
 
@@ -78,16 +80,15 @@
 
 ### P1：完成跨平台和安全验收
 
-1. Android 真机技术验证与正式 UI 验收。
-2. BLE / Wi-Fi 自动回退、权限拒绝、断连和恢复矩阵。
-3. 固件与 App 的异常停止、重启、掉电和后台安全测试。
-4. TestFlight / Android 内测打包和发布文档。
+1. iPhone、Apple Watch、Android 三客户端并发和 Bond 删除安全矩阵。
+2. Android 真机技术验证与正式 UI 验收。
+3. BLE / Wi-Fi 自动回退、权限拒绝、断连和恢复矩阵。
+4. 固件与 App 的异常停止、重启、掉电和后台安全测试。
+5. TestFlight / Android 内测打包和发布文档。
 
 ### P2：已设计的新硬件与客户端
 
-1. **Apple Watch App：** 已冻结 SwiftUI + CoreBluetooth 直连方案，尚未创建 watchOS
-   Target；见 [Apple Watch 控制方案](./architecture/apple-watch-control.md)。
-2. **双 ToF 传感器：** TOF050C + TOF200C 的接线、地址和安全边界已按当前决策更新，硬件未到货，
+1. **双 ToF 传感器：** TOF050C + TOF200C 的接线、地址和安全边界已按当前决策更新，硬件未到货，
    驱动未实现；见 [双 ToF 接入方案](./4-tof-distance-sensor-plan.md)。
 
 ### P3：生态和扩展能力
@@ -103,7 +104,7 @@
 ## 5. 推荐执行顺序
 
 1. 先烧录硬件 I²C 固件，验收 Web、REST、BLE 的连续升降和停止。
-2. 等待 TOF200C 期间完成 P0 异常停止矩阵和 P1 Android 真机验证。
+2. 等待 TOF200C 期间完成 P0 异常停止矩阵、三客户端并发和 Android 真机验证。
 3. TOF200C 到货后接入独立高度源，再恢复档位闭环和最高安全高度。
 4. 面包板到货后再继续原厂面板抓包、透传、仲裁和童锁真屏蔽。
 5. P3 生态功能在现有控制闭环稳定后单独立项。

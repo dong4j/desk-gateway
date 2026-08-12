@@ -33,6 +33,32 @@ Slave `@0x24`。此前软件多地址 I²C 的高度与档位验收只作为历�
 完整 UUID、字节格式和操作步骤见
 [`architecture/ble-accessory-profile.md`](./architecture/ble-accessory-profile.md)。
 
+### A.2 BLE 三客户端与配对设备管理
+
+自动化门禁（2026-08-13）：
+
+- [x] ESP-IDF v6.0.2 隔离固件构建与 BLE/Web 主机测试通过
+- [x] Web Bond 管理 JavaScript 语法与策略测试通过
+- [x] 手机端 `npm run typecheck` 与 34 项测试通过
+- [x] Watch `swift test` 14 项与通用 watchOS 无签名构建通过
+- [x] `git diff --check` 通过
+
+三台真机门禁（固定使用 iPhone、Apple Watch、Android，测试运动时必须有人在桌旁）：
+
+- [ ] 三台依次在 120 秒窗口内配对并同时保持连接，且持续收到一致 State / Config Notify
+- [ ] 第一台控制运动后，另两台显示“另一台设备正在控制”且 BLE 不断开
+- [ ] 任意非所有者 STOP 可立即停止并释放所有权
+- [ ] 非所有者断开不影响运动；所有者断开、杀进程或失联在安全时限内停止
+- [ ] 三台在线时 HOLD 续租不因 Wi-Fi 共存超时
+- [ ] 单删在线所有者先 STOP、再断开并删除 Bond；单删离线设备不影响其他连接
+- [ ] 删除全部先 STOP、断开三台、清除 Bond，并恢复可配对广播
+- [ ] 配对窗口关闭或 Bond 满额时第四台无法占用名额，三个旧 Bond 不被淘汰
+- [ ] 被删除设备重新打开窗口后进入系统配对；本地旧 Bond 冲突时 App 给出系统设置提示
+- [ ] REST 或原厂面板接管后，旧 BLE 所有者断开不停止新的运动来源
+- [ ] 重启后配对窗口关闭，Bond 列表、客户端类型和三连接能力符合预期
+
+本节全部真机项完成前，BLE 多客户端结论保持**代码 GO、产品验收 NO-GO**。
+
 ## B. 接线（yourdesk_v1 + RJ45）
 
 电源与安全：

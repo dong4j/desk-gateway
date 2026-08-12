@@ -13,14 +13,16 @@
 - **desk_core：** 按住升/降与停止；全局童锁与 REST/蓝牙/面板来源权限使用 NVS 保存
 - **高度配置继续保存：** 档位和最高安全高度仍跨 Web/App 同步并持久化，但 TOF200C 接入前不参与运动
 - **Wi‑Fi + SoftAP 配网** 与带密码的 **局域网 Web**
-- **BLE Accessory Profile：** 原生 NimBLE GATT Server；控制写入需加密和绑定，支持长按租约、断连停止与状态 Notify；闭环档位等待 TOF200C
+- **BLE Accessory Profile：** 最多三个 Central 同时在线、单一运动所有者、加密 Client Info、显式配对窗口和 Bond 管理，并保留长按租约、断连停止与状态 Notify；闭环档位等待 TOF200C
 - **高度诚实未知：** Web/REST/BLE 保留高度字段，但统一返回未知；关闭 SIM 和控制盒 digit 高度解析
 
 > 当前主固件已通过 ESP-IDF 6.0.2 编译。2026-08-10 补回原厂面板上的两只外部上拉后，
 > Web 按住升/降与松手停止已通过真机验证。后续软件多地址 I²C 高度方案造成连续运动回归，
 > 因此默认固件已回到提交 `3269faa` 验证过的硬件 `0x24` 路径。LightBlue 和 iPhone App
 > 核心控制路径保留；高度闭环档位和最高安全高度等待 TOF200C 接入后恢复。
-> 当前仍需完成异常停止矩阵、Android 验收，以及双 RJ45 原面板透传、仲裁和童锁真屏蔽；
+> 三客户端固件、Web/手机 Bond 管理及 Watch/手机 Client Info 已通过自动化，但 iPhone、
+> Apple Watch、Android 三台真机矩阵仍未执行。还需完成异常停止矩阵、Android 验收，
+> 以及双 RJ45 原面板透传、仲裁和童锁真屏蔽；
 > 统一顺序见下方“当前状态与剩余任务优先级”文档。
 
 ## 硬件
@@ -101,6 +103,7 @@ NOTICE                        第三方声明
 | [docs/7-hardware-i2c-restoration-investigation.md](./docs/7-hardware-i2c-restoration-investigation.md) | 从软件 I²C 回退到硬件 I²C 的排查记录 |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | 架构总览 |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUID、字节协议与 LightBlue 测试步骤 |
+| [docs/architecture/ble-multi-client-bond-management.md](./docs/architecture/ble-multi-client-bond-management.md) | 三客户端所有权、配对窗口与 Bond 管理 |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | 到货 / 真机验收 |
 | [docs/ui-demos/](./docs/ui-demos/) | Web 风格静态 Demo |
 | [docs/3-protocol-reverse-notes.md](./docs/3-protocol-reverse-notes.md) | 协议逆向笔记 |
@@ -110,10 +113,13 @@ NOTICE                        第三方声明
 - [x] 恢复硬件 I²C Slave `@0x24` 作为稳定运动链路
 - [x] LightBlue 和 iPhone App 已在真桌完成 BLE 核心控制
 - [x] 手机 App 已实现 BLE 优先、REST 回退和设备设置同步
+- [x] 实现 BLE 三连接所有权、Client Info、配对窗口和 Web/手机 Bond 管理
 - [ ] Phase 2 双 RJ45 MITM 透传恢复 + 面板权限/童锁真机验收
 - [ ] 完成异常停止矩阵和 Android 真机验收
 - [ ] 接入 TOF200C 高度，再恢复档位闭环和最高安全高度
-- [ ] Apple Watch 与双 ToF 实现（当前只有设计）
+- [x] 实现 Apple Watch App 与多客户端握手（真机验收仍开放）
+- [ ] 完成 iPhone、Apple Watch、Android 三台真机并发矩阵
+- [ ] 实现并验收双 ToF 高度源
 - [ ] Matter / Home Assistant
 - [ ] 更多厂商 Driver
 
