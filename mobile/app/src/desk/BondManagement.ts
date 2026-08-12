@@ -26,6 +26,24 @@ export function bondPollIntervalMs(snapshot: DeskBondSnapshot): number {
   return snapshot.pairing_window.open || deleting ? 1_000 : 5_000;
 }
 
+/** pending/failed 都要求用户逐台处理，不能再发起批量删除。 */
+export function hasBondDeleteConflict(
+  snapshot: DeskBondSnapshot | null,
+): boolean {
+  return snapshot?.devices.some(
+    (device) => device.delete_state !== 'idle',
+  ) ?? false;
+}
+
+/** 容量已满时只允许关闭已打开的窗口，不能再次开放新配对。 */
+export function isBondPairingCapacityBlocked(
+  snapshot: DeskBondSnapshot | null,
+): boolean {
+  return snapshot !== null &&
+    !snapshot.pairing_window.open &&
+    snapshot.devices.length >= snapshot.capacity;
+}
+
 export function bondErrorMessage(error: unknown): string {
   const detail = error instanceof Error ? error.message : String(error);
   if (detail.includes('delete_conflict')) {

@@ -7,7 +7,9 @@ import {
   bondErrorMessage,
   bondPollIntervalMs,
   bondStatusText,
+  hasBondDeleteConflict,
   isBondManagementConfigured,
+  isBondPairingCapacityBlocked,
 } from '../src/desk/BondManagement';
 import type { DeskBondSnapshot } from '../src/desk/DeskRestClient';
 
@@ -58,6 +60,31 @@ test('maps stable firmware management errors to actionable copy', () => {
     bondErrorMessage(new Error('unauthorized')),
     'REST 认证失效，请重新保存局域网管理密码',
   );
+});
+
+test('blocks batch deletion while a device is pending or failed', () => {
+  assert.equal(hasBondDeleteConflict(snapshot), false);
+  assert.equal(hasBondDeleteConflict({
+    ...snapshot,
+    devices: [{ ...snapshot.devices[0], delete_state: 'pending' }],
+  }), true);
+  assert.equal(hasBondDeleteConflict({
+    ...snapshot,
+    devices: [{ ...snapshot.devices[0], delete_state: 'failed' }],
+  }), true);
+});
+
+test('blocks opening a pairing window only when capacity is full', () => {
+  const full = {
+    ...snapshot,
+    capacity: 1,
+  };
+  assert.equal(isBondPairingCapacityBlocked(full), true);
+  assert.equal(isBondPairingCapacityBlocked({
+    ...full,
+    pairing_window: { open: true, remaining_seconds: 120 },
+  }), false);
+  assert.equal(isBondPairingCapacityBlocked(snapshot), false);
 });
 
 test('requires both a gateway address and REST password', () => {

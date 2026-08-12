@@ -28,7 +28,9 @@ import {
   bondErrorMessage,
   bondPollIntervalMs,
   bondStatusText,
+  hasBondDeleteConflict,
   isBondManagementConfigured,
+  isBondPairingCapacityBlocked,
 } from '../desk/BondManagement';
 import type {
   DeskBondDevice,
@@ -133,6 +135,10 @@ export function SettingsScreen({
   const [bondMessage, setBondMessage] = useState<string | null>(null);
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
   const bondManagementAvailable = isBondManagementConfigured(restHost, restKey);
+  const bondPairingDisabled = !bondManagementAvailable || bondBusy !== null ||
+    isBondPairingCapacityBlocked(bondSnapshot);
+  const bondDeleteAllDisabled = !bondManagementAvailable || bondBusy !== null ||
+    !bondSnapshot?.devices.length || hasBondDeleteConflict(bondSnapshot);
 
   useEffect(() => {
     setMaxHeightDraft(String(maxHeightCm));
@@ -432,9 +438,7 @@ export function SettingsScreen({
             </View>
             <Pressable
               accessibilityRole="button"
-              disabled={!bondManagementAvailable || bondBusy !== null ||
-                (!bondSnapshot?.pairing_window.open &&
-                  bondSnapshot?.devices.length === bondSnapshot?.capacity)}
+              disabled={bondPairingDisabled}
               onPress={() => void runBondOperation(
                 'pairing',
                 () => onSetBluetoothPairingWindow(
@@ -446,8 +450,8 @@ export function SettingsScreen({
               )}
               style={({ pressed }) => [
                 styles.bondPairingButton,
-                (!bondManagementAvailable || bondBusy !== null) && styles.disabled,
-                pressed && styles.pressed,
+                bondPairingDisabled && styles.disabled,
+                pressed && !bondPairingDisabled && styles.pressed,
               ]}
             >
               <Text style={styles.bondPairingText}>
@@ -495,14 +499,12 @@ export function SettingsScreen({
           ) : null}
           <Pressable
             accessibilityRole="button"
-            disabled={!bondManagementAvailable || bondBusy !== null ||
-              !bondSnapshot?.devices.length}
+            disabled={bondDeleteAllDisabled}
             onPress={confirmDeleteAllBonds}
             style={({ pressed }) => [
               styles.bondDeleteAll,
-              (!bondManagementAvailable || bondBusy !== null ||
-                !bondSnapshot?.devices.length) && styles.disabled,
-              pressed && styles.pressed,
+              bondDeleteAllDisabled && styles.disabled,
+              pressed && !bondDeleteAllDisabled && styles.pressed,
             ]}
           >
             <Text style={styles.bondDeleteAllText}>删除全部配对设备</Text>

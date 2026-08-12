@@ -39,7 +39,7 @@ Slave `@0x24`。此前软件多地址 I²C 的高度与档位验收只作为历�
 
 - [x] ESP-IDF v6.0.2 隔离固件构建与 BLE/Web 主机测试通过
 - [x] Web Bond 管理 JavaScript 语法与策略测试通过
-- [x] 手机端 `npm run typecheck` 与 34 项测试通过
+- [x] 手机端 `npm run typecheck` 与 36 项测试通过
 - [x] Watch `swift test` 14 项与通用 watchOS 无签名构建通过
 - [x] `git diff --check` 通过
 
