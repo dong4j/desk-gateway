@@ -30,6 +30,18 @@
     let holding = false;
     let renewTimer = null;
     let writeInFlight = false;
+    let writeTail = Promise.resolve();
+
+    /*
+     * HTTP requests may complete out of issue order. Keep one FIFO so a
+     * pointer-release STOP can never be overtaken by an already-started UP or
+     * DOWN renewal.
+     */
+    const enqueueSend = (path) => {
+      const operation = writeTail.then(() => send(path));
+      writeTail = operation.catch(() => undefined);
+      return operation;
+    };
 
     const clearRenewTimer = () => {
       if (renewTimer !== null) {
@@ -42,7 +54,7 @@
       if (!holding || writeInFlight) return;
       writeInFlight = true;
       try {
-        await send(startPath);
+        await enqueueSend(startPath);
       } catch (error) {
         holding = false;
         clearRenewTimer();
@@ -79,7 +91,7 @@
         }
       } catch (_) { /* Pointer capture may already have been released. */ }
       try {
-        await send('/api/v1/desk/stop');
+        await enqueueSend('/api/v1/desk/stop');
       } catch (error) {
         onStopError(error);
       }
