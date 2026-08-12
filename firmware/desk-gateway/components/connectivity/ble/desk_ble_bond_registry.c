@@ -1,0 +1,283 @@
+/**
+ * @file desk_ble_bond_registry.c
+ * @brief 固定容量 BLE Bond 注册表实现。
+ */
+#include "desk_ble_bond_registry.h"
+
+#include <stdio.h>
+#include <string.h>
+
+static bool opaque_id_equal(
+    const uint8_t left[DESK_BLE_BOND_OPAQUE_ID_LENGTH],
+    const uint8_t right[DESK_BLE_BOND_OPAQUE_ID_LENGTH])
+{
+    return memcmp(left, right, DESK_BLE_BOND_OPAQUE_ID_LENGTH) == 0;
+}
+
+static bool opaque_id_exists(const desk_ble_bond_registry_t *registry,
+                             const uint8_t opaque_id[
+                                 DESK_BLE_BOND_OPAQUE_ID_LENGTH])
+{
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        const desk_ble_bond_record_t *record = &registry->records[i];
+        if (record->in_use &&
+            opaque_id_equal(record->opaque_id, opaque_id)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool identity_in_list(const desk_ble_peer_identity_t *identity,
+                             const desk_ble_peer_identity_t *identities,
+                             size_t identity_count)
+{
+    for (size_t i = 0; i < identity_count; ++i) {
+        if (desk_ble_peer_identity_equal(identity, &identities[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void desk_ble_bond_registry_init(desk_ble_bond_registry_t *registry)
+{
+    if (registry) {
+        memset(registry, 0, sizeof(*registry));
+    }
+}
+
+size_t desk_ble_bond_registry_count(
+    const desk_ble_bond_registry_t *registry)
+{
+    if (!registry) {
+        return 0;
+    }
+    size_t count = 0;
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        count += registry->records[i].in_use ? 1U : 0U;
+    }
+    return count;
+}
+
+bool desk_ble_peer_identity_equal(const desk_ble_peer_identity_t *left,
+                                  const desk_ble_peer_identity_t *right)
+{
+    return left && right && left->type == right->type &&
+           memcmp(left->value, right->value,
+                  DESK_BLE_PEER_ADDRESS_LENGTH) == 0;
+}
+
+desk_ble_bond_record_t *desk_ble_bond_registry_find_identity(
+    desk_ble_bond_registry_t *registry,
+    const desk_ble_peer_identity_t *identity)
+{
+    if (!registry || !identity) {
+        return NULL;
+    }
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        desk_ble_bond_record_t *record = &registry->records[i];
+        if (record->in_use &&
+            desk_ble_peer_identity_equal(&record->identity, identity)) {
+            return record;
+        }
+    }
+    return NULL;
+}
+
+const desk_ble_bond_record_t *desk_ble_bond_registry_find_identity_const(
+    const desk_ble_bond_registry_t *registry,
+    const desk_ble_peer_identity_t *identity)
+{
+    if (!registry || !identity) {
+        return NULL;
+    }
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        const desk_ble_bond_record_t *record = &registry->records[i];
+        if (record->in_use &&
+            desk_ble_peer_identity_equal(&record->identity, identity)) {
+            return record;
+        }
+    }
+    return NULL;
+}
+
+bool desk_ble_bond_format_id(const desk_ble_bond_record_t *record,
+                             char *out, size_t out_size)
+{
+    if (!record || !record->in_use || !out ||
+        out_size < DESK_BLE_BOND_ID_TEXT_LENGTH) {
+        return false;
+    }
+    int length = snprintf(
+        out, out_size, "bond_%02x%02x%02x%02x%02x%02x",
+        record->opaque_id[0], record->opaque_id[1], record->opaque_id[2],
+        record->opaque_id[3], record->opaque_id[4], record->opaque_id[5]);
+    return length == DESK_BLE_BOND_ID_TEXT_LENGTH - 1;
+}
+
+desk_ble_bond_record_t *desk_ble_bond_registry_find_id(
+    desk_ble_bond_registry_t *registry, const char *bond_id)
+{
+    if (!registry || !bond_id) {
+        return NULL;
+    }
+    char formatted[DESK_BLE_BOND_ID_TEXT_LENGTH];
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        desk_ble_bond_record_t *record = &registry->records[i];
+        if (desk_ble_bond_format_id(record, formatted, sizeof(formatted)) &&
+            strcmp(formatted, bond_id) == 0) {
+            return record;
+        }
+    }
+    return NULL;
+}
+
+static desk_ble_bond_record_t *find_free_record(
+    desk_ble_bond_registry_t *registry)
+{
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        if (!registry->records[i].in_use) {
+            return &registry->records[i];
+        }
+    }
+    return NULL;
+}
+
+static bool add_identity(desk_ble_bond_registry_t *registry,
+                         const desk_ble_peer_identity_t *identity,
+                         desk_ble_bond_random_fn random_fn,
+                         void *random_context)
+{
+    desk_ble_bond_record_t *record = find_free_record(registry);
+    if (!record || !random_fn) {
+        return false;
+    }
+    uint8_t candidate[DESK_BLE_BOND_OPAQUE_ID_LENGTH];
+    bool generated = false;
+    for (size_t attempt = 0; attempt < DESK_BLE_BOND_RANDOM_ATTEMPTS;
+         ++attempt) {
+        if (!random_fn(candidate, random_context)) {
+            return false;
+        }
+        if (!opaque_id_exists(registry, candidate)) {
+            generated = true;
+            break;
+        }
+    }
+    if (!generated) {
+        return false;
+    }
+
+    memset(record, 0, sizeof(*record));
+    record->in_use = true;
+    record->identity = *identity;
+    memcpy(record->opaque_id, candidate, sizeof(record->opaque_id));
+    record->client_kind = DESK_BLE_CLIENT_UNKNOWN;
+    return true;
+}
+
+bool desk_ble_bond_registry_reconcile(
+    desk_ble_bond_registry_t *registry,
+    const desk_ble_peer_identity_t *identities, size_t identity_count,
+    desk_ble_bond_random_fn random_fn, void *random_context,
+    bool *out_changed)
+{
+    if (out_changed) {
+        *out_changed = false;
+    }
+    if (!registry || identity_count > DESK_BLE_BOND_CAPACITY ||
+        (identity_count > 0 && !identities)) {
+        return false;
+    }
+    for (size_t i = 0; i < identity_count; ++i) {
+        for (size_t j = i + 1; j < identity_count; ++j) {
+            if (desk_ble_peer_identity_equal(&identities[i],
+                                             &identities[j])) {
+                return false;
+            }
+        }
+    }
+
+    /* 在副本上完成整个对账，失败时不会留下已删孤儿或半条新记录。 */
+    desk_ble_bond_registry_t next = *registry;
+    bool changed = false;
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        desk_ble_bond_record_t *record = &next.records[i];
+        if (record->in_use &&
+            !identity_in_list(&record->identity, identities,
+                              identity_count)) {
+            memset(record, 0, sizeof(*record));
+            changed = true;
+        }
+    }
+    for (size_t i = 0; i < identity_count; ++i) {
+        if (!desk_ble_bond_registry_find_identity(&next, &identities[i])) {
+            if (!add_identity(&next, &identities[i], random_fn,
+                              random_context)) {
+                return false;
+            }
+            changed = true;
+        }
+    }
+    *registry = next;
+    if (out_changed) {
+        *out_changed = changed;
+    }
+    return true;
+}
+
+bool desk_ble_bond_registry_remove(
+    desk_ble_bond_registry_t *registry,
+    const desk_ble_peer_identity_t *identity)
+{
+    desk_ble_bond_record_t *record =
+        desk_ble_bond_registry_find_identity(registry, identity);
+    if (!record) {
+        return false;
+    }
+    memset(record, 0, sizeof(*record));
+    return true;
+}
+
+const char *desk_ble_client_kind_name(desk_ble_client_kind_t kind)
+{
+    switch (kind) {
+    case DESK_BLE_CLIENT_WATCHOS:
+        return "watchos";
+    case DESK_BLE_CLIENT_IOS:
+        return "ios";
+    case DESK_BLE_CLIENT_ANDROID:
+        return "android";
+    case DESK_BLE_CLIENT_UNKNOWN:
+    default:
+        return "unknown";
+    }
+}
+
+bool desk_ble_bond_format_label(const desk_ble_bond_record_t *record,
+                                char *out, size_t out_size)
+{
+    if (!record || !record->in_use || !out || out_size == 0) {
+        return false;
+    }
+    const char *prefix;
+    switch (record->client_kind) {
+    case DESK_BLE_CLIENT_WATCHOS:
+        prefix = "Apple Watch";
+        break;
+    case DESK_BLE_CLIENT_IOS:
+        prefix = "iPhone";
+        break;
+    case DESK_BLE_CLIENT_ANDROID:
+        prefix = "Android";
+        break;
+    case DESK_BLE_CLIENT_UNKNOWN:
+    default:
+        prefix = "未知设备";
+        break;
+    }
+    int length = snprintf(out, out_size, "%s · %02X%02X", prefix,
+                          record->opaque_id[4], record->opaque_id[5]);
+    return length > 0 && (size_t)length < out_size;
+}
