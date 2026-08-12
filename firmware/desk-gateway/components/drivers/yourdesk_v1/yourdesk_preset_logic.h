@@ -20,8 +20,6 @@
 #define YOURDESK_HEIGHT_MAX_MM 1290
 /* Fragmented display transitions may legitimately arrive in larger batches. */
 #define YOURDESK_HEIGHT_TRANSITION_MAX_SPEED_MM_PER_S 35
-/* Capture-derived 24 mm/s travel plus measured safety headroom. */
-#define YOURDESK_UP_SAFETY_MAX_SPEED_MM_PER_S 27
 
 typedef enum {
     YOURDESK_PRESET_STOP = 0,
@@ -70,19 +68,3 @@ bool yourdesk_height_transition_valid(
     int previous_mm, int candidate_mm, int elapsed_ms,
     yourdesk_preset_direction_t direction, bool resync_pending,
     int max_speed_mm_per_s, int step_slack_mm);
-
-/** Conservative upward position envelope used between sparse display frames. */
-int yourdesk_projected_up_height_mm(int anchor_mm, int elapsed_ms,
-                                   int max_speed_mm_per_s);
-
-/**
- * Decide whether sparse upward feedback requires a predictive stop.
- *
- * The configured margin applies only to a recent, bounded extrapolation. A
- * second uncapped envelope has no margin and remains the absolute fail-safe,
- * so stale feedback cannot make the desk cross the configured ceiling.
- */
-bool yourdesk_predictive_max_height_reached(
-    int anchor_mm, int elapsed_ms, int max_speed_mm_per_s,
-    int max_height_mm, int stop_margin_mm,
-    int margin_projection_max_age_ms);

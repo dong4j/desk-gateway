@@ -67,27 +67,6 @@ int main(void)
     assert(!yourdesk_height_transition_valid(
         1030, 500, 100, YOURDESK_PRESET_DOWN, true, 35, 20));
 
-    /* A 94 cm anchor projects to the 101 cm early-stop boundary in 2 s. */
-    assert(yourdesk_projected_up_height_mm(940, 2000, 35) == 1010);
-
-    /*
-     * Real imperial feedback may refresh more slowly than the 10 mm margin.
-     * Cap only that margin projection; the uncapped hard envelope still stops
-     * exactly at the configured 1040 mm ceiling.
-     */
-    assert(!yourdesk_predictive_max_height_reached(
-        991, 1110, 35, 1040, 10, 500));
-    assert(yourdesk_predictive_max_height_reached(
-        991, 1400, 35, 1040, 10, 500));
-    assert(yourdesk_predictive_max_height_reached(
-        1016, 400, 35, 1040, 10, 500));
-
-    /* A mid-travel anchor cannot trigger the ceiling observer prematurely. */
-    assert(!yourdesk_predictive_max_height_reached(
-        838, 5000, 35, 1040, 10, 500));
-    assert(yourdesk_predictive_max_height_reached(
-        838, 5800, 35, 1040, 10, 500));
-
     puts("yourdesk preset logic vectors: OK");
     return 0;
 }

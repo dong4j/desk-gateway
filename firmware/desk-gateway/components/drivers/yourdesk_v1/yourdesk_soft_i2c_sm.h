@@ -49,6 +49,8 @@ typedef struct {
     uint8_t tx_dr;
     bool drive_sda_low;
     bool pending_digit;
+    /** True after the current write byte and its ACK clock completed. */
+    bool data_byte_completed;
     uint8_t pending_segment;
 } yourdesk_soft_i2c_sm_t;
 
@@ -58,13 +60,20 @@ void yourdesk_soft_i2c_sm_init(yourdesk_soft_i2c_sm_t *sm, uint8_t initial_dr);
 /** Update the byte returned by the next read from address 0x24. */
 void yourdesk_soft_i2c_sm_set_dr(yourdesk_soft_i2c_sm_t *sm, uint8_t dr);
 
-/** Handle SDA high-to-low while SCL is high. */
-void YOURDESK_SOFT_I2C_ISR_ATTR
-yourdesk_soft_i2c_sm_start(yourdesk_soft_i2c_sm_t *sm);
+/**
+ * Accept SDA high-to-low only at a valid transaction boundary.
+ *
+ * ESP32 GPIO interrupts expose the live SCL level, not the level captured with
+ * the SDA edge. A delayed data edge can therefore arrive after SCL rises and
+ * look like START. Rejecting mid-byte resets prevents an active DR response
+ * from being truncated while still allowing the 0x24 repeated START.
+ */
+bool YOURDESK_SOFT_I2C_ISR_ATTR
+yourdesk_soft_i2c_sm_try_start(yourdesk_soft_i2c_sm_t *sm);
 
-/** Handle SDA low-to-high while SCL is high. */
-void YOURDESK_SOFT_I2C_ISR_ATTR
-yourdesk_soft_i2c_sm_stop(yourdesk_soft_i2c_sm_t *sm);
+/** Accept SDA low-to-high only after a complete transaction boundary. */
+bool YOURDESK_SOFT_I2C_ISR_ATTR
+yourdesk_soft_i2c_sm_try_stop(yourdesk_soft_i2c_sm_t *sm);
 
 /** Sample one bus bit on an SCL rising edge. */
 void YOURDESK_SOFT_I2C_ISR_ATTR

@@ -25,7 +25,6 @@ static DRAM_ATTR yourdesk_soft_i2c_sm_t s_sm;
 static DRAM_ATTR QueueHandle_t s_digit_queue;
 static DRAM_ATTR QueueHandle_t s_mirror_digit_queue;
 static DRAM_ATTR bool s_drive_sda_low;
-static DRAM_ATTR bool s_ignore_own_sda_edge;
 static DRAM_ATTR yourdesk_soft_i2c_stats_t s_stats;
 static DRAM_ATTR uint32_t s_last_key_read_cycles;
 static portMUX_TYPE s_sm_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -36,28 +35,22 @@ static inline bool IRAM_ATTR line_is_high(gpio_num_t gpio)
     return gpio_ll_get_level(&GPIO, (uint32_t)gpio) != 0;
 }
 
-/** Apply the state-machine output and suppress the matching self-generated edge. */
+/** Apply the state-machine output; delayed SDA edges are state-filtered later. */
 static inline void IRAM_ATTR apply_sda_output(void)
 {
     bool drive_low = s_sm.drive_sda_low;
     if (drive_low == s_drive_sda_low) {
         return;
     }
-    bool was_high = line_is_high(CONFIG_DESK_I2C_SDA_GPIO);
     s_drive_sda_low = drive_low;
     gpio_ll_set_level(&GPIO, CONFIG_DESK_I2C_SDA_GPIO, drive_low ? 0u : 1u);
-    /* Do not suppress a future master edge when the wired-AND level did not move. */
-    s_ignore_own_sda_edge =
-        was_high != line_is_high(CONFIG_DESK_I2C_SDA_GPIO);
 }
 
-/** Count a key response that was reset before the controller completed it. */
-static inline void IRAM_ATTR count_aborted_key_read(void)
+/** Return whether a boundary reset would truncate the current key response. */
+static inline bool IRAM_ATTR key_read_is_active(void)
 {
-    if (s_sm.phase == YOURDESK_SOFT_I2C_TX_DATA ||
-        s_sm.phase == YOURDESK_SOFT_I2C_TX_MASTER_ACK) {
-        s_stats.aborted_key_reads++;
-    }
+    return s_sm.phase == YOURDESK_SOFT_I2C_TX_DATA ||
+           s_sm.phase == YOURDESK_SOFT_I2C_TX_MASTER_ACK;
 }
 
 /** Classify the completed address byte without changing its ACK decision. */
@@ -135,12 +128,6 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
 {
     (void)arg;
     portENTER_CRITICAL_ISR(&s_sm_mux);
-    if (s_ignore_own_sda_edge) {
-        s_ignore_own_sda_edge = false;
-        s_stats.ignored_own_sda_edges++;
-        portEXIT_CRITICAL_ISR(&s_sm_mux);
-        return;
-    }
     if (!line_is_high(CONFIG_DESK_I2C_SCL_GPIO)) {
         s_stats.ignored_sda_edges_while_scl_low++;
         portEXIT_CRITICAL_ISR(&s_sm_mux);
@@ -148,13 +135,25 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
     }
 
     if (line_is_high(CONFIG_DESK_I2C_SDA_GPIO)) {
-        count_aborted_key_read();
-        s_stats.recognized_stops++;
-        yourdesk_soft_i2c_sm_stop(&s_sm);
+        bool aborting_key_read = key_read_is_active();
+        if (yourdesk_soft_i2c_sm_try_stop(&s_sm)) {
+            if (aborting_key_read) {
+                s_stats.aborted_key_reads++;
+            }
+            s_stats.recognized_stops++;
+        } else {
+            s_stats.rejected_stops++;
+        }
     } else {
-        count_aborted_key_read();
-        s_stats.recognized_starts++;
-        yourdesk_soft_i2c_sm_start(&s_sm);
+        bool aborting_key_read = key_read_is_active();
+        if (yourdesk_soft_i2c_sm_try_start(&s_sm)) {
+            if (aborting_key_read) {
+                s_stats.aborted_key_reads++;
+            }
+            s_stats.recognized_starts++;
+        } else {
+            s_stats.rejected_starts++;
+        }
     }
     apply_sda_output();
     portEXIT_CRITICAL_ISR(&s_sm_mux);
@@ -190,7 +189,6 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
     s_digit_queue = digit_queue;
     s_mirror_digit_queue = mirror_digit_queue;
     s_drive_sda_low = false;
-    s_ignore_own_sda_edge = false;
     s_stats = (yourdesk_soft_i2c_stats_t){0};
     s_last_key_read_cycles = 0;
     yourdesk_soft_i2c_sm_init(&s_sm, initial_dr);

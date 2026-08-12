@@ -5,7 +5,7 @@
  * The isolated decoder and safety tests previously passed while their runtime
  * coupling still stopped a real ascent early. This test replays the sparse
  * upper-travel sequence as one pipeline so decoder freshness, preset stopping,
- * and the hard ceiling are checked together.
+ * and feedback-driven ceiling checks are verified together.
  */
 #include "tm1650_height_decoder.h"
 #include "yourdesk_preset_logic.h"
@@ -19,7 +19,6 @@
 #define PRESET_STOP_MARGIN_MM 5
 #define MAX_HEIGHT_MM 1040
 #define MAX_HEIGHT_STOP_MARGIN_MM 10
-#define MARGIN_PROJECTION_MAX_AGE_MS 500
 
 typedef struct {
     uint32_t at_ms;
@@ -51,7 +50,7 @@ static int decode_frame(const uint8_t digits[4])
 
 /**
  * Replay the real upper-travel imperial cadence without permitting an early
- * predictive stop. The final 40.0 in frame must satisfy the 102 cm preset.
+ * feedback-driven stop. The final 40.0 in frame must satisfy the 102 cm preset.
  */
 static void expect_sparse_imperial_ascent_reaches_preset(void)
 {
@@ -71,17 +70,14 @@ static void expect_sparse_imperial_ascent_reaches_preset(void)
 
         if (previous_mm >= 0) {
             int elapsed_ms = (int)(samples[i].at_ms - previous_ms);
-            /* No safety STOP is allowed before the next real feedback frame. */
-            assert(!yourdesk_predictive_max_height_reached(
-                previous_mm, elapsed_ms,
-                YOURDESK_UP_SAFETY_MAX_SPEED_MM_PER_S,
-                MAX_HEIGHT_MM, MAX_HEIGHT_STOP_MARGIN_MM,
-                MARGIN_PROJECTION_MAX_AGE_MS));
             assert(yourdesk_height_transition_valid(
                 previous_mm, height_mm, elapsed_ms, YOURDESK_PRESET_UP,
                 false, YOURDESK_HEIGHT_TRANSITION_MAX_SPEED_MM_PER_S,
                 STEP_SLACK_MM));
         }
+        /* Sparse timing alone must never manufacture a ceiling hit. */
+        assert(!yourdesk_max_height_reached(
+            height_mm, MAX_HEIGHT_MM, MAX_HEIGHT_STOP_MARGIN_MM));
 
         previous_mm = height_mm;
         previous_ms = samples[i].at_ms;
@@ -92,21 +88,19 @@ static void expect_sparse_imperial_ascent_reaches_preset(void)
                                    YOURDESK_PRESET_UP));
 }
 
-/** Ensure missing feedback still cannot carry the desk past the hard ceiling. */
-static void expect_stale_feedback_keeps_hard_ceiling(void)
+/** Stop only when an accepted controller height reaches the configured margin. */
+static void expect_feedback_drives_ceiling(void)
 {
-    assert(!yourdesk_predictive_max_height_reached(
-        978, 2200, YOURDESK_UP_SAFETY_MAX_SPEED_MM_PER_S, MAX_HEIGHT_MM,
-        MAX_HEIGHT_STOP_MARGIN_MM, MARGIN_PROJECTION_MAX_AGE_MS));
-    assert(yourdesk_predictive_max_height_reached(
-        978, 2300, YOURDESK_UP_SAFETY_MAX_SPEED_MM_PER_S, MAX_HEIGHT_MM,
-        MAX_HEIGHT_STOP_MARGIN_MM, MARGIN_PROJECTION_MAX_AGE_MS));
+    assert(!yourdesk_max_height_reached(
+        1029, MAX_HEIGHT_MM, MAX_HEIGHT_STOP_MARGIN_MM));
+    assert(yourdesk_max_height_reached(
+        1030, MAX_HEIGHT_MM, MAX_HEIGHT_STOP_MARGIN_MM));
 }
 
 int main(void)
 {
     expect_sparse_imperial_ascent_reaches_preset();
-    expect_stale_feedback_keeps_hard_ceiling();
+    expect_feedback_drives_ceiling();
     puts("yourdesk upward pipeline vectors: OK");
     return 0;
 }
