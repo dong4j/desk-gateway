@@ -178,48 +178,14 @@
     }
   }
 
-  function bindHold(btn, startPath) {
-    let holding = false;
-    const start = async (e) => {
-      e.preventDefault();
-      if (holding || btn.disabled) return;
-      holding = true;
-      try {
-        btn.setPointerCapture(e.pointerId);
-      } catch (_) { /* ignore */ }
-      btn.classList.add('active');
-      try {
-        await api(startPath, 'POST');
-      } catch (error) {
-        holding = false;
-        btn.classList.remove('active');
-        showBanner(motionError(error, '指令失败，请检查网络'));
-      }
-    };
-    const end = async (e) => {
-      e.preventDefault();
-      if (!holding) return;
-      holding = false;
-      btn.classList.remove('active');
-      try {
-        if (btn.hasPointerCapture?.(e.pointerId)) {
-          btn.releasePointerCapture(e.pointerId);
-        }
-      } catch (_) { /* ignore */ }
-      try {
-        await api('/api/v1/desk/stop', 'POST');
-      } catch (_) {
-        showBanner('停止失败，可再点「停」');
-      }
-    };
-    btn.addEventListener('pointerdown', start);
-    btn.addEventListener('pointerup', end);
-    btn.addEventListener('pointercancel', end);
-    btn.addEventListener('lostpointercapture', (e) => {
-      if (holding) end(e);
-    });
-    btn.addEventListener('contextmenu', (e) => e.preventDefault());
-  }
+  const bindHold = (button, startPath) => DeskHoldControl.bindHold({
+    button,
+    startPath,
+    send: (path) => api(path, 'POST'),
+    onStartError: (error) =>
+      showBanner(motionError(error, '指令失败，请检查网络')),
+    onStopError: () => showBanner('停止失败，可再点「停」'),
+  });
 
   bindHold(upButton, '/api/v1/desk/up');
   bindHold(downButton, '/api/v1/desk/down');

@@ -6,6 +6,7 @@ idf_component_register(
     EMBED_FILES
         "www/login.html"
         "www/index.html"
+        "www/hold-control.js"
         "www/app.js"
         "www/style.css"
         "www/favicon.png"

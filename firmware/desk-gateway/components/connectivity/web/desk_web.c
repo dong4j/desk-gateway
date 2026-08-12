@@ -42,6 +42,8 @@ extern const uint8_t www_login_html_start[] asm("_binary_login_html_start");
 extern const uint8_t www_login_html_end[] asm("_binary_login_html_end");
 extern const uint8_t www_index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t www_index_html_end[] asm("_binary_index_html_end");
+extern const uint8_t www_hold_control_js_start[] asm("_binary_hold_control_js_start");
+extern const uint8_t www_hold_control_js_end[] asm("_binary_hold_control_js_end");
 extern const uint8_t www_app_js_start[] asm("_binary_app_js_start");
 extern const uint8_t www_app_js_end[] asm("_binary_app_js_end");
 extern const uint8_t www_style_css_start[] asm("_binary_style_css_start");
@@ -465,6 +467,11 @@ static esp_err_t handler_app_js(httpd_req_t *req)
 {
     return send_embed(req, "application/javascript", www_app_js_start, www_app_js_end);
 }
+static esp_err_t handler_hold_control_js(httpd_req_t *req)
+{
+    return send_embed(req, "application/javascript", www_hold_control_js_start,
+                      www_hold_control_js_end);
+}
 static esp_err_t handler_css(httpd_req_t *req)
 {
     return send_embed(req, "text/css", www_style_css_start, www_style_css_end);
@@ -539,6 +546,7 @@ esp_err_t desk_web_start(void)
         {.uri = "/", .method = HTTP_GET, .handler = handler_root},
         {.uri = "/setup.html", .method = HTTP_GET, .handler = handler_setup_page},
         {.uri = "/login.html", .method = HTTP_GET, .handler = handler_login_page},
+        {.uri = "/hold-control.js", .method = HTTP_GET, .handler = handler_hold_control_js},
         {.uri = "/app.js", .method = HTTP_GET, .handler = handler_app_js},
         {.uri = "/style.css", .method = HTTP_GET, .handler = handler_css},
         {.uri = "/favicon.png", .method = HTTP_GET, .handler = handler_favicon},
