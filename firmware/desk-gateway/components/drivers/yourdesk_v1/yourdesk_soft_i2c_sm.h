@@ -35,6 +35,8 @@ typedef enum {
 
 typedef struct {
     bool ready;
+    /** True after the controller clocked the complete 0x24 DR response. */
+    bool key_read_completed;
     uint8_t addr7;
     uint8_t segment;
 } yourdesk_soft_i2c_digit_event_t;
@@ -73,6 +75,8 @@ yourdesk_soft_i2c_sm_scl_rising(yourdesk_soft_i2c_sm_t *sm, bool sda_high);
  *
  * The caller must apply sm->drive_sda_low after this function. A completed
  * digit write is returned only after its data byte ACK clock has completed.
+ * key_read_completed marks the equivalent completion point for a 0x24 read;
+ * it is diagnostic metadata and does not alter the state-machine decisions.
  */
 yourdesk_soft_i2c_digit_event_t YOURDESK_SOFT_I2C_ISR_ATTR
 yourdesk_soft_i2c_sm_scl_falling(yourdesk_soft_i2c_sm_t *sm);

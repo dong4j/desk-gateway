@@ -292,6 +292,72 @@ static void stop_up_if_max_height_reached(int height_mm)
     (void)set_dr(DR_IDLE);
 }
 
+#if CONFIG_DESK_MOTION_DIAGNOSTICS && \
+    CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+/** Convert the fixed-frequency ESP32-S3 cycle counter used by ISR telemetry. */
+static uint32_t motion_diag_cycles_to_us(uint32_t cycles)
+{
+    return cycles / CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
+}
+
+/** Name an incomplete software-I2C phase without reading mutable ISR state. */
+static const char *motion_diag_phase_name(uint8_t phase)
+{
+    switch ((yourdesk_soft_i2c_phase_t)phase) {
+    case YOURDESK_SOFT_I2C_IDLE:
+        return "idle";
+    case YOURDESK_SOFT_I2C_RX_ADDRESS:
+        return "rx_addr";
+    case YOURDESK_SOFT_I2C_RX_DATA:
+        return "rx_data";
+    case YOURDESK_SOFT_I2C_TX_DATA:
+        return "tx_data";
+    case YOURDESK_SOFT_I2C_TX_MASTER_ACK:
+        return "tx_ack";
+    case YOURDESK_SOFT_I2C_IGNORE:
+    default:
+        return "ignore";
+    }
+}
+
+/**
+ * Print one interval of controller polling without influencing motion state.
+ * key_addr is write/read; key_tx is started/completed.
+ */
+static void motion_bus_diag_log(
+    const char *stage,
+    uint8_t dr,
+    TickType_t interval_tick,
+    TickType_t now,
+    const yourdesk_soft_i2c_stats_t *baseline,
+    const yourdesk_soft_i2c_stats_t *stats)
+{
+    ESP_LOGI(TAG,
+             "motion bus stage=%s dir=%s dt=%" PRIu32
+             " ms key_addr=%" PRIu32 "/%" PRIu32
+             " key_tx=%" PRIu32 "/%" PRIu32
+             " abort=%" PRIu32 " key_gap_max=%" PRIu32
+             " us start_stop=%" PRIu32 "/%" PRIu32
+             " sda_ignored=%" PRIu32 "/%" PRIu32
+             " sm=%s:%u@0x%02X tx_dr=0x%02X",
+             stage, dr == DR_UP ? "up" : "down",
+             (uint32_t)(now - interval_tick) * portTICK_PERIOD_MS,
+             stats->key_write_addresses - baseline->key_write_addresses,
+             stats->key_read_addresses - baseline->key_read_addresses,
+             stats->key_tx_started - baseline->key_tx_started,
+             stats->completed_key_reads - baseline->completed_key_reads,
+             stats->aborted_key_reads - baseline->aborted_key_reads,
+             motion_diag_cycles_to_us(stats->max_key_read_gap_cycles),
+             stats->recognized_starts - baseline->recognized_starts,
+             stats->recognized_stops - baseline->recognized_stops,
+             stats->ignored_own_sda_edges - baseline->ignored_own_sda_edges,
+             stats->ignored_sda_edges_while_scl_low -
+                 baseline->ignored_sda_edges_while_scl_low,
+             motion_diag_phase_name(stats->phase), stats->bit_count,
+             stats->current_addr7, stats->tx_dr);
+}
+#endif
+
 /**
  * Stop upward travel without waiting for another display refresh.
  *
@@ -304,17 +370,64 @@ static void height_safety_task(void *arg)
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
     TickType_t last_diag_tick = 0;
 #endif
+#if CONFIG_DESK_MOTION_DIAGNOSTICS && \
+    CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+    bool bus_diag_active = false;
+    uint8_t bus_diag_dr = DR_IDLE;
+    TickType_t bus_diag_tick = 0;
+    yourdesk_soft_i2c_stats_t bus_diag_baseline = {0};
+#endif
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(HEIGHT_SAFETY_POLL_MS));
+        TickType_t now = xTaskGetTickCount();
         uint8_t dr = (uint8_t)atomic_load(&s_dr);
         if (dr != DR_UP && dr != DR_DOWN) {
+#if CONFIG_DESK_MOTION_DIAGNOSTICS && \
+    CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+            if (bus_diag_active) {
+                yourdesk_soft_i2c_stats_t stats = {0};
+                yourdesk_soft_i2c_esp_take_stats(&stats);
+                motion_bus_diag_log("end", bus_diag_dr, bus_diag_tick, now,
+                                    &bus_diag_baseline, &stats);
+                bus_diag_active = false;
+            }
+#endif
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
             last_diag_tick = 0;
 #endif
             continue;
         }
 
-        TickType_t now = xTaskGetTickCount();
+#if CONFIG_DESK_MOTION_DIAGNOSTICS && \
+    CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+        if (!bus_diag_active || dr != bus_diag_dr) {
+            if (bus_diag_active) {
+                yourdesk_soft_i2c_stats_t stats = {0};
+                yourdesk_soft_i2c_esp_take_stats(&stats);
+                motion_bus_diag_log("end", bus_diag_dr, bus_diag_tick, now,
+                                    &bus_diag_baseline, &stats);
+            }
+            yourdesk_soft_i2c_esp_take_stats(&bus_diag_baseline);
+            bus_diag_active = true;
+            bus_diag_dr = dr;
+            bus_diag_tick = now;
+            ESP_LOGI(TAG,
+                     "motion bus begin dir=%s dr=0x%02X sm=%s:%u@0x%02X tx_dr=0x%02X",
+                     dr == DR_UP ? "up" : "down", dr,
+                     motion_diag_phase_name(bus_diag_baseline.phase),
+                     bus_diag_baseline.bit_count,
+                     bus_diag_baseline.current_addr7,
+                     bus_diag_baseline.tx_dr);
+        } else if (elapsed_ms_since((uint_fast32_t)bus_diag_tick, now) >=
+                   HEIGHT_MOTION_DIAG_INTERVAL_MS) {
+            yourdesk_soft_i2c_stats_t stats = {0};
+            yourdesk_soft_i2c_esp_take_stats(&stats);
+            motion_bus_diag_log("run", bus_diag_dr, bus_diag_tick, now,
+                                &bus_diag_baseline, &stats);
+            bus_diag_baseline = stats;
+            bus_diag_tick = now;
+        }
+#endif
         int anchor_mm = atomic_load(&s_safety_anchor_mm);
         int anchor_age_ms = elapsed_ms_since(
             atomic_load(&s_safety_anchor_tick), now);

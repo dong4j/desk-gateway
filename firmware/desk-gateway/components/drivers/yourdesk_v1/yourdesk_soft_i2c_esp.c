@@ -12,6 +12,7 @@
 
 #include "driver/gpio.h"
 #include "esp_check.h"
+#include "esp_cpu.h"
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
 #include "hal/gpio_ll.h"
@@ -25,6 +26,8 @@ static DRAM_ATTR QueueHandle_t s_digit_queue;
 static DRAM_ATTR QueueHandle_t s_mirror_digit_queue;
 static DRAM_ATTR bool s_drive_sda_low;
 static DRAM_ATTR bool s_ignore_own_sda_edge;
+static DRAM_ATTR yourdesk_soft_i2c_stats_t s_stats;
+static DRAM_ATTR uint32_t s_last_key_read_cycles;
 static portMUX_TYPE s_sm_mux = portMUX_INITIALIZER_UNLOCKED;
 
 /** Read a GPIO level without calling Flash-resident driver code from the ISR. */
@@ -48,6 +51,28 @@ static inline void IRAM_ATTR apply_sda_output(void)
         was_high != line_is_high(CONFIG_DESK_I2C_SDA_GPIO);
 }
 
+/** Count a key response that was reset before the controller completed it. */
+static inline void IRAM_ATTR count_aborted_key_read(void)
+{
+    if (s_sm.phase == YOURDESK_SOFT_I2C_TX_DATA ||
+        s_sm.phase == YOURDESK_SOFT_I2C_TX_MASTER_ACK) {
+        s_stats.aborted_key_reads++;
+    }
+}
+
+/** Classify the completed address byte without changing its ACK decision. */
+static inline void IRAM_ATTR count_key_address(uint8_t raw_address)
+{
+    if ((raw_address >> 1) != 0x24u) {
+        return;
+    }
+    if ((raw_address & 1u) != 0) {
+        s_stats.key_read_addresses++;
+    } else {
+        s_stats.key_write_addresses++;
+    }
+}
+
 /** Advance receive/transmit timing on both SCL edges. */
 static void IRAM_ATTR scl_edge_isr(void *arg)
 {
@@ -59,8 +84,31 @@ static void IRAM_ATTR scl_edge_isr(void *arg)
         yourdesk_soft_i2c_sm_scl_rising(
             &s_sm, line_is_high(CONFIG_DESK_I2C_SDA_GPIO));
     } else {
+        yourdesk_soft_i2c_phase_t phase_before = s_sm.phase;
+        uint8_t bit_count_before = s_sm.bit_count;
+        uint8_t rx_byte_before = s_sm.rx_byte;
         event = yourdesk_soft_i2c_sm_scl_falling(&s_sm);
+        if (phase_before == YOURDESK_SOFT_I2C_RX_ADDRESS &&
+            bit_count_before == 8) {
+            count_key_address(rx_byte_before);
+        }
+        if (phase_before == YOURDESK_SOFT_I2C_RX_ADDRESS &&
+            bit_count_before == 9 &&
+            s_sm.phase == YOURDESK_SOFT_I2C_TX_DATA) {
+            s_stats.key_tx_started++;
+        }
         apply_sda_output();
+    }
+    if (event.key_read_completed) {
+        uint32_t now_cycles = esp_cpu_get_cycle_count();
+        if (s_last_key_read_cycles != 0) {
+            uint32_t gap_cycles = now_cycles - s_last_key_read_cycles;
+            if (gap_cycles > s_stats.max_key_read_gap_cycles) {
+                s_stats.max_key_read_gap_cycles = gap_cycles;
+            }
+        }
+        s_last_key_read_cycles = now_cycles;
+        s_stats.completed_key_reads++;
     }
     portEXIT_CRITICAL_ISR(&s_sm_mux);
 
@@ -89,17 +137,23 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
     portENTER_CRITICAL_ISR(&s_sm_mux);
     if (s_ignore_own_sda_edge) {
         s_ignore_own_sda_edge = false;
+        s_stats.ignored_own_sda_edges++;
         portEXIT_CRITICAL_ISR(&s_sm_mux);
         return;
     }
     if (!line_is_high(CONFIG_DESK_I2C_SCL_GPIO)) {
+        s_stats.ignored_sda_edges_while_scl_low++;
         portEXIT_CRITICAL_ISR(&s_sm_mux);
         return;
     }
 
     if (line_is_high(CONFIG_DESK_I2C_SDA_GPIO)) {
+        count_aborted_key_read();
+        s_stats.recognized_stops++;
         yourdesk_soft_i2c_sm_stop(&s_sm);
     } else {
+        count_aborted_key_read();
+        s_stats.recognized_starts++;
         yourdesk_soft_i2c_sm_start(&s_sm);
     }
     apply_sda_output();
@@ -137,6 +191,8 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
     s_mirror_digit_queue = mirror_digit_queue;
     s_drive_sda_low = false;
     s_ignore_own_sda_edge = false;
+    s_stats = (yourdesk_soft_i2c_stats_t){0};
+    s_last_key_read_cycles = 0;
     yourdesk_soft_i2c_sm_init(&s_sm, initial_dr);
 
     esp_err_t err = gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
@@ -161,5 +217,20 @@ void yourdesk_soft_i2c_esp_set_dr(uint8_t dr)
 {
     portENTER_CRITICAL(&s_sm_mux);
     yourdesk_soft_i2c_sm_set_dr(&s_sm, dr);
+    portEXIT_CRITICAL(&s_sm_mux);
+}
+
+void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats)
+{
+    if (!stats) {
+        return;
+    }
+    portENTER_CRITICAL(&s_sm_mux);
+    *stats = s_stats;
+    stats->phase = (uint8_t)s_sm.phase;
+    stats->bit_count = s_sm.bit_count;
+    stats->current_addr7 = s_sm.current_addr7;
+    stats->tx_dr = s_sm.tx_dr;
+    s_stats.max_key_read_gap_cycles = 0;
     portEXIT_CRITICAL(&s_sm_mux);
 }
