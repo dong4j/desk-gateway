@@ -1,10 +1,10 @@
 /**
  * @file yourdesk_v1.c
- * @brief yourdesk_v1：按键 DR 应答与 TM1650 高度接收
+ * @brief yourdesk_v1：通过硬件 I²C Slave 稳定应答按键 DR
  *
- * 超时/童锁在 desk_core；本文件维护当前 DR、应答主机轮询。稳定配置沿用
- * 硬件单地址 I2C Slave；真实高度配置改用一个软件多地址 Slave，同时应答
- * 0x24 和 0x34-0x37，避免硬件 Slave 与只读 GPIO 嗅探争用同一总线。
+ * 超时/童锁在 desk_core；本文件维护当前 DR、应答主机轮询。产品默认路径只用
+ * ESP32-S3 硬件 I²C Slave 响应 0x24。软件多地址和 GPIO 高度嗅探仅保留为
+ * 协议实验，不得进入正常控桌固件；真实高度后续由独立 TOF200C 提供。
  * 键码契约见 docs/3-protocol-reverse-notes.md §18。
  */
 #include "yourdesk_v1.h"
@@ -646,6 +646,23 @@ static void height_decode_task(void *arg)
 }
 #endif
 
+#if !YOURDESK_HEIGHT_INPUT_ENABLED
+/*
+ * 面板代理依赖软件多地址模式，因此硬件 I²C 产品路径没有面板仲裁器。
+ * 保留明确的空实现，让 desk_core 能统一查询入口权限而不引入代理任务。
+ */
+static bool panel_has_priority(void)
+{
+    return false;
+}
+
+static esp_err_t yd_set_panel_enabled(bool enabled)
+{
+    (void)enabled;
+    return ESP_ERR_NOT_SUPPORTED;
+}
+#endif
+
 #if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
 static bool IRAM_ATTR on_receive_cb(i2c_slave_dev_handle_t i2c_slave,
                                     const i2c_slave_rx_done_event_data_t *evt_data,
@@ -806,7 +823,8 @@ static esp_err_t yd_init(void)
         ESP_LOGE(TAG, "height sniffer unavailable: %s", esp_err_to_name(err));
     }
 #else
-    ESP_LOGI(TAG, "experimental GPIO height sniffer disabled");
+    ESP_LOGI(TAG,
+             "control-box height input disabled; waiting for external TOF source");
 #endif
 #if CONFIG_DESK_YOURDESK_PANEL_PROXY
     err = yourdesk_panel_proxy_init(s_ctx.panel_digit_q, panel_key_update, NULL);
@@ -922,41 +940,45 @@ static esp_err_t yd_goto_preset(uint8_t n)
 
 static esp_err_t yd_set_max_height_mm(int max_height_mm)
 {
-#if YOURDESK_HEIGHT_INPUT_ENABLED
     if (max_height_mm < DESK_MAX_HEIGHT_MM_MIN ||
         max_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
+#if YOURDESK_HEIGHT_INPUT_ENABLED
     /* Keep the setting compatible while maximum-height enforcement is disabled. */
     atomic_store(&s_max_height_mm, max_height_mm);
-    return ESP_OK;
 #else
+    /*
+     * desk_core 仍负责跨 Web/BLE 持久化该配置。没有真实高度源时驱动只接受
+     * 配置但不执行限高，避免初始化失败或把模拟值用于安全控制。
+     */
     (void)max_height_mm;
-    return ESP_ERR_NOT_SUPPORTED;
 #endif
+    return ESP_OK;
 }
 
 static esp_err_t yd_set_preset_heights_mm(int preset1_height_mm,
                                            int preset4_height_mm)
 {
-#if YOURDESK_HEIGHT_INPUT_ENABLED
     if (preset1_height_mm < YOURDESK_HEIGHT_MIN_MM ||
         preset1_height_mm > preset4_height_mm ||
         preset4_height_mm > YOURDESK_HEIGHT_MAX_MM) {
         return ESP_ERR_INVALID_ARG;
     }
+#if YOURDESK_HEIGHT_INPUT_ENABLED
     atomic_store(&s_preset1_height_mm, preset1_height_mm);
     atomic_store(&s_preset4_height_mm, preset4_height_mm);
-    return ESP_OK;
 #else
+    /* 配置继续由 desk_core 保存，TOF200C 接入前不执行高度闭环档位。 */
     (void)preset1_height_mm;
     (void)preset4_height_mm;
-    return ESP_ERR_NOT_SUPPORTED;
 #endif
+    return ESP_OK;
 }
 
 static esp_err_t yd_save_preset(uint8_t n)
 {
+#if YOURDESK_HEIGHT_INPUT_ENABLED
     if (panel_has_priority()) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -967,6 +989,10 @@ static esp_err_t yd_save_preset(uint8_t n)
         return set_dr(DR_P4_SAVE);
     }
     return ESP_ERR_NOT_SUPPORTED;
+#else
+    (void)n;
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
 }
 
 static esp_err_t yd_get_height_mm(int *out_mm)
@@ -1020,14 +1046,18 @@ static desk_caps_t yd_get_caps(void)
 {
     return (desk_caps_t){
         .hold_up_down = true,
+#if YOURDESK_HEIGHT_INPUT_ENABLED
         .preset_goto = true,
         .preset_save = true,
-#if YOURDESK_HEIGHT_INPUT_ENABLED
         .height = true,
-#else
-        .height = false,
-#endif
         .preset_mask = (1u << 0) | (1u << 3), /* 1 and 4 */
+#else
+        /* 没有真实高度时不能承诺档位闭环或安全限高。 */
+        .preset_goto = false,
+        .preset_save = false,
+        .height = false,
+        .preset_mask = 0,
+#endif
     };
 }
 

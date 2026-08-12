@@ -4,22 +4,22 @@
 
 开源的 **升降桌智能网关**（ESP32-S3）。厂商协议收进可插拔 **Desk Driver**；Web / 串口 / BLE（以及后续 Matter / Home Assistant）共用控制面 `desk_core`。
 
-> **安全：** 升降时请有人在旁。上升由松手、显式 STOP、档位目标或最高安全高度停止；下降保留默认 15s 超时。Web **仅限局域网**，不要做公网端口映射。
+> **安全：** 升降时请有人在旁。TOF200C 高度源接入前，运动只由松手、显式 STOP、断连安全策略或现有超时策略停止；已保存的最高高度暂不参与控制。Web **仅限局域网**，不要做公网端口映射。
 
 ## 当前能力
 
-- **Phase 1 — 模拟面板：** 软件 I²C Slave 同时处理键地址 `0x24` 与高度 digit `0x34–0x37`
+- **Phase 1 — 模拟面板：** ESP32-S3 硬件 I²C Slave 只处理键地址 `0x24`
 - **可插拔驱动：** `yourdesk_v1` 已实现；Loctek / Jiecang 为 stub
-- **desk_core：** 按住升/降与停止已真机通过；档位 1（64 cm）/4（102 cm）已按真实高度闭环实现；全局童锁与 REST/蓝牙/面板来源权限使用 NVS 保存
-- **最高安全高度：** Web 可配置并保存到 NVS，默认 `102 cm`；独立看门狗会在高度帧稀疏时按最坏上升速度提前停止
+- **desk_core：** 按住升/降与停止；全局童锁与 REST/蓝牙/面板来源权限使用 NVS 保存
+- **高度配置继续保存：** 档位和最高安全高度仍跨 Web/App 同步并持久化，但 TOF200C 接入前不参与运动
 - **Wi‑Fi + SoftAP 配网** 与带密码的 **局域网 Web**
-- **BLE Accessory Profile：** 原生 NimBLE GATT Server；控制写入需加密和绑定，支持长按租约、断连停止、档位 1/4 与状态 Notify
-- **真实高度：** 仅接受严格有序的 TM1650 完整显示帧；正常的稀疏刷新期间保留最后可信高度
-- **自动重新同步：** 每次运动的第一帧完整控制盒高度自动成为新基准，不再允许人工或模拟高度覆盖
+- **BLE Accessory Profile：** 原生 NimBLE GATT Server；控制写入需加密和绑定，支持长按租约、断连停止与状态 Notify；闭环档位等待 TOF200C
+- **高度诚实未知：** Web/REST/BLE 保留高度字段，但统一返回未知；关闭 SIM 和控制盒 digit 高度解析
 
 > 当前主固件已通过 ESP-IDF 6.0.2 编译。2026-08-10 补回原厂面板上的两只外部上拉后，
-> Web 按住升/降与松手停止已通过真机验证；统一软件多地址 Slave 随后通过升降与 `64–80 cm`
-> 真实高度跟踪。档位闭环、可配置安全高度、LightBlue 和 iPhone App 核心路径随后通过真机。
+> Web 按住升/降与松手停止已通过真机验证。后续软件多地址 I²C 高度方案造成连续运动回归，
+> 因此默认固件已回到提交 `3269faa` 验证过的硬件 `0x24` 路径。LightBlue 和 iPhone App
+> 核心控制路径保留；高度闭环档位和最高安全高度等待 TOF200C 接入后恢复。
 > 当前仍需完成异常停止矩阵、Android 验收，以及双 RJ45 原面板透传、仲裁和童锁真屏蔽；
 > 统一顺序见下方“当前状态与剩余任务优先级”文档。
 
@@ -98,6 +98,7 @@ NOTICE                        第三方声明
 |------|------|
 | [docs/0-requirements.md](./docs/0-requirements.md) | 需求 |
 | [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | 当前状态与剩余任务优先级 |
+| [docs/7-hardware-i2c-restoration-investigation.md](./docs/7-hardware-i2c-restoration-investigation.md) | 从软件 I²C 回退到硬件 I²C 的排查记录 |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | 架构总览 |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUID、字节协议与 LightBlue 测试步骤 |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | 到货 / 真机验收 |
@@ -106,11 +107,12 @@ NOTICE                        第三方声明
 
 ## 路线图
 
-- [x] 用多地址 I²C Slave 替换已否决的 GPIO 嗅探，实现真实高度
+- [x] 恢复硬件 I²C Slave `@0x24` 作为稳定运动链路
 - [x] LightBlue 和 iPhone App 已在真桌完成 BLE 核心控制
 - [x] 手机 App 已实现 BLE 优先、REST 回退和设备设置同步
 - [ ] Phase 2 双 RJ45 MITM 透传恢复 + 面板权限/童锁真机验收
 - [ ] 完成异常停止矩阵和 Android 真机验收
+- [ ] 接入 TOF200C 高度，再恢复档位闭环和最高安全高度
 - [ ] Apple Watch 与双 ToF 实现（当前只有设计）
 - [ ] Matter / Home Assistant
 - [ ] 更多厂商 Driver

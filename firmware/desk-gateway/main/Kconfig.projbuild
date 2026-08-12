@@ -23,17 +23,18 @@ menu "Desk Gateway"
             仅用于协议实验；正常控桌固件不得启用。
 
     config DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
-        bool "Enable yourdesk_v1 software multi-address I2C slave"
-        default y
+        bool "Enable experimental yourdesk_v1 software multi-address I2C slave"
+        default n
         help
             使用 GPIO 中断同时应答 0x24 按键地址与 0x34-0x37 高度数码管地址。
-            该模式用于真实高度真机验收；启用后不会创建硬件 I2C Slave，也不能
-            同时启用旧的只读 GPIO 高度嗅探。
+            真机排查已确认该模式会导致按键响应被中途打断，使升降断断续续。
+            仅保留用于协议实验；正常控桌固件必须使用硬件 I2C Slave @0x24，
+            不得启用本选项，也不能同时启用旧的只读 GPIO 高度嗅探。
 
     config DESK_YOURDESK_PANEL_PROXY
         bool "Enable active proxy to the original TM1650 panel"
         depends on DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
-        default y
+        default n
         help
             双 RJ45 Phase 2 原型：控制盒侧继续使用 GPIO4/5 软件 Slave，原厂
             面板侧使用独立硬件 I2C Master。两侧 CLK/DAT 必须物理隔离，仅桥接

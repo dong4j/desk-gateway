@@ -1,6 +1,6 @@
 /**
  * @file yourdesk_v1.h
- * @brief 用户桌协议驱动：I²C Slave 模拟 TM1650 键通道 @0x24
+ * @brief 用户桌协议驱动：硬件 I²C Slave 响应 TM1650 键通道 @0x24
  */
 #pragma once
 

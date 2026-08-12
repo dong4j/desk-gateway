@@ -36,17 +36,15 @@ CONFIG_BT_NIMBLE_NVS_PERSIST=y
 CONFIG_BT_NIMBLE_MAX_BONDS=3
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 
-# 高度嗅探 GPIO ISR 会在 Flash cache 暂停期间运行；其 gpio_get_level 依赖必须驻留 IRAM。
-CONFIG_GPIO_CTRL_FUNC_IN_IRAM=y
-
-# 真机已证实被动 GPIO 嗅探会干扰 0x24；保持旧实验路径关闭。
+# 真机已证实软件多地址 Slave 和被动 GPIO 嗅探都会破坏稳定的 0x24 控制链路。
+# 默认固件只启用 ESP32-S3 硬件 I2C Slave @0x24；实验代码保留但不进入产品路径。
 # CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL is not set
-CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS=y
+# CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS is not set
 # 原厂面板侧协议尚未完成可靠抓包验证；主动代理曾在旧 I2C 驱动内部触发断言。
 # 在面包板复测和驱动迁移完成前关闭该实验入口，避免影响已验收的 Web/BLE 控制。
 # CONFIG_DESK_YOURDESK_PANEL_PROXY is not set
 CONFIG_DESK_MAX_HEIGHT_MM=1020
 CONFIG_DESK_BLE_HOLD_LEASE_MS=750
 
-# 软件多地址 Slave 已通过升降和真实高度真机验收；默认不得回退到模拟值。
+# TOF200C 接入前高度必须保持未知，禁止回退到模拟值。
 # CONFIG_DESK_SIM_HEIGHT is not set

@@ -8,6 +8,10 @@
 | 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
 | 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
 
+> **当前固件边界（2026-08-12）**：协议 UUID 和字节布局保持不变，但硬件 I²C 产品路径不再
+> 解析控制盒 digit 高度。State 中高度为未知，PRESET_1 / PRESET_4 在 TOF200C 接入前返回
+> 不支持；手动 HOLD、STOP、童锁和来源权限继续可用。
+
 ## 1. 要解决什么
 
 市场上已有大量 **OLED + 无极旋钮（及类似）** BLE 外设，很适合升降桌：

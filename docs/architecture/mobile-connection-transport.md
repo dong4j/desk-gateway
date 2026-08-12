@@ -1,5 +1,9 @@
 # 移动端 BLE / Wi-Fi 双通道方案
 
+> **当前固件边界（2026-08-12）**：BLE 和 REST 都能承载手动升、降、STOP、童锁和配置同步；
+> `height_mm` 当前为未知，档位闭环与最高安全高度运动拦截等待 TOF200C。下面的数据模型保留
+> 高度和档位字段，是为了后续恢复时不破坏客户端协议，不代表当前可以执行档位运动。
+
 ## 目标
 
 Desk Gateway App 只负责呈现 UI 和发出统一控制意图，不让页面感知 BLE GATT 或
@@ -54,8 +58,8 @@ BLE State / Config Characteristic 和 `GET /api/v1/desk/status` 都映射为同�
 
 ## 安全规则
 
-1. BLE 与 REST 的命令最终都进入 `desk_core`，童锁、来源权限、安全高度和超时仍由固件
-   统一裁决，App 不是安全边界。
+1. BLE 与 REST 的命令最终都进入 `desk_core`，童锁、来源权限和运动超时仍由固件统一裁决，
+   App 不是安全边界；高度未知期间不执行安全高度运动拦截。
 2. 通道切换只建立新的状态会话，绝不重放之前的 HOLD、档位或其他运动命令。
 3. BLE 断开时 App 会立即取消本地 HOLD 续期；固件侧 BLE 租约/断连停止仍是最终保护。
 4. REST 长按继续复用同一 `DeskHoldController`：持续发送 HOLD，松手立即发送 STOP。

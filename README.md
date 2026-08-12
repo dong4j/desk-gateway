@@ -4,24 +4,24 @@
 
 Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protocols live behind pluggable **Desk Drivers**; Web / UART / BLE (and later Matter / Home Assistant) share one control plane (`desk_core`).
 
-> **Safety:** Keep a person nearby when moving the desk. Upward motion stops on release, explicit STOP, the preset target, or the configured ceiling; downward motion retains the default 15s timeout. Use **LAN only** — do not expose the Web UI to the public Internet.
+> **Safety:** Keep a person nearby when moving the desk. Until the external TOF200C height source is integrated, motion stops only on release, explicit STOP, disconnect safety, or the existing timeout policy; the stored ceiling is not enforced. Use **LAN only** — do not expose the Web UI to the public Internet.
 
 ## Features (current)
 
-- **Phase 1 — panel emulation:** software I²C slave serves key address `0x24` and height digits `0x34–0x37`
+- **Phase 1 — panel emulation:** ESP32-S3 hardware I²C Slave serves the key address `0x24`
 - **Pluggable drivers:** `yourdesk_v1` implemented; Loctek / Jiecang stubs
-- **desk_core:** hold up/down and stop; presets 1 (64 cm) and 4 (102 cm) use real-height closed-loop control; global child-lock and per-source REST/Bluetooth/panel permissions are persisted in NVS
-- **Maximum safe height:** configurable from the Web UI and persisted in NVS; a fail-closed watchdog projects the worst-case upward position between sparse height frames
+- **desk_core:** hold up/down and stop; global child-lock and per-source REST/Bluetooth/panel permissions are persisted in NVS
+- **Height settings retained:** preset and ceiling values remain synchronized and persisted, but are not used for motion until TOF200C provides validated height
 - **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
-- **BLE Accessory Profile:** native NimBLE GATT server with encrypted commands, bonded peers, hold leases, disconnect-stop, presets 1/4, and status notifications
-- **Real height:** strictly ordered TM1650 display frames are filtered and exposed by UART/Web; the last trusted value survives normal sparse refreshes
-- **Automatic resynchronisation:** the first complete controller frame of each motion becomes the new baseline; no user-entered or fabricated height can overwrite it
+- **BLE Accessory Profile:** native NimBLE GATT server with encrypted commands, bonded peers, hold leases, disconnect-stop, and status notifications; closed-loop presets wait for TOF200C
+- **Honest unknown height:** Web/REST/BLE keep the height fields but report unknown; SIM and control-box digit parsing are disabled
 
 > The main firmware builds with ESP-IDF 6.0.2. On 2026-08-10, Web hold-to-move
 > UP/DOWN and release-to-stop passed on the real desk after restoring the panel's
-> two external pull-ups. The unified multi-address software slave then passed
-> real-desk movement and height tracking. Closed-loop presets, configurable safety
-> height, LightBlue, and the iPhone App have since passed their core real-desk paths.
+> two external pull-ups. Later multi-address software-I²C height work regressed
+> continuous movement, so the default firmware has returned to the hardware `0x24`
+> path validated by commit `3269faa`. LightBlue and the iPhone App have passed their
+> core control paths; closed-loop presets and height limiting now wait for TOF200C.
 > The consolidated abnormal-stop matrix, Android acceptance, and original-panel
 > pass-through / lockout remain open; see the prioritized status document below.
 
@@ -101,6 +101,7 @@ NOTICE                     Third-party attributions
 |-----|-------------|
 | [docs/0-requirements.md](./docs/0-requirements.md) | Requirements (Chinese) |
 | [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | Current status and prioritized backlog (Chinese) |
+| [docs/7-hardware-i2c-restoration-investigation.md](./docs/7-hardware-i2c-restoration-investigation.md) | Why the default firmware returned from software to hardware I²C (Chinese) |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | Architecture overview |
 | [docs/architecture/mqtt-home-assistant.md](./docs/architecture/mqtt-home-assistant.md) | MQTT / Home Assistant integration design (Chinese) |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUIDs, byte protocol, and LightBlue test flow |
@@ -110,11 +111,12 @@ NOTICE                     Third-party attributions
 
 ## Roadmap
 
-- [x] Replace the rejected GPIO sniffer with a multi-address I²C slave for real height
+- [x] Restore hardware I²C Slave `@0x24` as the stable movement transport
 - [x] Validate BLE control with LightBlue and the iPhone App on the real desk
 - [x] Deliver BLE-first / REST-fallback mobile control and synchronized device settings
 - [ ] Phase 2 dual‑RJ45 MITM + true panel blocking under child lock
 - [ ] Complete the abnormal-stop matrix and Android hardware acceptance
+- [ ] Integrate TOF200C height, then restore closed-loop presets and the safe ceiling
 - [ ] Apple Watch and dual-ToF implementations (designs are documented)
 - [ ] Matter / Home Assistant integrations
 - [ ] Additional desk drivers (Loctek, Jiecang, …)

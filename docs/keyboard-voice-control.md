@@ -1,7 +1,8 @@
 # 键盘、旋钮与语音控制
 
-当前集成支持档位 1、档位 4、STOP 和旋钮连续升降。GoatRemote 与
-Karabiner 共用 [`scripts/desk-preset.sh`](../scripts/desk-preset.sh)，不需要先调用登录接口。
+GoatRemote 与 Karabiner 共用 [`scripts/desk-preset.sh`](../scripts/desk-preset.sh)，不需要先调用
+登录接口。当前硬件 I²C 产品固件只支持手动升、降和 STOP；脚本中的档位 1/4 参数为了兼容
+现有配置继续保留，但在 TOF200C 提供高度前会收到“不支持”，不能作为可用控制入口。
 
 脚本已经直接配置当前局域网参数：
 
@@ -17,8 +18,8 @@ DESK_KEY='<与 Web 登录密码一致>'
 烧录支持 `X-Desk-Key` 的新固件后运行：
 
 ```bash
-./scripts/desk-preset.sh 1
-./scripts/desk-preset.sh 4
+./scripts/desk-preset.sh up
+./scripts/desk-preset.sh down
 ./scripts/desk-preset.sh stop
 ```
 
