@@ -69,3 +69,10 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${BLE_DIR}/test/desk_ble_protocol_test.c" \
     -o "${TEST_DIR}/ble-protocol-test"
 "${TEST_DIR}/ble-protocol-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${BLE_DIR}/include" \
+    "${BLE_DIR}/desk_ble_session.c" \
+    "${BLE_DIR}/test/desk_ble_session_test.c" \
+    -o "${TEST_DIR}/ble-session-test"
+"${TEST_DIR}/ble-session-test"
