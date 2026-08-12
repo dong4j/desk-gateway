@@ -18,6 +18,10 @@
 #define YOURDESK_HEIGHT_FEEDBACK_MIN_MM 635
 #define YOURDESK_HEIGHT_MIN_MM 640
 #define YOURDESK_HEIGHT_MAX_MM 1290
+/* Fragmented display transitions may legitimately arrive in larger batches. */
+#define YOURDESK_HEIGHT_TRANSITION_MAX_SPEED_MM_PER_S 35
+/* Capture-derived 24 mm/s travel plus measured safety headroom. */
+#define YOURDESK_UP_SAFETY_MAX_SPEED_MM_PER_S 27
 
 typedef enum {
     YOURDESK_PRESET_STOP = 0,

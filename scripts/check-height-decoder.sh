@@ -43,6 +43,14 @@ cc -std=c11 -Wall -Wextra -Werror \
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${DRIVER_DIR}" \
+    "${DRIVER_DIR}/tm1650_height_decoder.c" \
+    "${DRIVER_DIR}/yourdesk_preset_logic.c" \
+    "${DRIVER_DIR}/test/yourdesk_upward_pipeline_test.c" \
+    -o "${TEST_DIR}/upward-pipeline-test"
+"${TEST_DIR}/upward-pipeline-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${DRIVER_DIR}" \
     "${DRIVER_DIR}/yourdesk_panel_arbiter.c" \
     "${DRIVER_DIR}/test/yourdesk_panel_arbiter_test.c" \
     -o "${TEST_DIR}/panel-arbiter-test"
