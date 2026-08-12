@@ -36,13 +36,8 @@ CONFIG_BT_NIMBLE_NVS_PERSIST=y
 CONFIG_BT_NIMBLE_MAX_BONDS=3
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 
-# GPIO4/5 are RTCIO on ESP32-S3. Run the multi-address desk-bus slave on the
-# independent 17.5 MHz ULP RISC-V core so radio load cannot delay I2C edges.
-CONFIG_ULP_COPROC_ENABLED=y
-CONFIG_ULP_COPROC_TYPE_RISCV=y
-# Leave enough RTC Slow Memory for the existing main-CPU RTC data while keeping
-# ample space for the ULP image and its shared mailbox.
-CONFIG_ULP_COPROC_RESERVE_MEM=8000
+# 高度嗅探 GPIO ISR 会在 Flash cache 暂停期间运行；其 gpio_get_level 依赖必须驻留 IRAM。
+CONFIG_GPIO_CTRL_FUNC_IN_IRAM=y
 
 # 真机已证实被动 GPIO 嗅探会干扰 0x24；保持旧实验路径关闭。
 # CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL is not set

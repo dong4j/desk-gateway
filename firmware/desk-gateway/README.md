@@ -121,19 +121,12 @@ The authenticated Web settings panel stores `max_height_mm` in NVS. The default
 is `1020 mm`, with an accepted range of `640–1290 mm`. Both `desk_core` and the
 active driver reject upward travel when height is unknown or already at the
 limit. During movement, `yourdesk_v1` checks strict, ordered display frames and
-runs an independent 100 ms watchdog. Between sparse frames it projects a
+runs an independent 50 ms watchdog. Between sparse frames it projects a
 worst-case upward position and sends idle before the configured ceiling. Normal
 multi-second gaps between display frames do not interrupt movement; the same
 projection keeps limiting upward travel without depending on another frame.
 Lowering the limit below the current height never moves the desk automatically;
 it only blocks further upward travel.
-
-The timing-sensitive `0x24`/digit software I2C state machine runs on the
-ESP32-S3 ULP RISC-V core, independently of the main CPUs, Wi-Fi, and NimBLE.
-The main CPU only updates the desired key byte through an RTC-memory mailbox and
-drains decoded digit events from a shared ring. No per-edge GPIO ISR is installed.
-Motion diagnostics report the ULP transaction counters, ring drops, and active
-key byte without logging every normal controller poll.
 
 After boot, the controller may not emit a digit frame until the display changes.
 While height is unknown, Web keeps manual UP and DOWN available so either action

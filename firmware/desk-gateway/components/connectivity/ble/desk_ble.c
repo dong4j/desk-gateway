@@ -105,7 +105,8 @@ static void stop_owned_motion(const char *reason)
 {
     cancel_hold_lease();
     if (take_motion_ownership(false)) {
-        (void)desk_core_stop_with_reason(reason);
+        ESP_LOGW(TAG, "%s -> stop", reason);
+        (void)desk_core_stop();
     }
 }
 
@@ -123,7 +124,7 @@ static esp_err_t arm_hold_lease(void)
         (uint64_t)CONFIG_DESK_BLE_HOLD_LEASE_MS * UINT64_C(1000));
     if (err != ESP_OK) {
         take_motion_ownership(false);
-        (void)desk_core_stop_with_reason("BLE hold lease arm failed");
+        (void)desk_core_stop();
     }
     return err;
 }
@@ -135,7 +136,7 @@ static esp_err_t execute_command(desk_ble_command_t command)
     case DESK_BLE_COMMAND_STOP:
         cancel_hold_lease();
         take_motion_ownership(false);
-        return desk_core_stop_with_reason("BLE explicit stop");
+        return desk_core_stop();
 
     case DESK_BLE_COMMAND_HOLD_UP:
         err = desk_core_hold_up(DESK_CONTROL_SOURCE_BLUETOOTH);
@@ -383,7 +384,7 @@ static int system_access(uint16_t conn_handle, uint16_t attr_handle,
         return BLE_ATT_ERR_UNLIKELY;
     }
 
-    esp_err_t err = desk_core_stop_with_reason("BLE restart");
+    esp_err_t err = desk_core_stop();
     if (err == ESP_OK) {
         s_restart_pending = true;
         if (xTaskCreate(restart_task, "ble_restart", 2048, NULL,

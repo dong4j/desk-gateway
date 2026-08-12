@@ -384,7 +384,7 @@ static void probe_startup_height_if_unknown(const desk_driver_t *drv)
     }
 
     vTaskDelay(pdMS_TO_TICKS(DESK_STARTUP_HEIGHT_PROBE_MS));
-    err = desk_core_stop_with_reason("startup height probe complete");
+    err = desk_core_stop();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "startup height probe stop failed: %s",
                  esp_err_to_name(err));
@@ -446,19 +446,11 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
 
 esp_err_t desk_core_stop(void)
 {
-    return desk_core_stop_with_reason("unspecified caller");
-}
-
-esp_err_t desk_core_stop_with_reason(const char *reason)
-{
     cancel_hold_timer();
     s_jog_pending_direction = DESK_JOG_NONE;
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->stop) {
         return ESP_ERR_INVALID_STATE;
-    }
-    if (drv->get_status && drv->get_status() != DESK_STATUS_IDLE) {
-        ESP_LOGW(TAG, "stop requested: %s", reason ? reason : "unknown");
     }
     return drv->stop();
 }
@@ -588,7 +580,7 @@ static esp_err_t jog_event(desk_jog_direction_t direction)
     if (status == DESK_STATUS_MOVING_UP || status == DESK_STATUS_MOVING_DOWN ||
         status == DESK_STATUS_GOTO_PRESET) {
         /* 反向旋转先立即停下；新方向仍需第二个事件才能启动。 */
-        esp_err_t stop_err = desk_core_stop_with_reason("jog direction change");
+        esp_err_t stop_err = desk_core_stop();
         if (stop_err != ESP_OK) {
             return stop_err;
         }
@@ -688,7 +680,7 @@ esp_err_t desk_core_set_child_lock(bool enabled)
     if (enabled) {
         /* Set the runtime lock first so no concurrent source can start again. */
         s_control_policy.child_lock = true;
-        esp_err_t stop_err = desk_core_stop_with_reason("child lock enabled");
+        esp_err_t stop_err = desk_core_stop();
         if (drv && drv->set_panel_enabled) {
             (void)drv->set_panel_enabled(false);
         }
@@ -741,7 +733,7 @@ esp_err_t desk_core_set_source_enabled(desk_control_source_t source,
     } else {
         s_control_policy.enabled_sources &= ~bit;
         /* Administrative revocation is fail-safe: cancel any in-flight motion. */
-        (void)desk_core_stop_with_reason("control source disabled");
+        (void)desk_core_stop();
     }
 
     const desk_driver_t *drv = desk_driver_get_active();

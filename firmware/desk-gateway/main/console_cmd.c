@@ -62,7 +62,7 @@ static void handle_line(char *line)
         return;
     }
     if (!strcmp(line, "stop") || !strcmp(line, "idle")) {
-        desk_core_stop_with_reason("console explicit stop");
+        desk_core_stop();
         return;
     }
     if (!strcmp(line, "up")) {

@@ -312,9 +312,7 @@ static esp_err_t handler_restart(httpd_req_t *req)
         return send_cjson(req, 401, e);
     }
 
-    esp_err_t err = s_restart_pending
-                        ? ESP_ERR_INVALID_STATE
-                        : desk_core_stop_with_reason("REST restart");
+    esp_err_t err = s_restart_pending ? ESP_ERR_INVALID_STATE : desk_core_stop();
     if (err == ESP_OK) {
         /* HTTP server 串行处理 handler，pending 可阻止倒计时内重复创建任务。 */
         s_restart_pending = true;
@@ -349,7 +347,7 @@ static esp_err_t handler_cmd(httpd_req_t *req)
     } else if (strstr(uri, "/desk/down")) {
         err = desk_core_hold_down(DESK_CONTROL_SOURCE_REST);
     } else if (strstr(uri, "/desk/stop")) {
-        err = desk_core_stop_with_reason("REST explicit stop");
+        err = desk_core_stop();
     } else if (strstr(uri, "/presets")) {
         char body[96];
         if (read_body(req, body, sizeof(body)) == ESP_OK) {

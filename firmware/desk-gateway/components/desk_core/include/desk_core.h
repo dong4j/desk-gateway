@@ -35,8 +35,6 @@ typedef struct {
 esp_err_t desk_core_init(const desk_driver_t *drv);
 /** STOP 是安全操作，不受童锁或来源开关限制。 */
 esp_err_t desk_core_stop(void);
-/** STOP with an observable source for hardware diagnosis. */
-esp_err_t desk_core_stop_with_reason(const char *reason);
 esp_err_t desk_core_hold_up(desk_control_source_t source);
 esp_err_t desk_core_hold_down(desk_control_source_t source);
 /** Submit an upward rotary event; continuous events start and maintain motion. */
