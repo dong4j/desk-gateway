@@ -98,12 +98,10 @@ static void expect_fragmented_up_cache(void)
     assert(height_mm == 640);
     assert(oldest_age_ms == 4);
 
-    /* Capture-derived isolated DIG3 advances the known baseline to 65 cm. */
+    /* A lone next-generation digit cannot reuse the previous two digits. */
     assert(tm1650_height_cache_feed(&cache, 0x36, 0xD3, 849, 1500,
                                     &height_mm, &oldest_age_ms) ==
-           TM1650_HEIGHT_VALID);
-    assert(height_mm == 650);
-    assert(oldest_age_ms == 847);
+           TM1650_HEIGHT_WAITING);
 
     /* An invalid segment must not evict the last valid ones digit. */
     assert(tm1650_height_cache_feed(&cache, 0x36, 0xDD, 1200, 1500,
@@ -148,6 +146,46 @@ static void expect_imperial_cache(void)
     assert(tm1650_height_cache_feed(&cache, 0x36, 0x7F, 10, 1500,
                                     &height_mm, &oldest_age_ms) ==
            TM1650_HEIGHT_INVALID);
+}
+
+/** Ensure adjacent imperial refreshes cannot synthesize a half-inch jump. */
+static void expect_imperial_cache_generation_isolation(void)
+{
+    tm1650_height_cache_t cache;
+    tm1650_height_cache_reset(&cache);
+    int height_mm = -1;
+    uint32_t oldest_age_ms = 0;
+
+    /* Establish 27.5 in (698.5 mm, rounded to 699 mm). */
+    assert(tm1650_height_cache_feed(&cache, 0x36, 0xD3, 0, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_cache_feed(&cache, 0x35, 0x66, 2, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_cache_feed(&cache, 0x34, 0x9E, 4, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 699);
+
+    /*
+     * Updating only the decimal tens digit must not combine 28.x with the
+     * stale 5 and publish the fabricated 28.5 in (724 mm) seen in hardware.
+     */
+    assert(tm1650_height_cache_feed(&cache, 0x35, 0xFF, 400, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_WAITING);
+    assert(height_mm == 699);
+
+    /* Once every digit is fresh, the real 28.0 in frame is published. */
+    assert(tm1650_height_cache_feed(&cache, 0x36, 0x5F, 402, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_cache_feed(&cache, 0x34, 0x9E, 404, 1500,
+                                    &height_mm, &oldest_age_ms) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 711);
+    assert(oldest_age_ms == 4);
 }
 
 /** Ensure fragments from adjacent refreshes cannot be combined into a height. */
@@ -205,6 +243,7 @@ int main(void)
     expect_missing_mirror_recovery();
     expect_fragmented_up_cache();
     expect_imperial_cache();
+    expect_imperial_cache_generation_isolation();
     expect_malformed_order_rejected();
 
     puts("tm1650 height golden vectors: OK");

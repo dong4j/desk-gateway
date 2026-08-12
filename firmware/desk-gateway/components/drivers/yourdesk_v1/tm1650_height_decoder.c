@@ -226,6 +226,14 @@ tm1650_height_result_t tm1650_height_cache_feed(
 
     tm1650_height_result_t result =
         decode_height_digits(cache->digits, out_height_mm);
+    /*
+     * A decoded value consumes the current three-digit generation.  Keeping
+     * received_mask set would let one digit from the next refresh combine
+     * with two older digits.  In imperial mode that turned 27.5 -> 28.0 into
+     * a fabricated 28.5 value, which then caused the direction filter to
+     * reject the real 28.0 frame.
+     */
+    cache->received_mask = 0;
     if (result == TM1650_HEIGHT_VALID) {
         *out_oldest_age_ms = oldest_age_ms;
     }
