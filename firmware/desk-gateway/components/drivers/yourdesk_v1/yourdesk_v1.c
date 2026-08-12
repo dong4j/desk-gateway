@@ -505,8 +505,10 @@ static void height_decode_task(void *arg)
     slave_ctx_t *ctx = (slave_ctx_t *)arg;
     tm1650_height_decoder_t decoder;
     tm1650_height_cache_t cache;
+    tm1650_height_registers_t up_registers;
     tm1650_height_decoder_reset(&decoder);
     tm1650_height_cache_reset(&cache);
+    tm1650_height_registers_reset(&up_registers);
     TickType_t frame_start_tick = 0;
     uint32_t last_invalid_raw = UINT32_MAX;
     yourdesk_soft_i2c_digit_event_t event;
@@ -524,6 +526,10 @@ static void height_decode_task(void *arg)
             &cache, event.addr7, event.segment, now_ms,
             HEIGHT_DIGIT_CACHE_MS, &cached_height_mm,
             &cached_oldest_age_ms);
+        int register_height_mm = -1;
+        tm1650_height_result_t register_result =
+            tm1650_height_registers_feed(&up_registers, event.addr7,
+                                         event.segment, &register_height_mm);
 
         tm1650_height_result_t frame_result = TM1650_HEIGHT_WAITING;
         int frame_height_mm = -1;
@@ -549,11 +555,16 @@ static void height_decode_task(void *arg)
         int previous = atomic_load(&s_height_mm);
         yourdesk_preset_direction_t direction = current_height_direction();
         bool complete_frame = frame_result == TM1650_HEIGHT_VALID;
-        bool cached_motion_sample =
+        bool registered_up_sample =
             !complete_frame && previous >= 0 &&
-            direction != YOURDESK_PRESET_STOP &&
+            direction == YOURDESK_PRESET_UP &&
+            register_result == TM1650_HEIGHT_VALID;
+        bool cached_motion_sample =
+            !complete_frame && !registered_up_sample && previous >= 0 &&
+            direction == YOURDESK_PRESET_DOWN &&
             cache_result == TM1650_HEIGHT_VALID;
-        if (!complete_frame && !cached_motion_sample) {
+        if (!complete_frame && !registered_up_sample &&
+            !cached_motion_sample) {
             if (frame_result == TM1650_HEIGHT_INVALID) {
                 uint32_t raw = ((uint32_t)decoder.digits[0] << 24) |
                                ((uint32_t)decoder.digits[1] << 16) |
@@ -571,9 +582,13 @@ static void height_decode_task(void *arg)
             continue;
         }
 
-        int height_mm = complete_frame ? frame_height_mm : cached_height_mm;
+        int height_mm = complete_frame
+                            ? frame_height_mm
+                            : (registered_up_sample ? register_height_mm
+                                                    : cached_height_mm);
         uint32_t sample_age_ms =
-            complete_frame ? 0 : cached_oldest_age_ms;
+            (complete_frame || registered_up_sample) ? 0
+                                                     : cached_oldest_age_ms;
         int elapsed_ms = previous < 0
                              ? 0
                              : elapsed_ms_since(atomic_load(&s_height_tick),
@@ -587,6 +602,15 @@ static void height_decode_task(void *arg)
             HEIGHT_MAX_SPEED_MM_PER_S, HEIGHT_STEP_SLACK_MM);
         last_invalid_raw = UINT32_MAX;
         if (accepted) {
+            if (complete_frame) {
+                /*
+                 * A transition-checked complete frame is the only baseline
+                 * allowed to seed the persistent upward register mirror.
+                 */
+                int seeded_height_mm = -1;
+                (void)tm1650_height_registers_seed(
+                    &up_registers, decoder.digits, &seeded_height_mm);
+            }
             /*
              * Only a transition accepted for the current motion may drive the
              * published height or either upward safety path. A mixed or stale
@@ -618,6 +642,12 @@ static void height_decode_task(void *arg)
                          resync_pending ? " (resync)" : "",
                          decoder.digits[0], decoder.digits[1],
                          decoder.digits[2], decoder.digits[3]);
+            } else if (registered_up_sample) {
+                ESP_LOGI(TAG,
+                         "height=%d.%d cm (register mirror) raw=%02X %02X %02X",
+                         height_mm / 10, height_mm % 10,
+                         up_registers.digits[0], up_registers.digits[1],
+                         up_registers.digits[2]);
             } else {
                 ESP_LOGI(TAG,
                          "height=%d.%d cm (cached age=%" PRIu32
@@ -630,7 +660,9 @@ static void height_decode_task(void *arg)
             ESP_LOGW(TAG,
                      "reject height transition: previous=%d candidate=%d elapsed=%d ms direction=%d source=%s",
                      previous, height_mm, elapsed_ms, (int)direction,
-                     complete_frame ? "frame" : "cache");
+                     complete_frame
+                         ? "frame"
+                         : (registered_up_sample ? "register" : "cache"));
         }
         if (accepted) {
             stop_preset_if_reached(height_mm);

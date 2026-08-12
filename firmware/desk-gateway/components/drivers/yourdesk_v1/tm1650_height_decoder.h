@@ -33,6 +33,12 @@ typedef struct {
     uint8_t received_mask;
 } tm1650_height_cache_t;
 
+/** Persistent numeric registers matching the original TM1650 display. */
+typedef struct {
+    uint8_t digits[3];
+    uint8_t initialized;
+} tm1650_height_registers_t;
+
 /** Reset an incomplete display frame. */
 void tm1650_height_decoder_reset(tm1650_height_decoder_t *decoder);
 
@@ -68,6 +74,31 @@ tm1650_height_result_t tm1650_height_cache_feed(
     tm1650_height_cache_t *cache, uint8_t addr7, uint8_t segment,
     uint32_t now_ms, uint32_t max_age_ms, int *out_height_mm,
     uint32_t *out_oldest_age_ms);
+
+/** Reset the persistent numeric-register mirror to an untrusted state. */
+void tm1650_height_registers_reset(tm1650_height_registers_t *registers);
+
+/**
+ * Establish the register mirror from one complete, accepted controller frame.
+ *
+ * A strict frame remains the trust boundary. After this seed, individual
+ * numeric writes can update the mirror exactly as the original TM1650 display
+ * keeps untouched registers latched.
+ */
+tm1650_height_result_t tm1650_height_registers_seed(
+    tm1650_height_registers_t *registers, const uint8_t digits[3],
+    int *out_height_mm);
+
+/**
+ * Apply one numeric write to the persistent display-register mirror.
+ *
+ * This deliberately does not expire untouched digits: the physical TM1650
+ * retains them too. The caller must apply motion-direction and speed checks to
+ * every reconstructed candidate before publishing or using it for safety.
+ */
+tm1650_height_result_t tm1650_height_registers_feed(
+    tm1650_height_registers_t *registers, uint8_t addr7, uint8_t segment,
+    int *out_height_mm);
 
 #ifdef __cplusplus
 }

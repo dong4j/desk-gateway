@@ -122,6 +122,76 @@ static void expect_fragmented_up_cache(void)
     assert(oldest_age_ms == 4);
 }
 
+/** Verify upward fragments update the same persistent registers as the panel. */
+static void expect_fragmented_up_registers(void)
+{
+    tm1650_height_registers_t registers;
+    tm1650_height_registers_reset(&registers);
+    int height_mm = -1;
+
+    /* An isolated fragment cannot invent the initial desk height. */
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0xC5,
+                                        &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+
+    const uint8_t height_64[3] = {0x00, 0xDB, 0xC5};
+    assert(tm1650_height_registers_seed(&registers, height_64, &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 640);
+
+    /* Raw full_up_64_82.sr next exposes only DIG3=5; the panel shows 65. */
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0xD3,
+                                        &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 650);
+
+    /* Invalid noise is ignored instead of replacing the latched ones digit. */
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0xDD,
+                                        &height_mm) ==
+           TM1650_HEIGHT_INVALID);
+    assert(tm1650_height_registers_feed(&registers, 0x34, 0x00,
+                                        &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 650);
+
+    /* Across 69 -> 70, the caller rejects transient 60 before accepting 70. */
+    const uint8_t height_69[3] = {0x00, 0xDB, 0xD7};
+    assert(tm1650_height_registers_seed(&registers, height_69, &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0x5F,
+                                        &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 600);
+    assert(tm1650_height_registers_feed(&registers, 0x35, 0x46,
+                                        &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 700);
+}
+
+/** Verify persistent register updates preserve the observed imperial format. */
+static void expect_imperial_up_registers(void)
+{
+    tm1650_height_registers_t registers;
+    tm1650_height_registers_reset(&registers);
+    int height_mm = -1;
+
+    const uint8_t height_27_5_in[3] = {0x9E, 0x66, 0xD3};
+    assert(tm1650_height_registers_seed(&registers, height_27_5_in,
+                                        &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 699);
+
+    /* The physical write order temporarily shows 27.0 before settling at 28.0. */
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0x5F,
+                                        &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 686);
+    assert(tm1650_height_registers_feed(&registers, 0x35, 0xFF,
+                                        &height_mm) ==
+           TM1650_HEIGHT_VALID);
+    assert(height_mm == 711);
+}
+
 /** Verify fragmented register updates also understand xx.x inch frames. */
 static void expect_imperial_cache(void)
 {
@@ -242,8 +312,10 @@ int main(void)
     expect_invalid_height(0x9E, 0xD3, 0x7F);
     expect_missing_mirror_recovery();
     expect_fragmented_up_cache();
+    expect_fragmented_up_registers();
     expect_imperial_cache();
     expect_imperial_cache_generation_isolation();
+    expect_imperial_up_registers();
     expect_malformed_order_rejected();
 
     puts("tm1650 height golden vectors: OK");

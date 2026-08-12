@@ -239,3 +239,61 @@ tm1650_height_result_t tm1650_height_cache_feed(
     }
     return result;
 }
+
+void tm1650_height_registers_reset(tm1650_height_registers_t *registers)
+{
+    if (!registers) {
+        return;
+    }
+    registers->initialized = 0;
+    for (size_t i = 0; i < 3; ++i) {
+        registers->digits[i] = 0;
+    }
+}
+
+tm1650_height_result_t tm1650_height_registers_seed(
+    tm1650_height_registers_t *registers, const uint8_t digits[3],
+    int *out_height_mm)
+{
+    if (!registers || !digits || !out_height_mm) {
+        return TM1650_HEIGHT_INVALID;
+    }
+    tm1650_height_result_t result =
+        decode_height_digits(digits, out_height_mm);
+    if (result != TM1650_HEIGHT_VALID) {
+        return result;
+    }
+    for (size_t i = 0; i < 3; ++i) {
+        registers->digits[i] = digits[i];
+    }
+    registers->initialized = 1;
+    return TM1650_HEIGHT_VALID;
+}
+
+tm1650_height_result_t tm1650_height_registers_feed(
+    tm1650_height_registers_t *registers, uint8_t addr7, uint8_t segment,
+    int *out_height_mm)
+{
+    if (!registers || !out_height_mm) {
+        return TM1650_HEIGHT_INVALID;
+    }
+    int index = digit_index(addr7);
+    if (index < 0 || index >= 3) {
+        return TM1650_HEIGHT_WAITING;
+    }
+
+    int value = decode_segment(segment);
+    bool decimal = (segment & TM1650_SEGMENT_DECIMAL_POINT) != 0;
+    if (value == SEGMENT_UNKNOWN || (index > 0 && value == SEGMENT_BLANK) ||
+        (decimal && index != 1)) {
+        /* A malformed bus observation must not corrupt the latched display. */
+        return TM1650_HEIGHT_INVALID;
+    }
+    if (!registers->initialized) {
+        /* Only a complete accepted frame is allowed to establish the baseline. */
+        return TM1650_HEIGHT_WAITING;
+    }
+
+    registers->digits[index] = segment;
+    return decode_height_digits(registers->digits, out_height_mm);
+}
