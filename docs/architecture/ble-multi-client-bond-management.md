@@ -420,13 +420,13 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 - Repeat Pairing 和启动对账不会留下孤儿元数据；
 - Watch / 手机端能识别 Desk Busy `0x80`，且不会将其当作断连；
 - Web JavaScript 语法和静态资源嵌入通过；
-- 手机端 `npm run typecheck` 与 `npm test` 通过；
+- 手机端 `npm run typecheck`、`npm test` 和通用 iOS 无签名构建通过；
 - Watch `swift test` 和通用 watchOS 无签名构建通过；
 - `git diff --check` 通过。
 
 截至 2026-08-13，上述自动化与静态门禁均已通过：固件隔离构建使用 ESP-IDF v6.0.2；
-手机端 `npm run typecheck` 与 36 项测试通过；Watch `swift test` 14 项测试和通用 watchOS
-无签名构建通过。详细命令与最终结果记录在仓库根目录完成结果报告中。
+手机端 `npm run typecheck`、36 项测试和通用 iOS 无签名构建通过；Watch `swift test` 14 项
+测试和通用 watchOS 无签名构建通过。详细命令与最终结果记录在仓库根目录完成结果报告中。
 
 ### 12.2 三台真机门禁
 
@@ -450,6 +450,12 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 
 自动化和模拟器只能证明实现结构与编译结果，不能替代上述 BLE 射频、并发时序和真实
 升降安全验收。完成三台真机门禁之前，结论必须保持 **代码 GO、产品验收 NO-GO**。
+
+2026-08-13 的只读设备盘点确认：实体 iPhone 当前可由 CoreDevice 访问且已安装
+`com.dong4j.deskgateway`；实体 Apple Watch 已配对但当前蓝牙隧道不可达；本机未安装
+Android SDK / `adb`，USB 设备中也未发现可确认的 Android 手机。本机同时连接两块
+Espressif USB-JTAG 设备，但在不复位设备的前提下无法确认哪块连接目标升降桌。因此未执行
+烧录、App 覆盖安装或任何升降动作，真机矩阵继续保持未完成。
 
 ---
 

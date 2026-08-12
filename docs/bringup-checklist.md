@@ -40,6 +40,7 @@ Slave `@0x24`。此前软件多地址 I²C 的高度与档位验收只作为历�
 - [x] ESP-IDF v6.0.2 隔离固件构建与 BLE/Web 主机测试通过
 - [x] Web Bond 管理 JavaScript 语法与策略测试通过
 - [x] 手机端 `npm run typecheck` 与 36 项测试通过
+- [x] 手机端通用 iOS 无签名构建通过
 - [x] Watch `swift test` 14 项与通用 watchOS 无签名构建通过
 - [x] `git diff --check` 通过
 
@@ -58,6 +59,11 @@ Slave `@0x24`。此前软件多地址 I²C 的高度与档位验收只作为历�
 - [ ] 重启后配对窗口关闭，Bond 列表、客户端类型和三连接能力符合预期
 
 本节全部真机项完成前，BLE 多客户端结论保持**代码 GO、产品验收 NO-GO**。
+
+2026-08-13 设备盘点：实体 iPhone 可访问且已安装 Desk Gateway；实体 Watch 已配对但当前
+不可达；Android 手机与 `adb` 不可用；两块 Espressif USB-JTAG 设备无法在不复位的条件下
+确认目标板。需要 dong4j 连接 Android、唤醒 Watch、指定目标 ESP32 串口并在桌旁确认后再
+执行本节，禁止盲目烧录或远程触发升降。
 
 ## B. 接线（yourdesk_v1 + RJ45）
 

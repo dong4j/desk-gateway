@@ -45,6 +45,7 @@
 - [x] iPhone App 已通过 BLE 控制真实升降桌。
 - [x] 手机 App 已实现 BLE 优先、REST 回退、统一状态和设备配置读写。
 - [x] 手机 App 已支持长按升降、STOP、童锁、配置同步和震动反馈；档位 UI 保留但当前不可执行。
+- [x] 手机 App 已通过 TypeScript、36 项主机测试和通用 iOS 无签名构建门禁。
 - [x] Shell 脚本支持上升、下降和停止；档位参数保留兼容，当前固件会返回不支持。
 - [x] GoatRemote 与 Karabiner 可复用同一 Shell 脚本；当前只验收手动升降与停止。
 
@@ -59,7 +60,7 @@
 | P1 | BLE / Wi-Fi 自动回退 | BLE 和指定 IP 的 REST 基本路径已使用；超距自动回退和恢复时序未完整验收 | 不重放运动命令，切换后状态和配置一致 |
 | P1 | Android 真机 | 跨平台代码已存在，尚未完成 Android BLE 权限、配对和控制验收 | Android 完成扫描、配对、Notify、Write 和异常停止 |
 | P1 | iOS 连接稳定性 | 已完成日常控制，尚未执行连续 20 次连接/断开及权限异常矩阵 | 无需重启手机或 ESP32 即可恢复 |
-| P0 | BLE 三客户端与 Bond 管理 | 固件、Web、手机和 Watch 代码及自动化已完成；尚未在 iPhone、Apple Watch、Android 与真实桌子上执行并发安全矩阵 | 三台同时在线，所有权、任意 STOP、断连、单删/全删、配对窗口和重启全部通过 |
+| P0 | BLE 三客户端与 Bond 管理 | 固件、Web、手机和 Watch 代码及自动化已完成；实体 iPhone 可访问，Watch 当前不可达，Android/`adb` 不可用，两块 ESP32 尚未确认目标板 | 指定目标串口并在桌旁使用三台真机完成所有权、任意 STOP、断连、单删/全删、配对窗口和重启矩阵 |
 | P1 | Apple Watch 真机 | SwiftUI/CoreBluetooth App、Client Info、Busy 处理、14 项测试和通用构建已完成 | 真机扫描、配对、Notify、Crown 安全停止及三客户端并发通过 |
 | P1 | Karabiner 旋钮连续升降 | 每个刻度直接发送一次 jog REST 请求，ESP32 使用 700 ms 启动窗口和 500 ms 运动租约；真桌连续升降与停转距离已验收 | 连续旋转无意外中断，停转约 500 ms、反向和断网均可及时停止 |
 | P1 | 移动端发布 | 当前为 Development Build | 完成 TestFlight、Android 内测、签名和发布说明 |
