@@ -3,9 +3,9 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-BLE-MULTI-001 |
-| 版本 | 0.1 |
+| 版本 | 0.2 |
 | 日期 | 2026-08-12 |
-| 状态 | 设计已确认；实现未开始 |
+| 状态 | 设计补充已确认；实现未开始 |
 | 开发分支 | `codex/ble-multi-client-bond-management` |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
 | 客户端 | [Apple Watch](./apple-watch-control.md) / [移动端](./mobile-app-technology-selection.md) |
@@ -46,6 +46,7 @@ API；Watch 不提供删除入口，只负责登记自身客户端类型。
 - 以 `conn_handle` 区分 BLE 运动所有者；
 - 支持 iPhone、Apple Watch、Android 和未知客户端的类型登记；
 - 查看已绑定设备及其在线、控制中状态；
+- 通过已认证入口开启固定 120 秒的新设备配对窗口；
 - 单独删除某个 Bond；
 - 删除全部 Bond；
 - 在 Web UI 和手机端设置页提供上述管理入口；
@@ -60,6 +61,7 @@ API；Watch 不提供删除入口，只负责登记自身客户端类型。
 - 不允许未认证的局域网请求查看或删除配对设备；
 - 不把设备完整 BLE Identity Address 直接展示在 UI 中；
 - 不在本阶段提供自定义设备重命名。
+- 不把客户端自报的 `client_kind` 用于身份认证、授权或运动优先级判断。
 
 ---
 
@@ -82,6 +84,11 @@ CONFIG_BT_NIMBLE_MAX_BONDS=3
 Bond 数量不预留无界冗余。更换手机或出现旧 Bond 时，由本方案的单删 / 全删入口显式
 释放名额，避免通过持续扩大 Bond 上限掩盖设备管理问题。
 
+当前固件使用的 `ble_store_util_status_rr` 会在 Bond Store 溢出时删除最旧 Bond，只适合
+示例程序，与本方案的显式设备管理语义冲突。实现时必须替换为产品侧 Store Status
+Callback：容量不足时拒绝新 Bond，禁止自动调用 `ble_gap_unpair_oldest_peer()` 或任何
+等价淘汰逻辑。`MAX_BONDS=3` 表示硬上限，不表示循环覆盖槽位。
+
 ESP32-S3 上三个连接与 Wi-Fi 共存仍需要真机验证，包括堆内存余量、Notify 时延、HOLD
 续租和断连 STOP；仅通过编译不能证明三连接运行稳定。
 
@@ -98,16 +105,30 @@ ESP32-S3 上三个连接与 Wi-Fi 共存仍需要真机验证，包括堆内存�
 |---|---|
 | `in_use` | 槽位是否有效 |
 | `conn_handle` | NimBLE 当前连接句柄 |
-| `peer_identity` | Bond 使用的对端 Identity Address |
+| `generation` | 槽位复用代次，防止迟到的异步事件命中新连接 |
+| `peer_identity_valid` | 是否已经解析到稳定的 Bond Identity |
+| `peer_identity` | 已解析时保存对端 Identity Address；未解析时不得用于查询或删除 |
+| `encrypted` | 当前连接是否已完成加密 |
 | `client_kind` | unknown / watchOS / iOS / Android |
 | `state_subscribed` | 是否订阅 State Notify |
 | `config_subscribed` | 是否订阅 Config Notify |
-| `delete_pending` | 是否正在执行删除流程 |
+| `delete_state` | idle / pending / failed |
+| `delete_error` | 最近一次异步删除失败原因；成功或重试时清空 |
 
 连接建立、订阅变化、加密变化和断开事件都必须通过 `conn_handle` 定位槽位。禁止在一个
 客户端断开时清空其他客户端的订阅或连接状态。
 
-### 4.2 广播规则
+### 4.2 状态所有权与执行上下文
+
+连接表、运动所有者、配对窗口和删除状态以 NimBLE Host 上下文为唯一写入者。HTTP Handler
+不得直接调用 GAP、Bond Store 或连接表写操作，只能向有界命令队列提交请求，再由
+NimBLE Host Event Queue 串行执行。Notify 任务和 REST 查询只能读取受锁保护的只读快照。
+
+槽位只能由对应 `conn_handle + generation` 的事件修改。在线设备收到删除请求后先标记
+`pending` 并发起 terminate，在匹配的 `BLE_GAP_EVENT_DISCONNECT` 到达前不得清空或复用
+该槽位。这样可以避免旧断开事件、删除超时或句柄复用误伤新连接。
+
+### 4.3 广播规则
 
 NimBLE 建立连接后会结束当次可连接广播。固件按以下规则恢复广播：
 
@@ -117,7 +138,10 @@ NimBLE 建立连接后会结束当次可连接广播。固件按以下规则恢�
 4. 任一客户端断开并释放槽位后重新广播；
 5. stack reset 后安全停止 BLE 所有者的运动、重建连接表并重新广播。
 
-### 4.3 Notify 分发
+广播持续存在不等于允许任何新身份持久配对。已保存 Bond 可以在配对窗口关闭时正常重连；
+尚未绑定的连接必须经过第 7.3 节的配对准入检查。
+
+### 4.4 Notify 分发
 
 State / Config 仍使用原有 Characteristic 和字节布局。`ble_gatts_chr_updated()` 负责向
 所有已启用对应 CCCD 的连接发送通知；连接表中的订阅字段用于判断是否需要触发更新、
@@ -129,15 +153,21 @@ State / Config 仍使用原有 Characteristic 和字节布局。`ble_gatts_chr_u
 
 ### 5.1 所有权状态
 
-BLE 层新增可空的 `motion_owner_conn_handle`。它只区分 Bluetooth 来源内部的客户端；
-Bluetooth 与 REST、原厂面板之间仍由 `desk_core` 的来源权限和全局安全规则仲裁。
+BLE 层新增可空的 `motion_owner_conn_handle`，并同时记录所有者槽位的 `generation`。它只
+区分 Bluetooth 来源内部的客户端；Bluetooth 与 REST、原厂面板之间不新增互斥锁，仍按
+`desk_core` 的童锁、来源开关和运动安全规则执行。
+
+如果 REST 或原厂面板的非 STOP 运动命令被 `desk_core` 接受，BLE 所有权必须在不额外
+发送 STOP 的前提下立即释放，避免原 BLE 客户端随后断开时停止其他来源的新运动。为此
+`desk_core` 必须向 BLE 管理层提供“已接受运动来源变化”事件或等价的活动来源快照，不能
+只依赖 200 ms 状态轮询猜测来源。
 
 | 事件 | 行为 |
 |---|---|
 | 无所有者时收到 HOLD / PRESET | 命令成功后将发送者设为所有者 |
 | 所有者续发同方向 HOLD | 续期租约 |
 | 所有者发送其他运动命令 | 按现有 `desk_core` 规则执行，并继续持有所有权 |
-| 非所有者发送 HOLD / PRESET | 返回 Busy 对应的 ATT 错误，不改变当前运动 |
+| 非所有者发送 HOLD / PRESET | 返回 ATT Application Error `0x80`（Desk Busy），不改变当前运动 |
 | 任意客户端发送 STOP | 无条件 STOP，并释放所有权 |
 | 所有者 HOLD 租约超时 | STOP，并释放所有权 |
 | 所有者完成 PRESET、进入 idle | 释放所有权 |
@@ -148,6 +178,10 @@ Bluetooth 与 REST、原厂面板之间仍由 `desk_core` 的来源权限和全�
 
 STOP 始终是全局安全动作，不受所有权限制。这样另一台设备即使不能接管运动，也仍然能
 在异常情况下停止桌面。
+
+`0x80` 是 Desk Accessory Profile 的稳定应用错误。Watch、iOS 和 Android 新客户端必须
+将它显示为“另一台设备正在控制”，不能把它当作断连；旧客户端即使只能显示通用写入
+失败，也不得重试为 STOP 或覆盖当前所有者。
 
 ### 5.2 连接握手不再依赖 STOP
 
@@ -178,6 +212,9 @@ STOP 始终是全局安全动作，不受所有权限制。这样另一台设备
 固件通过 GATT 回调的 `conn_handle` 查询已解析的对端 Bond Identity，将客户端类型保存到
 NVS 元数据。客户端不上传设备名称、完整地址或其他个人信息。
 
+`client_kind` 是客户端自报的展示字段，固件只校验版本和枚举范围。该字段不得用于认证、
+运动仲裁、删除权限或配对窗口绕过；未知值按 `unknown` 处理。
+
 界面显示名称由固件返回的类型和 Bond ID 后四位生成，例如：
 
 ```text
@@ -196,9 +233,11 @@ Android · E5F6
 
 ### 7.1 API 数据结构
 
-REST 返回稳定但不承诺跨删除重建的 Bond ID。`id` 使用 Bond Identity Address 的摘要
-生成 `bond_<12位十六进制>`，保证三个槽位内可唯一定位且不直接暴露完整地址。UI 只消费
-`id`、自动生成的 `label` 和状态字段；`label` 的四位后缀取自该摘要。
+REST 返回稳定但不承诺跨删除重建的 Bond ID。首次发现 Bond 时由固件生成 48-bit 随机
+opaque ID，编码为 `bond_<12位十六进制>`，与 Identity Address 一起保存在内部 NVS
+元数据中。生成时必须检查当前最多三个条目并在碰撞时重新生成，不能使用无密钥地址摘要、
+地址后缀或可逆编码。UI 只消费 `id`、自动生成的 `label` 和状态字段；`label` 的四位后缀
+取自 opaque ID。
 
 ```json
 {
@@ -209,10 +248,15 @@ REST 返回稳定但不承诺跨删除重建的 Bond ID。`id` 使用 Bond Ident
       "label": "Apple Watch · A1B2",
       "connected": true,
       "controlling": false,
-      "deleting": false
+      "delete_state": "idle",
+      "delete_error": null
     }
   ],
-  "capacity": 3
+  "capacity": 3,
+  "pairing_window": {
+    "open": false,
+    "remaining_seconds": 0
+  }
 }
 ```
 
@@ -221,34 +265,68 @@ REST 返回稳定但不承诺跨删除重建的 Bond ID。`id` 使用 Bond Ident
 | Method | Path | 行为 |
 |---|---|---|
 | `GET` | `/api/v1/bluetooth/bonds` | 返回所有 Bond、客户端类型、在线和控制状态 |
+| `POST` | `/api/v1/bluetooth/pairing-window` | 开启或续期固定 120 秒的新设备配对窗口 |
+| `DELETE` | `/api/v1/bluetooth/pairing-window` | 提前关闭新设备配对窗口 |
 | `DELETE` | `/api/v1/bluetooth/bonds/{id}` | 安全断开并删除一个 Bond |
 | `DELETE` | `/api/v1/bluetooth/bonds` | 安全断开并删除全部 Bond |
 
-三个接口都必须通过现有 Web Session Token 或 `X-Desk-Key` 认证。不得通过未认证的 Setup
+全部接口都必须通过现有 Bearer Token 或 `X-Desk-Key` 认证。不得通过未认证的 Setup
 页面暴露，也不新增 BLE 删除命令。
 
-### 7.3 单独删除
+固定响应语义如下：
+
+| 状态 | 含义 |
+|---|---|
+| `200 OK` | 查询成功、配对窗口已打开/关闭，或离线 Bond 已同步删除 |
+| `202 Accepted` | 在线 Bond 的异步删除已受理；重复提交同一 `pending` 目标仍返回 `202` |
+| `401 Unauthorized` | 认证信息缺失或失效 |
+| `404 Not Found` | Bond ID 不存在，或已在先前请求中删除完成 |
+| `409 Conflict` | 全删请求与正在执行或待重试的单删状态冲突，或内部状态不允许当前操作 |
+| `500 Internal Server Error` | 请求未能入队或内部状态无法安全推进 |
+
+### 7.3 新设备配对准入
+
+- 配对窗口重启后默认关闭，打开后固定 120 秒自动关闭，不允许客户端自定义无限时长；
+- 已保存且能用原密钥恢复加密的 Bond 不受窗口影响；
+- 新身份只有在窗口打开且 Bond 数量小于 3 时才能完成持久配对；
+- 窗口关闭或容量已满时，未绑定连接可以完成物理连接，但不得进入任何加密 Command /
+  Config / System 业务回调，必须被拒绝并安全断开；
+- 第三个新 Bond 成功保存后立即关闭窗口；
+- 客户端已“忽略设备”后触发的 Repeat Pairing 也需要配对窗口，防止伪造旧 Identity 的
+  附近设备删除已有密钥；
+- Store 溢出只能让本次配对失败，绝不能静默删除最旧 Bond。
+
+本设备使用 Just Works，没有 MITM 保护。配对窗口只缩短未经授权设备占用 Bond 名额的
+暴露时间，不能把 Just Works 提升为可验证的设备身份认证。
+
+### 7.4 单独删除
 
 1. 校验认证信息和 Bond ID；
-2. 将目标标记为 `deleting`，避免重复删除；
+2. 在 Host 上下文将目标标记为 `pending`，清空旧的 `delete_error`；
 3. 如果目标是运动所有者，先执行 STOP 并释放所有权；
-4. 如果目标在线，发起 GAP terminate；
-5. 删除 NimBLE Bond 和对应 NVS 客户端类型元数据；
-6. 清理连接槽并恢复广播；
-7. 未找到 ID 返回 `404`，重复删除不得误删其他 Bond。
+4. 目标离线时，同步删除 NimBLE Bond 和全部对应元数据并返回 `200`；
+5. 目标在线时发起 GAP terminate 并返回 `202`，不得阻塞 HTTP Handler；
+6. 收到匹配 `conn_handle + generation` 的断开事件后，再删除 Bond、元数据并释放槽位；
+7. terminate、断开等待或 Store 删除失败时保留条目，设置 `delete_state=failed` 和可展示的
+   `delete_error`；用户再次确认后允许显式重试；
+8. 未找到 ID 返回 `404`，`pending` 期间的重复请求保持幂等，不得误删其他 Bond。
 
-### 7.4 删除全部
+### 7.5 删除全部
 
 1. 无条件执行 STOP 并释放 BLE 所有权；
-2. 将所有在线连接标记为待删除并发起 GAP terminate；
-3. 清空 NimBLE Bond Store；
-4. 清空全部客户端类型元数据和连接槽；
-5. 恢复广播；
-6. 返回实际删除数量。
+2. 在 Host 上下文将所有目标标记为 `pending`，关闭配对窗口；
+3. 离线 Bond 立即删除；在线 Bond 分别发起 GAP terminate；
+4. 每个在线目标只在匹配的断开事件到达后删除 Bond、元数据并释放槽位；
+5. 全部目标完成后恢复广播，并在最终列表中反映实际删除结果；
+6. 任一目标失败时保留其 `failed` 状态和原因，不能把“已入队数量”当作“实际删除数量”。
 
-删除请求通过 HTTP 到达，但 GAP 断开是异步事件。固件应在 BLE 管理任务中串行执行删除，
-HTTP Handler 不得阻塞等待蓝牙事件。API 可以先返回 `202 Accepted`，Web 和手机端刷新列表
-直到目标消失；删除期间列表项显示 `deleting=true`。
+删除请求通过 HTTP 到达，但 GAP 断开是异步事件。固件应通过 Host 命令队列串行执行删除，
+HTTP Handler 不得阻塞等待蓝牙事件。API 对在线目标先返回 `202 Accepted`，Web 和手机端
+刷新列表直到目标消失或进入 `failed`；只有这样才能向用户展示异步失败的固件原因。
+
+启动时还必须以 NimBLE Bond Store 为事实源对账 NVS 元数据：为缺少元数据的旧 Bond
+生成 opaque ID 和 `unknown` 类型，清理已不存在 Bond 的孤儿元数据。Repeat Pairing 删除
+旧密钥时必须走同一套对账逻辑，不能遗留重复 ID 或幽灵设备。
 
 ---
 
@@ -257,11 +335,12 @@ HTTP Handler 不得阻塞等待蓝牙事件。API 可以先返回 `202 Accepted`
 Web 控制页新增“蓝牙配对设备”区域：
 
 - 显示 `已配对数量 / 3`；
+- 提供“允许新设备配对”按钮并显示 120 秒倒计时；
 - 每行显示自动名称、在线/离线和“控制中”状态；
 - 每行提供“删除”按钮；
 - 区域底部提供危险样式的“删除全部配对设备”；
 - 单删和全删都必须二次确认；
-- 删除期间禁用重复操作并轮询刷新；
+- `pending` 期间禁用重复操作并轮询刷新，`failed` 时显示原因和“重试”；
 - API 返回认证失败时沿用现有登录失效流程；
 - 删除失败必须显示固件返回原因，不能乐观地从列表永久移除。
 
@@ -274,10 +353,11 @@ Web UI 仅消费 REST API，不读取或修改浏览器所在设备的本地蓝�
 手机端在“设置 → 连接”区域增加“蓝牙配对设备”卡片，与 Web 使用相同 REST API：
 
 - 显示三类设备和在线/控制状态；
+- 支持开启或提前关闭 120 秒配对窗口；
 - 支持单删和全部删除；
 - 使用系统确认弹窗；
 - 删除完成后刷新列表和当前连接状态；
-- 如果删除的是本机 Bond，BLE 连接会断开，下次连接重新触发配对；
+- 如果删除的是本机 Bond，BLE 连接会断开；重新连接前需要再次开启配对窗口；
 - 如果未配置网关地址或 REST 密码，入口保持禁用并提示“需先配置局域网管理”；
 - 当前控制链路是 BLE 时，管理请求仍单独走 Wi-Fi / REST，不通过 BLE 转发。
 
@@ -294,7 +374,9 @@ iOS 和 Android 共用 React Native UI 与 REST Client；客户端类型登记�
 | 新客户端连接旧固件 | 找不到 Client Info 时退回原连接流程，但不得假定多连接可用 |
 | 旧 Bond 升级固件 | 保留 Bond；重新连接后补齐客户端类型 |
 | Bond 已满 | 新身份配对失败；用户通过 Web / 手机 REST 先删除旧设备 |
-| 删除本机 Bond | 当前 BLE 会话断开；下次连接重新配对 |
+| 删除本机 Bond | 当前 BLE 会话断开；开启配对窗口后尝试重新配对 |
+| 手机仍保留本地 Bond | 网关无法远程删除系统蓝牙记录；自动重配失败时提示用户在系统设置中忽略/取消配对 |
+| 客户端忘记、网关仍保留 Bond | 通过已认证入口打开配对窗口后才允许 Repeat Pairing |
 | 回滚到单连接固件 | 已保存 Bond 可继续使用，但只能有一个 Central 在线 |
 
 State、Config、Command 和 System 的现有 UUID 与字节布局保持不变。Client Info 是可选的
@@ -307,18 +389,20 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 ### 11.1 固件
 
 - `sdkconfig.defaults`：连接数调整为 3；
-- BLE 组件：连接表、广播续开、订阅跟踪、所有权、Client Info、Bond 管理任务；
-- Web 组件：Bond REST API、认证、异步删除状态；
+- BLE 组件：连接表、Host 命令队列、广播续开、订阅跟踪、所有权、配对窗口、Client Info、
+  无淘汰 Store Callback 和 Bond 管理状态机；
+- `desk_core`：向 BLE 管理层暴露已接受运动来源变化，避免 BLE 断连误停其他来源；
+- Web 组件：Bond / 配对窗口 REST API、认证、完整 HTTP 状态和异步删除状态；
 - Web 静态资源：设备列表、确认和错误反馈；
-- NVS：Bond Identity 到客户端类型的最小元数据映射；
-- 测试：连接表、所有权、单删、全删和协议编码。
+- NVS：Bond Identity 到 opaque ID 和客户端类型的最小元数据映射；
+- 测试：连接表代次、所有权、配对准入、Store 满额、单删、全删、异步失败和协议编码。
 
 ### 11.2 客户端
 
 - Watch：连接后写入 watchOS Client Info，移除用 STOP 作为正常配对握手；
 - iOS / Android：写入对应 Client Info；
 - 手机 REST Client：查询、单删和全删 Bond；
-- 手机设置页：配对设备列表和确认交互。
+- 手机设置页：配对窗口、设备列表、失败重试和确认交互。
 
 ---
 
@@ -329,7 +413,12 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 - 固件构建通过；
 - BLE 协议和连接表单元测试通过；
 - 三连接所有权状态机测试通过；
-- REST API 的认证、404、单删、全删和重复删除测试通过；
+- Store 满额时新 Bond 失败且三个旧 Bond 均保留；
+- 配对窗口关闭、超时、容量已满和第三个 Bond 成功后的准入测试通过；
+- REST API 的认证、200/202/404/409/500、单删、全删、重复删除和异步失败测试通过；
+- 迟到断开事件和 `conn_handle` 复用不会清理新槽位；
+- Repeat Pairing 和启动对账不会留下孤儿元数据；
+- Watch / 手机端能识别 Desk Busy `0x80`，且不会将其当作断连；
 - Web JavaScript 语法和静态资源嵌入通过；
 - 手机端 `npm run typecheck` 与 `npm test` 通过；
 - Watch `swift test` 和通用 watchOS 无签名构建通过；
@@ -349,8 +438,11 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 8. 单独删除在线所有者会先 STOP，再断开并清除 Bond；
 9. 单独删除离线设备不会影响其他连接；
 10. 删除全部会停止运动、断开三台设备并恢复可配对广播；
-11. 被删除设备重新连接时再次出现系统配对流程；
-12. 重启网关后 Bond 列表、客户端类型和连接能力符合预期。
+11. 配对窗口关闭时第四台设备不能占用 Bond，三个旧 Bond 不被淘汰；
+12. 被删除设备在重新打开配对窗口后再次进入系统配对流程；
+13. iOS / Android 保留本地 Bond 导致自动重配失败时，客户端能给出系统设置操作提示；
+14. REST 或原厂面板接管运动后，旧 BLE 所有者断开不会停止新的运动来源；
+15. 重启网关后配对窗口关闭，Bond 列表、客户端类型和连接能力符合预期。
 
 自动化和模拟器只能证明实现结构与编译结果，不能替代上述 BLE 射频、并发时序和真实
 升降安全验收。完成三台真机门禁之前，结论必须保持 **代码 GO、产品验收 NO-GO**。
@@ -359,16 +451,18 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 
 ## 13. 实施顺序
 
-1. 冻结本文档和 BLE Profile 扩展；
-2. 抽取可测试的连接表与所有权状态机；
-3. 实现三个连接、广播续开和多订阅 Notify；
-4. 实现 Client Info 与客户端类型持久化；
-5. 实现 Bond 查询、单删、全删和安全断开；
-6. 接入 Web UI；
-7. 更新 Watch、iOS、Android 客户端；
-8. 接入手机设置页；
-9. 完成自动化门禁；
-10. 执行三台真机和真实升降桌验收。
+1. 冻结本文档、Busy `0x80` 和 BLE Profile 扩展；
+2. 抽取可测试的连接表、槽位代次、所有权和 Host 命令队列；
+3. 替换 Round-Robin Store Callback，实现容量拒绝、配对窗口和启动对账；
+4. 实现三个连接、广播续开和多订阅 Notify；
+5. 实现 Client Info、opaque Bond ID 和客户端类型持久化；
+6. 实现 Bond 查询、单删、全删、失败状态和安全断开；
+7. 接入 Web UI；
+8. 更新 Watch、iOS、Android 客户端；
+9. 接入手机设置页和系统 Bond 失败提示；
+10. 同步 BLE Profile、Watch 和手机端关联文档；
+11. 完成自动化门禁；
+12. 执行三台真机和真实升降桌验收。
 
 后续实现不得把“连接数调整为 3”单独视为功能完成。只有连接表、所有权、删除语义、
 两套管理 UI 和真机安全矩阵全部闭环，才能将本文状态改为“已实现”。
