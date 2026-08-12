@@ -472,37 +472,58 @@ static esp_err_t authorize_source(desk_control_source_t source)
     return ESP_OK;
 }
 
-static esp_err_t hold_up_for_ms(uint32_t timeout_ms)
+/**
+ * Start or renew one manual direction through the same motion path.
+ *
+ * UP adds only the configured ceiling pre-check. Once a direction is already
+ * active, both UP and DOWN merely renew the lease and leave height decoding
+ * untouched.
+ */
+static esp_err_t hold_direction_for_ms(bool upward, uint32_t timeout_ms)
 {
     const desk_driver_t *drv = desk_driver_get_active();
-    if (!drv || !drv->hold_up) {
+    esp_err_t (*hold)(void) =
+        drv ? (upward ? drv->hold_up : drv->hold_down) : NULL;
+    if (!drv || !hold) {
         return ESP_ERR_NOT_SUPPORTED;
     }
-    if (!drv->get_height_mm) {
-        return ESP_ERR_NOT_SUPPORTED;
+
+    if (upward) {
+        if (!drv->get_height_mm) {
+            return ESP_ERR_NOT_SUPPORTED;
+        }
+        int current_mm = -1;
+        esp_err_t height_err = drv->get_height_mm(&current_mm);
+        if (height_err != ESP_OK && height_err != ESP_ERR_INVALID_STATE) {
+            if (drv->stop) {
+                (void)drv->stop();
+            }
+            return height_err;
+        }
+        if (height_err == ESP_OK &&
+            current_mm >=
+                s_max_height_mm - DESK_MAX_HEIGHT_STOP_MARGIN_MM) {
+            if (drv->stop) {
+                (void)drv->stop();
+            }
+            return ESP_ERR_INVALID_STATE;
+        }
     }
-    int current_mm = -1;
-    esp_err_t height_err = drv->get_height_mm(&current_mm);
-    if (height_err != ESP_OK && height_err != ESP_ERR_INVALID_STATE) {
-        (void)drv->stop();
-        return height_err;
-    }
-    if (height_err == ESP_OK &&
-        current_mm >= s_max_height_mm - DESK_MAX_HEIGHT_STOP_MARGIN_MM) {
-        (void)drv->stop();
-        return ESP_ERR_INVALID_STATE;
-    }
-    if (drv->get_status && drv->get_status() == DESK_STATUS_MOVING_UP) {
-        /* 重复旋转只刷新租约；重复发送 UP 会重置驱动的高度同步状态。 */
+
+    desk_status_t moving_status =
+        upward ? DESK_STATUS_MOVING_UP : DESK_STATUS_MOVING_DOWN;
+    if (drv->get_status && drv->get_status() == moving_status) {
+        /* 续租不能重新发送方向命令，也不能重置高度同步状态。 */
         arm_hold_ms(timeout_ms);
         return ESP_OK;
     }
+
     /*
      * An unknown height is expected after boot because the controller may not
-     * refresh its display while idle. The driver permits only a bounded UP
-     * acquisition window and takes over as soon as the first real frame arrives.
+     * refresh its display while idle. Motion starts normally; the independent
+     * upward observer takes over as soon as the first real frame arrives.
      */
-    esp_err_t err = drv->hold_up();
+    esp_err_t err = hold();
     if (err == ESP_OK) {
         arm_hold_ms(timeout_ms);
 #if CONFIG_DESK_SIM_HEIGHT
@@ -512,25 +533,14 @@ static esp_err_t hold_up_for_ms(uint32_t timeout_ms)
     return err;
 }
 
+static esp_err_t hold_up_for_ms(uint32_t timeout_ms)
+{
+    return hold_direction_for_ms(true, timeout_ms);
+}
+
 static esp_err_t hold_down_for_ms(uint32_t timeout_ms)
 {
-    const desk_driver_t *drv = desk_driver_get_active();
-    if (!drv || !drv->hold_down) {
-        return ESP_ERR_NOT_SUPPORTED;
-    }
-    if (drv->get_status && drv->get_status() == DESK_STATUS_MOVING_DOWN) {
-        /* 旋钮重复事件延长运动时，保留当前高度解码状态。 */
-        arm_hold_ms(timeout_ms);
-        return ESP_OK;
-    }
-    esp_err_t err = drv->hold_down();
-    if (err == ESP_OK) {
-        arm_hold_ms(timeout_ms);
-#if CONFIG_DESK_SIM_HEIGHT
-        s_sim_last_us = esp_timer_get_time();
-#endif
-    }
-    return err;
+    return hold_direction_for_ms(false, timeout_ms);
 }
 
 esp_err_t desk_core_hold_up(desk_control_source_t source)

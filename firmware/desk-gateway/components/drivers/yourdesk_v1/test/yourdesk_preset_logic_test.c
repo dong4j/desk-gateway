@@ -82,6 +82,12 @@ int main(void)
     assert(yourdesk_predictive_max_height_reached(
         1016, 400, 35, 1040, 10, 500));
 
+    /* A mid-travel anchor cannot trigger the ceiling observer prematurely. */
+    assert(!yourdesk_predictive_max_height_reached(
+        838, 5000, 35, 1040, 10, 500));
+    assert(yourdesk_predictive_max_height_reached(
+        838, 5800, 35, 1040, 10, 500));
+
     puts("yourdesk preset logic vectors: OK");
     return 0;
 }

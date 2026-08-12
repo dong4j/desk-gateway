@@ -81,8 +81,6 @@ static const char *TAG = "yourdesk_v1";
 #define HEIGHT_SAFETY_POLL_MS           50
 /* Do not amplify the 10 mm early-stop margin with an indefinitely old frame. */
 #define HEIGHT_MARGIN_PROJECTION_MAX_AGE_MS 500
-/* Unknown-height UP is allowed only long enough to obtain the first real frame. */
-#define HEIGHT_ACQUIRE_TIMEOUT_MS        2000
 
 #if YOURDESK_HEIGHT_INPUT_ENABLED
 #define ADDR_DIG1_7BIT 0x34u
@@ -308,12 +306,11 @@ static void height_safety_task(void *arg)
         int anchor_age_ms = elapsed_ms_since(
             atomic_load(&s_safety_anchor_tick), now);
         if (anchor_mm < YOURDESK_HEIGHT_FEEDBACK_MIN_MM) {
-            if (anchor_age_ms >= HEIGHT_ACQUIRE_TIMEOUT_MS) {
-                cancel_preset_motion();
-                ESP_LOGW(TAG, "height acquisition timeout (%d ms) -> stop",
-                         anchor_age_ms);
-                (void)set_dr(DR_IDLE);
-            }
+            /*
+             * Height acquisition is observational: a temporarily missing
+             * display frame must not make UP less stable than DOWN. The first
+             * accepted height activates the same ceiling observer below.
+             */
             continue;
         }
         int max_height_mm = atomic_load(&s_max_height_mm);
@@ -813,44 +810,47 @@ static esp_err_t yd_stop(void)
     return set_dr(DR_IDLE);
 }
 
-static esp_err_t yd_hold_up(void)
+/** Start either manual direction through one shared driver path. */
+static esp_err_t yd_hold_direction(uint8_t dr)
 {
+    if (dr != DR_UP && dr != DR_DOWN) {
+        return ESP_ERR_INVALID_ARG;
+    }
     if (panel_has_priority()) {
         return ESP_ERR_INVALID_STATE;
     }
 #if YOURDESK_HEIGHT_INPUT_ENABLED
     cancel_preset_motion();
-    int height_mm = atomic_load(&s_height_mm);
-    int max_height_mm = atomic_load(&s_max_height_mm);
-    if (atomic_load(&s_up_limit_latched)) {
-        (void)set_dr(DR_IDLE);
-        return ESP_ERR_INVALID_STATE;
+    if (dr == DR_UP) {
+        int height_mm = atomic_load(&s_height_mm);
+        int max_height_mm = atomic_load(&s_max_height_mm);
+        if (atomic_load(&s_up_limit_latched) ||
+            (height_mm >= 0 &&
+             yourdesk_max_height_reached(
+                 height_mm, max_height_mm,
+                 DESK_MAX_HEIGHT_STOP_MARGIN_MM))) {
+            (void)set_dr(DR_IDLE);
+            return ESP_ERR_INVALID_STATE;
+        }
+        if (height_mm < 0) {
+            ESP_LOGI(TAG,
+                     "manual up: height unknown, waiting for controller frame");
+        }
+        start_up_safety(height_mm);
     }
-    if (height_mm >= 0 &&
-        yourdesk_max_height_reached(height_mm, max_height_mm,
-                                    DESK_MAX_HEIGHT_STOP_MARGIN_MM)) {
-        (void)set_dr(DR_IDLE);
-        return ESP_ERR_INVALID_STATE;
-    }
-    if (height_mm < 0) {
-        ESP_LOGI(TAG, "manual up: height unknown, acquiring controller frame");
-    }
-    start_up_safety(height_mm);
     begin_height_resync();
 #endif
-    return set_dr(DR_UP);
+    return set_dr(dr);
+}
+
+static esp_err_t yd_hold_up(void)
+{
+    return yd_hold_direction(DR_UP);
 }
 
 static esp_err_t yd_hold_down(void)
 {
-    if (panel_has_priority()) {
-        return ESP_ERR_INVALID_STATE;
-    }
-#if YOURDESK_HEIGHT_INPUT_ENABLED
-    cancel_preset_motion();
-    begin_height_resync();
-#endif
-    return set_dr(DR_DOWN);
+    return yd_hold_direction(DR_DOWN);
 }
 
 static esp_err_t yd_goto_preset(uint8_t n)
