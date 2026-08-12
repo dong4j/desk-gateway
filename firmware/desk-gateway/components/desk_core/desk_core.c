@@ -65,6 +65,29 @@ static int s_preset1_height_mm = DESK_PRESET1_HEIGHT_MM_DEFAULT;
 static int s_preset4_height_mm = DESK_PRESET4_HEIGHT_MM_DEFAULT;
 static desk_jog_direction_t s_jog_pending_direction;
 static uint32_t s_jog_last_event_ms;
+static desk_core_event_listener_t s_event_listener;
+static void *s_event_listener_context;
+
+static void notify_event(desk_core_event_kind_t kind,
+                         desk_control_source_t source)
+{
+    if (!s_event_listener) {
+        return;
+    }
+    const desk_core_event_t event = {
+        .kind = kind,
+        .source = source,
+    };
+    s_event_listener(&event, s_event_listener_context);
+}
+
+void desk_core_set_event_listener(desk_core_event_listener_t listener,
+                                  void *context)
+{
+    /* 观察者在系统启动期设置，运行期只读，避免给每次运动入口增加锁。 */
+    s_event_listener = listener;
+    s_event_listener_context = context;
+}
 
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
 /** Keep UP and DOWN diagnostics structurally identical for direct comparison. */
@@ -508,7 +531,13 @@ esp_err_t desk_core_stop(void)
     ESP_LOGI(TAG, "motion stop source=core reason=explicit status=%s",
              motion_status_name(status));
 #endif
-    return drv->stop();
+    esp_err_t err = drv->stop();
+    if (err == ESP_OK) {
+        /* STOP 没有来源限制；观察者只需知道任意入口已经安全停机。 */
+        notify_event(DESK_CORE_EVENT_STOP_ACCEPTED,
+                     DESK_CONTROL_SOURCE_CONSOLE);
+    }
+    return err;
 }
 
 /** Reject every motion source below child lock and its own persisted switch. */
@@ -591,6 +620,9 @@ esp_err_t desk_core_hold_up(desk_control_source_t source)
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
     log_hold_result(source, true, err);
 #endif
+    if (err == ESP_OK) {
+        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
+    }
     return err;
 }
 
@@ -609,6 +641,9 @@ esp_err_t desk_core_hold_down(desk_control_source_t source)
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
     log_hold_result(source, false, err);
 #endif
+    if (err == ESP_OK) {
+        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
+    }
     return err;
 }
 
@@ -690,7 +725,11 @@ esp_err_t desk_core_jog_up(desk_control_source_t source)
     if (err != ESP_OK) {
         return err;
     }
-    return jog_event(DESK_JOG_UP, source);
+    err = jog_event(DESK_JOG_UP, source);
+    if (err == ESP_OK) {
+        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
+    }
+    return err;
 }
 
 esp_err_t desk_core_jog_down(desk_control_source_t source)
@@ -699,7 +738,11 @@ esp_err_t desk_core_jog_down(desk_control_source_t source)
     if (err != ESP_OK) {
         return err;
     }
-    return jog_event(DESK_JOG_DOWN, source);
+    err = jog_event(DESK_JOG_DOWN, source);
+    if (err == ESP_OK) {
+        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
+    }
+    return err;
 }
 
 esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
@@ -744,6 +787,7 @@ esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
             s_sim_mm = s_preset4_height_mm;
         }
 #endif
+        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
     }
     return err;
 }

@@ -32,7 +32,29 @@ typedef struct {
     const char *driver;
 } desk_core_snapshot_t;
 
+typedef enum {
+    DESK_CORE_EVENT_STOP_ACCEPTED = 0,
+    DESK_CORE_EVENT_MOTION_ACCEPTED,
+} desk_core_event_kind_t;
+
+typedef struct {
+    desk_core_event_kind_t kind;
+    desk_control_source_t source;
+} desk_core_event_t;
+
+/**
+ * desk_core 接受命令后的轻量通知。
+ *
+ * 回调可能来自 REST、面板、BLE 或定时器所在任务，只能做无阻塞转发；
+ * 不允许在回调中再次调用 desk_core，避免控制链递归。
+ */
+typedef void (*desk_core_event_listener_t)(const desk_core_event_t *event,
+                                           void *context);
+
 esp_err_t desk_core_init(const desk_driver_t *drv);
+/** 启动阶段注册单一观察者；传 NULL 可取消注册。 */
+void desk_core_set_event_listener(desk_core_event_listener_t listener,
+                                  void *context);
 /** STOP 是安全操作，不受童锁或来源开关限制。 */
 esp_err_t desk_core_stop(void);
 esp_err_t desk_core_hold_up(desk_control_source_t source);
