@@ -9,7 +9,9 @@
  */
 #include "desk_web.h"
 
+#include "desk_ble.h"
 #include "desk_core.h"
+#include "desk_web_ble_api.h"
 #include "desk_wifi.h"
 
 #include "cJSON.h"
@@ -130,12 +132,71 @@ static esp_err_t send_cjson(httpd_req_t *req, int status, cJSON *obj)
     }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_status(req, status == 200 ? "200 OK" :
+                                status == 202 ? "202 Accepted" :
                                 status == 401 ? "401 Unauthorized" :
                                 status == 403 ? "403 Forbidden" :
+                                status == 404 ? "404 Not Found" :
+                                status == 409 ? "409 Conflict" :
+                                status == 500 ? "500 Internal Server Error" :
                                                 "400 Bad Request");
     esp_err_t err = httpd_resp_sendstr(req, body);
     free(body);
     return err;
+}
+
+static esp_err_t send_unauthorized(httpd_req_t *req)
+{
+    cJSON *error = cJSON_CreateObject();
+    cJSON_AddStringToObject(error, "error", "unauthorized");
+    return send_cjson(req, 401, error);
+}
+
+static cJSON *ble_management_snapshot_json(
+    const desk_ble_management_snapshot_t *snapshot)
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON *devices = cJSON_AddArrayToObject(root, "devices");
+    for (size_t i = 0; i < snapshot->device_count; ++i) {
+        const desk_ble_bond_view_t *view = &snapshot->devices[i];
+        cJSON *device = cJSON_CreateObject();
+        cJSON_AddStringToObject(device, "id", view->id);
+        cJSON_AddStringToObject(device, "kind", view->kind);
+        cJSON_AddStringToObject(device, "label", view->label);
+        cJSON_AddBoolToObject(device, "connected", view->connected);
+        cJSON_AddBoolToObject(device, "controlling", view->controlling);
+        cJSON_AddStringToObject(
+            device, "delete_state",
+            desk_web_ble_delete_state_name(view->delete_state));
+        if (view->delete_error[0]) {
+            cJSON_AddStringToObject(device, "delete_error",
+                                   view->delete_error);
+        } else {
+            cJSON_AddNullToObject(device, "delete_error");
+        }
+        cJSON_AddItemToArray(devices, device);
+    }
+    cJSON_AddNumberToObject(root, "capacity", snapshot->capacity);
+    cJSON *pairing = cJSON_AddObjectToObject(root, "pairing_window");
+    cJSON_AddBoolToObject(pairing, "open", snapshot->pairing_window_open);
+    cJSON_AddNumberToObject(pairing, "remaining_seconds",
+                            snapshot->pairing_window_remaining_seconds);
+    return root;
+}
+
+static esp_err_t send_ble_management_result(
+    httpd_req_t *req, desk_ble_management_result_t result)
+{
+    int status = desk_web_ble_result_status(result);
+    cJSON *body = cJSON_CreateObject();
+    cJSON_AddBoolToObject(body, "ok", status == 200 || status == 202);
+    if (status == 404) {
+        cJSON_AddStringToObject(body, "error", "bond_not_found");
+    } else if (status == 409) {
+        cJSON_AddStringToObject(body, "error", "delete_conflict");
+    } else if (status == 500) {
+        cJSON_AddStringToObject(body, "error", "internal_error");
+    }
+    return send_cjson(req, status, body);
 }
 
 static const char *status_str(desk_status_t st)
@@ -295,6 +356,51 @@ static esp_err_t handler_status(httpd_req_t *req)
         return send_cjson(req, 401, e);
     }
     return send_cjson(req, 200, snapshot_json());
+}
+
+static esp_err_t handler_bluetooth_bonds(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        return send_unauthorized(req);
+    }
+    desk_ble_management_snapshot_t snapshot;
+    if (!desk_ble_get_management_snapshot(&snapshot)) {
+        cJSON *error = cJSON_CreateObject();
+        cJSON_AddStringToObject(error, "error", "bluetooth_not_ready");
+        return send_cjson(req, 500, error);
+    }
+    return send_cjson(req, 200, ble_management_snapshot_json(&snapshot));
+}
+
+static esp_err_t handler_bluetooth_pairing_window(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        return send_unauthorized(req);
+    }
+    desk_ble_management_result_t result =
+        req->method == HTTP_POST ? desk_ble_open_pairing_window()
+                                 : desk_ble_close_pairing_window();
+    return send_ble_management_result(req, result);
+}
+
+static esp_err_t handler_bluetooth_delete(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        return send_unauthorized(req);
+    }
+    desk_ble_management_result_t result;
+    if (strcmp(req->uri, "/api/v1/bluetooth/bonds") == 0) {
+        result = desk_ble_delete_all_bonds();
+    } else {
+        char bond_id[DESK_BLE_MANAGEMENT_ID_LENGTH];
+        if (!desk_web_ble_extract_bond_id(req->uri, bond_id,
+                                          sizeof(bond_id))) {
+            result = DESK_BLE_MANAGEMENT_NOT_FOUND;
+        } else {
+            result = desk_ble_delete_bond(bond_id);
+        }
+    }
+    return send_ble_management_result(req, result);
 }
 
 /** 给 HTTP 响应留出发送时间，再执行芯片软重启。 */
@@ -558,6 +664,11 @@ esp_err_t desk_web_start(void)
         {.uri = "/api/v1/auth/login", .method = HTTP_POST, .handler = handler_login},
         {.uri = "/api/v1/auth/password", .method = HTTP_POST, .handler = handler_password},
         {.uri = "/api/v1/desk/status", .method = HTTP_GET, .handler = handler_status},
+        {.uri = "/api/v1/bluetooth/bonds", .method = HTTP_GET, .handler = handler_bluetooth_bonds},
+        {.uri = "/api/v1/bluetooth/pairing-window", .method = HTTP_POST, .handler = handler_bluetooth_pairing_window},
+        {.uri = "/api/v1/bluetooth/pairing-window", .method = HTTP_DELETE, .handler = handler_bluetooth_pairing_window},
+        {.uri = "/api/v1/bluetooth/bonds", .method = HTTP_DELETE, .handler = handler_bluetooth_delete},
+        {.uri = "/api/v1/bluetooth/bonds/*", .method = HTTP_DELETE, .handler = handler_bluetooth_delete},
         {.uri = "/api/v1/system/restart", .method = HTTP_POST, .handler = handler_restart},
         {.uri = "/api/v1/desk/*", .method = HTTP_POST, .handler = handler_cmd},
     };

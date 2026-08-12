@@ -8,6 +8,7 @@ REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
 DRIVER_DIR="${REPO_ROOT}/firmware/desk-gateway/components/drivers/yourdesk_v1"
 CORE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_core"
 BLE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/ble"
+WEB_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/web"
 TEST_DIR="$(mktemp -d /tmp/desk-gateway-height-tests.XXXXXX)"
 
 cleanup() {
@@ -83,3 +84,11 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${BLE_DIR}/test/desk_ble_bond_registry_test.c" \
     -o "${TEST_DIR}/ble-bond-registry-test"
 "${TEST_DIR}/ble-bond-registry-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${BLE_DIR}/include" \
+    -I "${WEB_DIR}/include" \
+    "${WEB_DIR}/desk_web_ble_api.c" \
+    "${WEB_DIR}/test/desk_web_ble_api_test.c" \
+    -o "${TEST_DIR}/web-ble-api-test"
+"${TEST_DIR}/web-ble-api-test"
