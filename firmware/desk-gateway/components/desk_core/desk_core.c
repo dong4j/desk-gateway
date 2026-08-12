@@ -553,8 +553,8 @@ static esp_err_t hold_direction_for_ms(bool upward, uint32_t timeout_ms)
 
     /*
      * An unknown height is expected after boot because the controller may not
-     * refresh its display while idle. Motion starts normally; the independent
-     * upward observer takes over as soon as the first real frame arrives.
+     * refresh its display while idle. Motion starts normally, and later
+     * display frames update the published height asynchronously.
      */
     esp_err_t err = hold();
     if (err == ESP_OK) {

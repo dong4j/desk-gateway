@@ -50,6 +50,12 @@ void yourdesk_soft_i2c_sm_set_dr(yourdesk_soft_i2c_sm_t *sm, uint8_t dr)
     }
 }
 
+bool yourdesk_soft_i2c_sm_key_tx_active(const yourdesk_soft_i2c_sm_t *sm)
+{
+    return sm && (sm->phase == YOURDESK_SOFT_I2C_TX_DATA ||
+                  sm->phase == YOURDESK_SOFT_I2C_TX_MASTER_ACK);
+}
+
 void yourdesk_soft_i2c_sm_start(yourdesk_soft_i2c_sm_t *sm)
 {
     if (sm) {

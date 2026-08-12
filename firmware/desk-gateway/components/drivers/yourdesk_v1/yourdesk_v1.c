@@ -286,6 +286,7 @@ static void motion_bus_diag_log(
              " abort=%" PRIu32 " key_gap_max=%" PRIu32
              " us start_stop=%" PRIu32 "/%" PRIu32
              " sda_ignored=%" PRIu32 "/%" PRIu32
+             " tx_guard=%" PRIu32
              " sm=%s:%u@0x%02X tx_dr=0x%02X",
              stage, dr == DR_UP ? "up" : "down",
              (uint32_t)(now - interval_tick) * portTICK_PERIOD_MS,
@@ -300,6 +301,8 @@ static void motion_bus_diag_log(
              stats->ignored_own_sda_edges - baseline->ignored_own_sda_edges,
              stats->ignored_sda_edges_while_scl_low -
                  baseline->ignored_sda_edges_while_scl_low,
+             stats->ignored_sda_edges_during_key_tx -
+                 baseline->ignored_sda_edges_during_key_tx,
              motion_diag_phase_name(stats->phase), stats->bit_count,
              stats->current_addr7, stats->tx_dr);
 }

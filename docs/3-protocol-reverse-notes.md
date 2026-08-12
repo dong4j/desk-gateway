@@ -1084,7 +1084,7 @@ ESP32 内部待回传字节改变，不能证明控制盒已经发起 `0x24` 轮
 1. `CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL=n`，不再使用被动 GPIO 嗅探。
 2. `CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS=y`，统一处理 `0x24` 键读写和 `0x34–0x37` digit 写。
 3. 主机波形向量、IRAM 符号检查、真机升降和真实高度均已通过；后续只需补逻辑分析仪电气波形存档。
-4. 上升与下降使用同一套「严格完整帧 + 分代缓存」高度路径。软件 I²C 收发恢复到 `67d14bb` 的真机基线，不再叠加活动字节边沿过滤；最高安全高度拦截暂时停用，先分别验收 `0x47` 与 `0x4F` 能持续返回到显式 STOP。
+4. 上升与下降使用同一套「严格完整帧 + 分代缓存」高度路径。软件 I²C 收发以 `67d14bb` 的真机基线为准，仅在 `0x24` 的 `TX_DATA / TX_MASTER_ACK` 阶段忽略延迟到达的从机 SDA 中断，避免正在返回的 `0x47` 被自身边沿误判为 START/STOP；RX、digit、Repeated START 和正常 STOP 均不改变。最高安全高度拦截暂时停用，先分别验收 `0x47` 与 `0x4F` 能持续返回到显式 STOP。
 
 **B. 补全键位（中优先）**
 

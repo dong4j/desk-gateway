@@ -58,6 +58,16 @@ void yourdesk_soft_i2c_sm_init(yourdesk_soft_i2c_sm_t *sm, uint8_t initial_dr);
 /** Update the byte returned by the next read from address 0x24. */
 void yourdesk_soft_i2c_sm_set_dr(yourdesk_soft_i2c_sm_t *sm, uint8_t dr);
 
+/**
+ * Return whether the slave is currently clocking the 0x24 DR response.
+ *
+ * START/STOP cannot be valid in the middle of this byte or its master ACK.
+ * The GPIO adapter uses this protocol fact to ignore delayed slave-owned SDA
+ * interrupts without changing receive-side transaction handling.
+ */
+bool YOURDESK_SOFT_I2C_ISR_ATTR
+yourdesk_soft_i2c_sm_key_tx_active(const yourdesk_soft_i2c_sm_t *sm);
+
 /** Handle SDA high-to-low while SCL is high. */
 void YOURDESK_SOFT_I2C_ISR_ATTR
 yourdesk_soft_i2c_sm_start(yourdesk_soft_i2c_sm_t *sm);

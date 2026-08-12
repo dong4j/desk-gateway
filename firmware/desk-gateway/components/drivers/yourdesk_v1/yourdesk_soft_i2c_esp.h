@@ -28,6 +28,7 @@ typedef struct {
     uint32_t recognized_starts;
     uint32_t recognized_stops;
     uint32_t ignored_own_sda_edges;
+    uint32_t ignored_sda_edges_during_key_tx;
     uint32_t ignored_sda_edges_while_scl_low;
     uint32_t key_write_addresses;
     uint32_t key_read_addresses;

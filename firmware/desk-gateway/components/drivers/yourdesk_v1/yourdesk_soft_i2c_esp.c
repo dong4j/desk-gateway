@@ -135,6 +135,18 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
 {
     (void)arg;
     portENTER_CRITICAL_ISR(&s_sm_mux);
+    /*
+     * While returning DR, every SDA transition belongs to the slave byte (or
+     * its release before the ACK clock). GPIO delivery can lag until SCL is
+     * high, where the live levels would otherwise misclassify that edge as a
+     * START/STOP and truncate 0x47. Do not alter receive-side boundary logic.
+     */
+    if (yourdesk_soft_i2c_sm_key_tx_active(&s_sm)) {
+        s_ignore_own_sda_edge = false;
+        s_stats.ignored_sda_edges_during_key_tx++;
+        portEXIT_CRITICAL_ISR(&s_sm_mux);
+        return;
+    }
     if (s_ignore_own_sda_edge) {
         s_ignore_own_sda_edge = false;
         s_stats.ignored_own_sda_edges++;

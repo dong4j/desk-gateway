@@ -29,13 +29,17 @@ static uint8_t master_read_dr(yourdesk_soft_i2c_sm_t *sm,
 {
     uint8_t value = 0;
     for (int bit = 0; bit < 8; ++bit) {
+        /* A delayed SDA IRQ at this point must be consumed by the TX guard. */
+        assert(yourdesk_soft_i2c_sm_key_tx_active(sm));
         value = (uint8_t)((value << 1) | (sm->drive_sda_low ? 0u : 1u));
         yourdesk_soft_i2c_sm_scl_rising(sm, !sm->drive_sda_low);
         *event = yourdesk_soft_i2c_sm_scl_falling(sm);
     }
+    assert(yourdesk_soft_i2c_sm_key_tx_active(sm));
     assert(!sm->drive_sda_low);
     yourdesk_soft_i2c_sm_scl_rising(sm, false); /* Controller ACKs, then STOPs. */
     *event = yourdesk_soft_i2c_sm_scl_falling(sm);
+    assert(!yourdesk_soft_i2c_sm_key_tx_active(sm));
     return value;
 }
 
