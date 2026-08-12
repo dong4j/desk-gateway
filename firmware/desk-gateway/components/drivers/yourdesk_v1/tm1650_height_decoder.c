@@ -246,8 +246,11 @@ void tm1650_height_registers_reset(tm1650_height_registers_t *registers)
         return;
     }
     registers->initialized = 0;
+    registers->pending_dirty = 0;
+    registers->last_write_ms = 0;
     for (size_t i = 0; i < 3; ++i) {
-        registers->digits[i] = 0;
+        registers->committed_digits[i] = 0;
+        registers->pending_digits[i] = 0;
     }
 }
 
@@ -264,17 +267,19 @@ tm1650_height_result_t tm1650_height_registers_seed(
         return result;
     }
     for (size_t i = 0; i < 3; ++i) {
-        registers->digits[i] = digits[i];
+        registers->committed_digits[i] = digits[i];
+        registers->pending_digits[i] = digits[i];
     }
     registers->initialized = 1;
+    registers->pending_dirty = 0;
     return TM1650_HEIGHT_VALID;
 }
 
 tm1650_height_result_t tm1650_height_registers_feed(
     tm1650_height_registers_t *registers, uint8_t addr7, uint8_t segment,
-    int *out_height_mm)
+    uint32_t now_ms)
 {
-    if (!registers || !out_height_mm) {
+    if (!registers) {
         return TM1650_HEIGHT_INVALID;
     }
     int index = digit_index(addr7);
@@ -293,7 +298,58 @@ tm1650_height_result_t tm1650_height_registers_feed(
         /* Only a complete accepted frame is allowed to establish the baseline. */
         return TM1650_HEIGHT_WAITING;
     }
+    if (registers->pending_digits[index] == segment) {
+        /* Periodic refreshes of an unchanged digit must not postpone settling. */
+        return TM1650_HEIGHT_WAITING;
+    }
 
-    registers->digits[index] = segment;
-    return decode_height_digits(registers->digits, out_height_mm);
+    registers->pending_digits[index] = segment;
+    registers->last_write_ms = now_ms;
+    registers->pending_dirty = 1;
+    return TM1650_HEIGHT_WAITING;
+}
+
+uint8_t tm1650_height_registers_has_pending(
+    const tm1650_height_registers_t *registers)
+{
+    return registers && registers->initialized && registers->pending_dirty;
+}
+
+tm1650_height_result_t tm1650_height_registers_settle(
+    tm1650_height_registers_t *registers, uint32_t now_ms,
+    uint32_t settle_ms, int *out_height_mm)
+{
+    if (!registers || !out_height_mm) {
+        return TM1650_HEIGHT_INVALID;
+    }
+    if (!tm1650_height_registers_has_pending(registers) ||
+        now_ms - registers->last_write_ms < settle_ms) {
+        return TM1650_HEIGHT_WAITING;
+    }
+
+    /* Consume this decision once; later digit writes may continue from it. */
+    registers->pending_dirty = 0;
+    return decode_height_digits(registers->pending_digits, out_height_mm);
+}
+
+void tm1650_height_registers_commit(tm1650_height_registers_t *registers)
+{
+    if (!registers || !registers->initialized) {
+        return;
+    }
+    for (size_t i = 0; i < 3; ++i) {
+        registers->committed_digits[i] = registers->pending_digits[i];
+    }
+    registers->pending_dirty = 0;
+}
+
+void tm1650_height_registers_discard(tm1650_height_registers_t *registers)
+{
+    if (!registers || !registers->initialized) {
+        return;
+    }
+    for (size_t i = 0; i < 3; ++i) {
+        registers->pending_digits[i] = registers->committed_digits[i];
+    }
+    registers->pending_dirty = 0;
 }

@@ -122,7 +122,7 @@ static void expect_fragmented_up_cache(void)
     assert(oldest_age_ms == 4);
 }
 
-/** Verify upward fragments update the same persistent registers as the panel. */
+/** Verify upward fragments settle before changing the confirmed registers. */
 static void expect_fragmented_up_registers(void)
 {
     tm1650_height_registers_t registers;
@@ -130,9 +130,9 @@ static void expect_fragmented_up_registers(void)
     int height_mm = -1;
 
     /* An isolated fragment cannot invent the initial desk height. */
-    assert(tm1650_height_registers_feed(&registers, 0x36, 0xC5,
-                                        &height_mm) ==
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0xC5, 0) ==
            TM1650_HEIGHT_WAITING);
+    assert(!tm1650_height_registers_has_pending(&registers));
 
     const uint8_t height_64[3] = {0x00, 0xDB, 0xC5};
     assert(tm1650_height_registers_seed(&registers, height_64, &height_mm) ==
@@ -140,35 +140,50 @@ static void expect_fragmented_up_registers(void)
     assert(height_mm == 640);
 
     /* Raw full_up_64_82.sr next exposes only DIG3=5; the panel shows 65. */
-    assert(tm1650_height_registers_feed(&registers, 0x36, 0xD3,
-                                        &height_mm) ==
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0xD3, 100) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_registers_has_pending(&registers));
+    /* An unchanged refresh at 150 ms must not restart the settle timer. */
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0xD3, 150) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_registers_settle(&registers, 199, 100,
+                                          &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_registers_settle(&registers, 200, 100,
+                                          &height_mm) ==
            TM1650_HEIGHT_VALID);
     assert(height_mm == 650);
+    tm1650_height_registers_commit(&registers);
 
     /* Invalid noise is ignored instead of replacing the latched ones digit. */
-    assert(tm1650_height_registers_feed(&registers, 0x36, 0xDD,
-                                        &height_mm) ==
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0xDD, 250) ==
            TM1650_HEIGHT_INVALID);
-    assert(tm1650_height_registers_feed(&registers, 0x34, 0x00,
-                                        &height_mm) ==
-           TM1650_HEIGHT_VALID);
+    assert(!tm1650_height_registers_has_pending(&registers));
+    assert(tm1650_height_registers_feed(&registers, 0x34, 0x00, 300) ==
+           TM1650_HEIGHT_WAITING);
+    assert(!tm1650_height_registers_has_pending(&registers));
     assert(height_mm == 650);
 
-    /* Across 69 -> 70, the caller rejects transient 60 before accepting 70. */
+    /* Across 69 -> 70, retain rejected 60 so the later tens write makes 70. */
     const uint8_t height_69[3] = {0x00, 0xDB, 0xD7};
     assert(tm1650_height_registers_seed(&registers, height_69, &height_mm) ==
            TM1650_HEIGHT_VALID);
-    assert(tm1650_height_registers_feed(&registers, 0x36, 0x5F,
-                                        &height_mm) ==
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0x5F, 500) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_registers_settle(&registers, 600, 100,
+                                          &height_mm) ==
            TM1650_HEIGHT_VALID);
     assert(height_mm == 600);
-    assert(tm1650_height_registers_feed(&registers, 0x35, 0x46,
-                                        &height_mm) ==
+    assert(tm1650_height_registers_feed(&registers, 0x35, 0x46, 650) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_registers_settle(&registers, 750, 100,
+                                          &height_mm) ==
            TM1650_HEIGHT_VALID);
     assert(height_mm == 700);
+    tm1650_height_registers_commit(&registers);
 }
 
-/** Verify persistent register updates preserve the observed imperial format. */
+/** Replay the exact imperial carry sequence that previously published 72.4. */
 static void expect_imperial_up_registers(void)
 {
     tm1650_height_registers_t registers;
@@ -181,15 +196,39 @@ static void expect_imperial_up_registers(void)
            TM1650_HEIGHT_VALID);
     assert(height_mm == 699);
 
-    /* The physical write order temporarily shows 27.0 before settling at 28.0. */
-    assert(tm1650_height_registers_feed(&registers, 0x36, 0x5F,
-                                        &height_mm) ==
+    /*
+     * A stale valid DIG1 byte can manufacture 57.5 in. The caller rejects the
+     * impossible forward jump and rolls pending registers back to 27.5 in.
+     */
+    assert(tm1650_height_registers_feed(&registers, 0x34, 0xD3, 0) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_registers_settle(&registers, 100, 100,
+                                          &height_mm) ==
            TM1650_HEIGHT_VALID);
-    assert(height_mm == 686);
-    assert(tm1650_height_registers_feed(&registers, 0x35, 0xFF,
-                                        &height_mm) ==
+    assert(height_mm == 1461);
+    tm1650_height_registers_discard(&registers);
+
+    /* The invalid 0x3D observation must not re-poison the confirmed DIG1. */
+    assert(tm1650_height_registers_feed(&registers, 0x34, 0x3D, 150) ==
+           TM1650_HEIGHT_INVALID);
+    assert(!tm1650_height_registers_has_pending(&registers));
+
+    /*
+     * 28.5 is only a mixed intermediate. The real 28.0 ones digit arrives
+     * 70 ms later, inside the 100 ms quiet window, so 72.4 cm is never emitted.
+     */
+    assert(tm1650_height_registers_feed(&registers, 0x35, 0xFF, 200) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_registers_feed(&registers, 0x36, 0x5F, 270) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_registers_settle(&registers, 369, 100,
+                                          &height_mm) ==
+           TM1650_HEIGHT_WAITING);
+    assert(tm1650_height_registers_settle(&registers, 370, 100,
+                                          &height_mm) ==
            TM1650_HEIGHT_VALID);
     assert(height_mm == 711);
+    tm1650_height_registers_commit(&registers);
 }
 
 /** Verify fragmented register updates also understand xx.x inch frames. */

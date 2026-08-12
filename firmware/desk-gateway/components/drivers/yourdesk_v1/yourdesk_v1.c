@@ -76,6 +76,8 @@ static const char *TAG = "yourdesk_v1";
 #define HEIGHT_FRAME_WINDOW_MS          20
 /* Capture replay shows valid upward digit fragments remain useful for 1.5 s. */
 #define HEIGHT_DIGIT_CACHE_MS           1500
+/* Wait for a quiet bus interval before publishing a non-atomic register update. */
+#define HEIGHT_UP_REGISTER_SETTLE_MS     100
 #define HEIGHT_MAX_SPEED_MM_PER_S       35
 #define HEIGHT_STEP_SLACK_MM            20
 #define HEIGHT_SAFETY_POLL_MS           50
@@ -511,61 +513,102 @@ static void height_decode_task(void *arg)
     tm1650_height_registers_reset(&up_registers);
     TickType_t frame_start_tick = 0;
     uint32_t last_invalid_raw = UINT32_MAX;
+    int last_rejected_register_mm = INT_MIN;
     yourdesk_soft_i2c_digit_event_t event;
 
     for (;;) {
-        if (xQueueReceive(ctx->digit_q, &event, portMAX_DELAY) != pdTRUE) {
-            continue;
-        }
+        /*
+         * A digit write changes only one physical TM1650 register. During a
+         * carry, decoding immediately can combine old and new digits (for
+         * example 27.5 -> transient 28.5 -> 28.0). Wake after 100 ms of quiet
+         * time so only the settled register image becomes a height candidate.
+         */
+        TickType_t wait_ticks =
+            tm1650_height_registers_has_pending(&up_registers)
+                ? pdMS_TO_TICKS(HEIGHT_UP_REGISTER_SETTLE_MS)
+                : portMAX_DELAY;
+        bool got_event =
+            xQueueReceive(ctx->digit_q, &event, wait_ticks) == pdTRUE;
         TickType_t now = xTaskGetTickCount();
         uint32_t now_ms = (uint32_t)now * portTICK_PERIOD_MS;
 
         int cached_height_mm = -1;
         uint32_t cached_oldest_age_ms = 0;
-        tm1650_height_result_t cache_result = tm1650_height_cache_feed(
-            &cache, event.addr7, event.segment, now_ms,
-            HEIGHT_DIGIT_CACHE_MS, &cached_height_mm,
-            &cached_oldest_age_ms);
+        tm1650_height_result_t cache_result = TM1650_HEIGHT_WAITING;
         int register_height_mm = -1;
-        tm1650_height_result_t register_result =
-            tm1650_height_registers_feed(&up_registers, event.addr7,
-                                         event.segment, &register_height_mm);
-
+        tm1650_height_result_t register_result = TM1650_HEIGHT_WAITING;
         tm1650_height_result_t frame_result = TM1650_HEIGHT_WAITING;
         int frame_height_mm = -1;
-        if (event.addr7 == 0x36u) {
-            tm1650_height_decoder_reset(&decoder);
-            frame_start_tick = now;
-        } else if (frame_start_tick == 0 ||
-                   now - frame_start_tick >
-                       pdMS_TO_TICKS(HEIGHT_FRAME_WINDOW_MS)) {
-            /* An incomplete or late fragment cannot borrow bytes from a new frame. */
-            tm1650_height_decoder_reset(&decoder);
-            frame_start_tick = 0;
-        }
-        if (frame_start_tick != 0) {
-            frame_result = tm1650_height_decoder_feed(
-                &decoder, event.addr7, event.segment, &frame_height_mm);
-        }
-        if (frame_result == TM1650_HEIGHT_VALID ||
-            frame_result == TM1650_HEIGHT_INVALID) {
-            frame_start_tick = 0;
+        yourdesk_preset_direction_t direction = current_height_direction();
+        if (got_event) {
+            /* Keep the proven downward cache path byte-for-byte equivalent. */
+            cache_result = tm1650_height_cache_feed(
+                &cache, event.addr7, event.segment, now_ms,
+                HEIGHT_DIGIT_CACHE_MS, &cached_height_mm,
+                &cached_oldest_age_ms);
+            if (direction == YOURDESK_PRESET_UP) {
+                (void)tm1650_height_registers_feed(
+                    &up_registers, event.addr7, event.segment, now_ms);
+                /*
+                 * The controller can refresh unchanged digits continuously.
+                 * Settle against the last actual value change even when the
+                 * queue itself never becomes empty for 100 ms.
+                 */
+                register_result = tm1650_height_registers_settle(
+                    &up_registers, now_ms, HEIGHT_UP_REGISTER_SETTLE_MS,
+                    &register_height_mm);
+                if (register_result == TM1650_HEIGHT_INVALID) {
+                    tm1650_height_registers_discard(&up_registers);
+                }
+            } else {
+                /* Never carry an unfinished upward image across another mode. */
+                tm1650_height_registers_discard(&up_registers);
+            }
+
+            if (event.addr7 == 0x36u) {
+                tm1650_height_decoder_reset(&decoder);
+                frame_start_tick = now;
+            } else if (frame_start_tick == 0 ||
+                       now - frame_start_tick >
+                           pdMS_TO_TICKS(HEIGHT_FRAME_WINDOW_MS)) {
+                /* An incomplete fragment cannot borrow bytes from a new frame. */
+                tm1650_height_decoder_reset(&decoder);
+                frame_start_tick = 0;
+            }
+            if (frame_start_tick != 0) {
+                frame_result = tm1650_height_decoder_feed(
+                    &decoder, event.addr7, event.segment, &frame_height_mm);
+            }
+            if (frame_result == TM1650_HEIGHT_VALID ||
+                frame_result == TM1650_HEIGHT_INVALID) {
+                frame_start_tick = 0;
+            }
+        } else if (direction == YOURDESK_PRESET_UP) {
+            register_result = tm1650_height_registers_settle(
+                &up_registers, now_ms, HEIGHT_UP_REGISTER_SETTLE_MS,
+                &register_height_mm);
+            if (register_result == TM1650_HEIGHT_INVALID) {
+                tm1650_height_registers_discard(&up_registers);
+            }
+        } else {
+            tm1650_height_registers_discard(&up_registers);
+            continue;
         }
 
         int previous = atomic_load(&s_height_mm);
-        yourdesk_preset_direction_t direction = current_height_direction();
         bool complete_frame = frame_result == TM1650_HEIGHT_VALID;
         bool registered_up_sample =
             !complete_frame && previous >= 0 &&
             direction == YOURDESK_PRESET_UP &&
             register_result == TM1650_HEIGHT_VALID;
         bool cached_motion_sample =
-            !complete_frame && !registered_up_sample && previous >= 0 &&
+            got_event && !complete_frame && !registered_up_sample &&
+            previous >= 0 &&
             direction == YOURDESK_PRESET_DOWN &&
             cache_result == TM1650_HEIGHT_VALID;
         if (!complete_frame && !registered_up_sample &&
             !cached_motion_sample) {
-            if (frame_result == TM1650_HEIGHT_INVALID) {
+            if (got_event && frame_result == TM1650_HEIGHT_INVALID) {
                 uint32_t raw = ((uint32_t)decoder.digits[0] << 24) |
                                ((uint32_t)decoder.digits[1] << 16) |
                                ((uint32_t)decoder.digits[2] << 8) |
@@ -610,6 +653,10 @@ static void height_decode_task(void *arg)
                 int seeded_height_mm = -1;
                 (void)tm1650_height_registers_seed(
                     &up_registers, decoder.digits, &seeded_height_mm);
+                last_rejected_register_mm = INT_MIN;
+            } else if (registered_up_sample) {
+                tm1650_height_registers_commit(&up_registers);
+                last_rejected_register_mm = INT_MIN;
             }
             /*
              * Only a transition accepted for the current motion may drive the
@@ -635,28 +682,55 @@ static void height_decode_task(void *arg)
                          height_mm);
             }
         }
-        if (accepted && previous != height_mm) {
-            if (complete_frame) {
-                ESP_LOGI(TAG, "height=%d.%d cm%s raw=%02X %02X %02X %02X",
-                         height_mm / 10, height_mm % 10,
-                         resync_pending ? " (resync)" : "",
-                         decoder.digits[0], decoder.digits[1],
-                         decoder.digits[2], decoder.digits[3]);
-            } else if (registered_up_sample) {
-                ESP_LOGI(TAG,
-                         "height=%d.%d cm (register mirror) raw=%02X %02X %02X",
-                         height_mm / 10, height_mm % 10,
-                         up_registers.digits[0], up_registers.digits[1],
-                         up_registers.digits[2]);
-            } else {
-                ESP_LOGI(TAG,
-                         "height=%d.%d cm (cached age=%" PRIu32
-                         " ms) raw=%02X %02X %02X",
-                         height_mm / 10, height_mm % 10,
-                         cached_oldest_age_ms, cache.digits[0],
-                         cache.digits[1], cache.digits[2]);
+        if (accepted) {
+            if (previous != height_mm) {
+                if (complete_frame) {
+                    ESP_LOGI(TAG,
+                             "height=%d.%d cm%s raw=%02X %02X %02X %02X",
+                             height_mm / 10, height_mm % 10,
+                             resync_pending ? " (resync)" : "",
+                             decoder.digits[0], decoder.digits[1],
+                             decoder.digits[2], decoder.digits[3]);
+                } else if (registered_up_sample) {
+                    ESP_LOGI(TAG,
+                             "height=%d.%d cm (register mirror) raw=%02X %02X %02X",
+                             height_mm / 10, height_mm % 10,
+                             up_registers.committed_digits[0],
+                             up_registers.committed_digits[1],
+                             up_registers.committed_digits[2]);
+                } else {
+                    ESP_LOGI(TAG,
+                             "height=%d.%d cm (cached age=%" PRIu32
+                             " ms) raw=%02X %02X %02X",
+                             height_mm / 10, height_mm % 10,
+                             cached_oldest_age_ms, cache.digits[0],
+                             cache.digits[1], cache.digits[2]);
+                }
             }
-        } else if (!accepted) {
+        } else if (registered_up_sample) {
+            /*
+             * Log a repeated poisoned candidate only once. An impossible
+             * forward jump is stale data and must roll back immediately. A
+             * reverse carry intermediate remains pending so the next digit can
+             * complete the new value (for example 69 -> 60 -> 70).
+             */
+            if (height_mm != last_rejected_register_mm) {
+                ESP_LOGW(TAG,
+                         "reject height transition: previous=%d candidate=%d elapsed=%d ms direction=%d source=register raw=%02X %02X %02X",
+                         previous, height_mm, elapsed_ms, (int)direction,
+                         up_registers.pending_digits[0],
+                         up_registers.pending_digits[1],
+                         up_registers.pending_digits[2]);
+                last_rejected_register_mm = height_mm;
+            }
+            if (height_mm > previous) {
+                tm1650_height_registers_discard(&up_registers);
+            }
+        } else {
+            if (complete_frame) {
+                /* A rejected full frame must not leak into a later settle. */
+                tm1650_height_registers_discard(&up_registers);
+            }
             ESP_LOGW(TAG,
                      "reject height transition: previous=%d candidate=%d elapsed=%d ms direction=%d source=%s",
                      previous, height_mm, elapsed_ms, (int)direction,
