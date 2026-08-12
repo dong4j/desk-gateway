@@ -11,6 +11,7 @@ export class DeskHoldController {
   private timer: ReturnType<typeof setInterval> | null = null;
   private activeCommand: DeskCommandValue | null = null;
   private writeInFlight = false;
+  private writeTail: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly send: CommandSender,
@@ -44,7 +45,7 @@ export class DeskHoldController {
     this.activeCommand = null;
     this.clearTimer();
     if (wasActive) {
-      await this.send(DeskCommand.Stop).catch(() => undefined);
+      await this.enqueue(DeskCommand.Stop).catch(() => undefined);
     }
   }
 
@@ -56,10 +57,19 @@ export class DeskHoldController {
 
     this.writeInFlight = true;
     try {
-      await this.send(command);
+      await this.enqueue(command);
     } finally {
       this.writeInFlight = false;
     }
+  }
+
+  /**
+   * 串行化 REST 与 BLE 写入，确保松手 STOP 不会被已经在途的续期命令越过。
+   */
+  private enqueue(command: DeskCommandValue): Promise<void> {
+    const operation = this.writeTail.then(() => this.send(command));
+    this.writeTail = operation.catch(() => undefined);
+    return operation;
   }
 
   private clearTimer(): void {

@@ -21,6 +21,35 @@ test('renews while active and ends with STOP', async () => {
   assert.equal(sent.at(-1), DeskCommand.Stop);
 });
 
+test('queues STOP after an in-flight renewal', async () => {
+  const sent: DeskCommandValue[] = [];
+  let releaseRenewal: (() => void) | undefined;
+  const renewalGate = new Promise<void>((resolve) => {
+    releaseRenewal = resolve;
+  });
+  let upCount = 0;
+  const controller = new DeskHoldController(async (command) => {
+    sent.push(command);
+    if (command === DeskCommand.HoldUp && ++upCount === 2) {
+      await renewalGate;
+    }
+  }, 10);
+
+  await controller.start(DeskCommand.HoldUp);
+  await waitUntil(() => upCount === 2);
+
+  const stopPromise = controller.stop();
+  await delay(0);
+  assert.notEqual(sent.at(-1), DeskCommand.Stop);
+  releaseRenewal?.();
+  await stopPromise;
+
+  assert.equal(sent.at(-1), DeskCommand.Stop);
+  const countAfterStop = sent.length;
+  await delay(25);
+  assert.equal(sent.length, countAfterStop);
+});
+
 test('rejects preset commands as HOLD input', async () => {
   const controller = new DeskHoldController(async () => undefined);
   await assert.rejects(
@@ -47,4 +76,12 @@ test('does not start a renewal timer after the first write fails', async () => {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitUntil(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (predicate()) return;
+    await delay(2);
+  }
+  throw new Error('timed out waiting for delayed renewal');
 }
