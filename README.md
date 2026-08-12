@@ -4,7 +4,7 @@
 
 Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protocols live behind pluggable **Desk Drivers**; Web / UART / BLE (and later Matter / Home Assistant) share one control plane (`desk_core`).
 
-> **Safety:** Keep a person nearby when moving the desk. Default motion timeout is 15s. Use **LAN only** — do not expose the Web UI to the public Internet.
+> **Safety:** Keep a person nearby when moving the desk. Upward motion stops on release, explicit STOP, the preset target, or the configured ceiling; downward motion retains the default 15s timeout. Use **LAN only** — do not expose the Web UI to the public Internet.
 
 ## Features (current)
 

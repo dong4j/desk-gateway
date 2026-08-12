@@ -1,6 +1,6 @@
 /**
  * @file desk_core.h
- * @brief 统一控制面：超时、童锁、扇出到 desk_driver
+ * @brief 统一控制面：方向相关运动保护、童锁、扇出到 desk_driver
  *
  * UART / Web / 未来 BLE 只调这里，禁止直连厂商驱动。
  */

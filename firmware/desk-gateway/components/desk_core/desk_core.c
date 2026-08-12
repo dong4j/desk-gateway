@@ -1,8 +1,9 @@
 /**
  * @file desk_core.c
- * @brief 运动超时、统一入口权限、童锁和可选 SIM 高度
+ * @brief 方向相关运动保护、统一入口权限、童锁和可选 SIM 高度
  *
- * 超时放在 core：驱动只负责协议字节，避免各入口漏 stop。
+ * 下降超时放在 core；上升依靠松手/显式 STOP 与最高安全高度停止。
+ * 驱动只负责协议字节，避免各入口绕过统一保护。
  * 童锁优先于所有入口开关；所有运动命令必须携带来源并在此授权。
  * SIM 高度：驱动无 digit 时本地推算，仅演示，禁止当真实高度。
  */
@@ -26,6 +27,13 @@ static const char *NVS_KEY_PRESET4_HEIGHT = "preset4_mm";
 
 #define DESK_PRESET1_HEIGHT_MM_DEFAULT 640
 #define DESK_PRESET4_HEIGHT_MM_DEFAULT 1020
+
+/*
+ * 上升不使用通用运动超时：手动上升由松手/显式 STOP 结束，档位 4
+ * 由目标高度结束；两者始终受驱动层最高安全高度保护。传入 0 会先
+ * 取消可能遗留的 core 定时器，但不会启动新的定时器。
+ */
+#define DESK_UPWARD_MOTION_TIMEOUT_MS 0U
 
 /*
  * 当前 YourDesk 控制盒实测：DOWN 保持 130 ms 后立即 STOP，不产生可见位移，
@@ -606,9 +614,9 @@ esp_err_t desk_core_hold_up(desk_control_source_t source)
     s_jog_pending_direction = DESK_JOG_NONE;
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
     const desk_driver_t *drv = desk_driver_get_active();
-    log_hold_request(drv, source, true, CONFIG_DESK_MOTION_TIMEOUT_MS);
+    log_hold_request(drv, source, true, DESK_UPWARD_MOTION_TIMEOUT_MS);
 #endif
-    err = hold_up_for_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+    err = hold_up_for_ms(DESK_UPWARD_MOTION_TIMEOUT_MS);
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
     log_hold_result(source, true, err);
 #endif
@@ -734,10 +742,33 @@ esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
     if (!drv || !drv->goto_preset) {
         return ESP_ERR_NOT_SUPPORTED;
     }
+
+    /*
+     * 驱动执行档位期间统一返回 GOTO_PRESET，无法从 status 区分方向。
+     * 因此在启动前用当前高度和最终目标判断本次是否真正向上；高度
+     * 未知时保持原有超时，避免改变档位 1 的安全下降行为。
+     */
+    bool preset_moves_up = false;
+    if (drv->get_height_mm && (n == 1 || n == 4)) {
+        int current_mm = -1;
+        if (drv->get_height_mm(&current_mm) == ESP_OK) {
+            int target_mm =
+                n == 1 ? s_preset1_height_mm : s_preset4_height_mm;
+            if (target_mm > s_max_height_mm) {
+                target_mm = s_max_height_mm;
+            }
+            preset_moves_up = current_mm < target_mm;
+        }
+    }
+
     esp_err_t err = drv->goto_preset(n);
     if (err == ESP_OK) {
-        /* Height-based presets keep moving until the driver stops or safety timeout fires. */
-        arm_hold_ms(CONFIG_DESK_MOTION_TIMEOUT_MS);
+        /*
+         * 只按实际运动方向决定是否启用超时：上升到目标或安全上限后
+         * 由驱动停止；下降保持现有超时行为不变。
+         */
+        arm_hold_ms(preset_moves_up ? DESK_UPWARD_MOTION_TIMEOUT_MS
+                                    : CONFIG_DESK_MOTION_TIMEOUT_MS);
 #if CONFIG_DESK_SIM_HEIGHT
         if (n == 1) {
             s_sim_mm = s_preset1_height_mm;

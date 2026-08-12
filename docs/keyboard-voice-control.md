@@ -71,7 +71,7 @@ cp integrations/karabiner/desk-gateway.json \
 - Shell 端没有后台进程、进程锁或临时状态文件。
 
 单次刻度不会让桌子窜动；停转、Shell 退出或网络中断后，桌子都不会落入
-普通控制使用的 15 秒运动超时。
+手动下降使用的 15 秒运动超时。
 
 反向时的 STOP 在 ESP32 内部直接调用 `desk_core_stop()`，不需要 Shell 先发送
 `/api/v1/desk/stop`。这样由固件根据真实运动方向停止，不依赖 Mac 保存方向状态。
