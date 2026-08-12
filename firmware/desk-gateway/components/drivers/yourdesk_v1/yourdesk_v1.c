@@ -255,7 +255,9 @@ static void motion_diag_log_interval(
              " start_stop=%" PRIu32 "/%" PRIu32
              " key_addr=%" PRIu32 "/%" PRIu32
              " key_ok_abort=%" PRIu32 "/%" PRIu32
-             " ring_drop=%" PRIu32 " active_dr=0x%02X",
+             " ring_drop=%" PRIu32
+             " timing_apply_edge=%" PRIu32 "/%" PRIu32
+             " deadline_miss=%" PRIu32 " active_dr=0x%02X",
              stage, direction, dt_ms,
              bus->scl_rising_edges - baseline->scl_rising_edges,
              bus->scl_falling_edges - baseline->scl_falling_edges,
@@ -266,6 +268,8 @@ static void motion_diag_log_interval(
              bus->completed_key_reads - baseline->completed_key_reads,
              bus->aborted_key_reads - baseline->aborted_key_reads,
              bus->digit_ring_drops - baseline->digit_ring_drops,
+             bus->max_sda_apply_cycles, bus->max_edge_cycles,
+             bus->edge_deadline_misses - baseline->edge_deadline_misses,
              bus->active_dr);
     ESP_LOGI(TAG,
              "motion_diag state stage=%s dir=%s height=%d anchor=%d age=%dms"

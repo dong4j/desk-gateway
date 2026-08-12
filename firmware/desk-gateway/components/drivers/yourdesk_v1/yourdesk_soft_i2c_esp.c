@@ -209,6 +209,11 @@ void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats)
         .digit_ring_drops = shared_load(&ulp_stat_digit_ring_drops),
         .digit_queue_drops = s_digit_queue_drops,
         .mirror_digit_queue_drops = s_mirror_digit_queue_drops,
+        .max_sda_apply_cycles =
+            shared_load(&ulp_stat_max_sda_apply_cycles),
+        .max_edge_cycles = shared_load(&ulp_stat_max_edge_cycles),
+        .edge_deadline_misses =
+            shared_load(&ulp_stat_edge_deadline_misses),
         .phase = (uint8_t)shared_load(&ulp_state_phase),
         .bit_count = (uint8_t)shared_load(&ulp_state_bit_count),
         .current_addr7 = (uint8_t)shared_load(&ulp_state_current_addr7),

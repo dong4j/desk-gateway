@@ -33,6 +33,9 @@ typedef struct {
     uint32_t digit_ring_drops;
     uint32_t digit_queue_drops;
     uint32_t mirror_digit_queue_drops;
+    uint32_t max_sda_apply_cycles;
+    uint32_t max_edge_cycles;
+    uint32_t edge_deadline_misses;
     uint8_t phase;
     uint8_t bit_count;
     uint8_t current_addr7;
