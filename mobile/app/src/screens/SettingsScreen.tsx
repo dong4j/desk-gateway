@@ -5,8 +5,9 @@
  * 写入过程中不做本地乐观切换，避免界面显示与实际安全策略不一致。
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,16 @@ import type {
   DeskConnectionSettings,
 } from '../desk/DeskClient';
 import { formatFirmwareBuildTime } from '../desk/formatFirmwareBuildTime';
+import {
+  bondErrorMessage,
+  bondPollIntervalMs,
+  bondStatusText,
+  isBondManagementConfigured,
+} from '../desk/BondManagement';
+import type {
+  DeskBondDevice,
+  DeskBondSnapshot,
+} from '../desk/DeskRestClient';
 import {
   BluetoothIcon,
   ChevronIcon,
@@ -56,6 +67,10 @@ interface SettingsScreenProps {
   onSetHapticStrength: (strength: number) => void;
   onMaxHeightStep: () => void;
   onSetConnectionSettings: (settings: DeskConnectionSettings) => void;
+  onGetBluetoothBonds: () => Promise<DeskBondSnapshot>;
+  onSetBluetoothPairingWindow: (open: boolean) => Promise<void>;
+  onDeleteBluetoothBond: (id: string) => Promise<void>;
+  onDeleteAllBluetoothBonds: () => Promise<void>;
   onSetChildLock: (enabled: boolean) => void;
   onSetSourceEnabled: (
     source: 'rest' | 'bluetooth' | 'panel',
@@ -84,6 +99,10 @@ export function SettingsScreen({
   onSetHapticStrength,
   onMaxHeightStep,
   onSetConnectionSettings,
+  onGetBluetoothBonds,
+  onSetBluetoothPairingWindow,
+  onDeleteBluetoothBond,
+  onDeleteAllBluetoothBonds,
   onSetChildLock,
   onSetSourceEnabled,
   onSetMaxHeightMm,
@@ -108,7 +127,12 @@ export function SettingsScreen({
   const [restHostDraft, setRestHostDraft] = useState(restHost);
   const [restKeyDraft, setRestKeyDraft] = useState(restKey);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [bondSnapshot, setBondSnapshot] = useState<DeskBondSnapshot | null>(null);
+  const [bondLoading, setBondLoading] = useState(false);
+  const [bondBusy, setBondBusy] = useState<string | null>(null);
+  const [bondMessage, setBondMessage] = useState<string | null>(null);
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
+  const bondManagementAvailable = isBondManagementConfigured(restHost, restKey);
 
   useEffect(() => {
     setMaxHeightDraft(String(maxHeightCm));
@@ -128,6 +152,116 @@ export function SettingsScreen({
     setRestKeyDraft(restKey);
     setConnectionError(null);
   }, [connectionMode, restHost, restKey]);
+
+  const refreshBonds = useCallback(async (): Promise<DeskBondSnapshot | null> => {
+    if (!bondManagementAvailable) {
+      setBondSnapshot(null);
+      return null;
+    }
+    setBondLoading(true);
+    try {
+      const next = await onGetBluetoothBonds();
+      setBondSnapshot(next);
+      return next;
+    } catch (error) {
+      setBondMessage(bondErrorMessage(error));
+      return null;
+    } finally {
+      setBondLoading(false);
+    }
+  }, [bondManagementAvailable, onGetBluetoothBonds]);
+
+  useEffect(() => {
+    if (!bondManagementAvailable) {
+      setBondSnapshot(null);
+      setBondMessage(null);
+      return;
+    }
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const poll = async () => {
+      const next = await onGetBluetoothBonds().catch((error) => {
+        if (active) {
+          setBondMessage(bondErrorMessage(error));
+        }
+        return null;
+      });
+      if (!active) {
+        return;
+      }
+      if (next) {
+        setBondSnapshot(next);
+        setBondMessage(null);
+      }
+      timer = setTimeout(
+        poll,
+        next ? bondPollIntervalMs(next) : 5_000,
+      );
+    };
+    void poll();
+    return () => {
+      active = false;
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+    };
+  }, [bondManagementAvailable, onGetBluetoothBonds]);
+
+  const runBondOperation = async (
+    key: string,
+    operation: () => Promise<void>,
+    successMessage: string,
+  ) => {
+    setBondBusy(key);
+    setBondMessage(null);
+    try {
+      await operation();
+      setBondMessage(successMessage);
+    } catch (error) {
+      setBondMessage(bondErrorMessage(error));
+    } finally {
+      await refreshBonds();
+      setBondBusy(null);
+    }
+  };
+
+  const confirmDeleteBond = (device: DeskBondDevice) => {
+    Alert.alert(
+      `删除 ${device.label}？`,
+      '在线设备会立即断开；如果这是本机，重新连接前需要先打开配对窗口。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: device.delete_state === 'failed' ? '重试删除' : '删除',
+          style: 'destructive',
+          onPress: () => void runBondOperation(
+            device.id,
+            () => onDeleteBluetoothBond(device.id),
+            '删除请求已受理，正在刷新设备状态',
+          ),
+        },
+      ],
+    );
+  };
+
+  const confirmDeleteAllBonds = () => {
+    Alert.alert(
+      '删除全部蓝牙配对设备？',
+      '桌子会先停止，所有在线设备会立即断开。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '全部删除',
+          style: 'destructive',
+          onPress: () => void runBondOperation(
+            'all',
+            onDeleteAllBluetoothBonds,
+            '全部删除请求已受理，正在等待设备断开',
+          ),
+        },
+      ],
+    );
+  };
 
   const commitMaxHeight = (centimetres: number) => {
     if (!Number.isFinite(centimetres) ||
@@ -284,6 +418,98 @@ export function SettingsScreen({
               <Text style={styles.heightError}>{connectionError}</Text>
             ) : null}
           </View>
+        </View>
+
+        <View style={[styles.card, styles.bondCard]}>
+          <View style={styles.bondHeader}>
+            <View>
+              <Text style={styles.settingTitle}>蓝牙配对设备</Text>
+              <Text style={styles.settingDescription}>
+                {bondManagementAvailable
+                  ? `${bondSnapshot?.devices.length ?? 0} / ${bondSnapshot?.capacity ?? 3}`
+                  : '需先配置局域网管理'}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              disabled={!bondManagementAvailable || bondBusy !== null ||
+                (!bondSnapshot?.pairing_window.open &&
+                  bondSnapshot?.devices.length === bondSnapshot?.capacity)}
+              onPress={() => void runBondOperation(
+                'pairing',
+                () => onSetBluetoothPairingWindow(
+                  !(bondSnapshot?.pairing_window.open ?? false),
+                ),
+                bondSnapshot?.pairing_window.open
+                  ? '配对窗口已关闭'
+                  : '已开放 120 秒配对窗口',
+              )}
+              style={({ pressed }) => [
+                styles.bondPairingButton,
+                (!bondManagementAvailable || bondBusy !== null) && styles.disabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.bondPairingText}>
+                {bondSnapshot?.pairing_window.open
+                  ? `关闭（${bondSnapshot.pairing_window.remaining_seconds}s）`
+                  : '允许新设备配对'}
+              </Text>
+            </Pressable>
+          </View>
+          {bondSnapshot?.devices.map((device) => (
+            <View key={device.id} style={styles.bondDeviceRow}>
+              <View style={styles.bondDeviceCopy}>
+                <Text style={styles.bondDeviceLabel}>{device.label}</Text>
+                <Text style={[
+                  styles.bondDeviceStatus,
+                  device.delete_state === 'failed' && styles.bondDeviceError,
+                ]}>
+                  {bondStatusText(device)}
+                  {device.delete_error ? ` · ${device.delete_error}` : ''}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                disabled={device.delete_state === 'pending' || bondBusy !== null}
+                onPress={() => confirmDeleteBond(device)}
+                style={({ pressed }) => [
+                  styles.bondDeleteButton,
+                  (device.delete_state === 'pending' || bondBusy !== null) &&
+                    styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.bondDeleteText}>
+                  {device.delete_state === 'failed' ? '重试' : '删除'}
+                </Text>
+              </Pressable>
+            </View>
+          ))}
+          {bondManagementAvailable && !bondLoading &&
+              bondSnapshot?.devices.length === 0 ? (
+            <Text style={styles.bondEmpty}>暂无蓝牙配对设备</Text>
+          ) : null}
+          {bondLoading && !bondSnapshot ? (
+            <Text style={styles.bondEmpty}>正在加载…</Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            disabled={!bondManagementAvailable || bondBusy !== null ||
+              !bondSnapshot?.devices.length}
+            onPress={confirmDeleteAllBonds}
+            style={({ pressed }) => [
+              styles.bondDeleteAll,
+              (!bondManagementAvailable || bondBusy !== null ||
+                !bondSnapshot?.devices.length) && styles.disabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.bondDeleteAllText}>删除全部配对设备</Text>
+          </Pressable>
+          {bondMessage ? (
+            <Text style={styles.bondMessage}>{bondMessage}</Text>
+          ) : null}
         </View>
 
         <SectionTitle>安全</SectionTitle>
@@ -756,6 +982,21 @@ const styles = StyleSheet.create({
   connectionKeyRow: { flexDirection: 'row', gap: 9 },
   connectionKeyInput: { flex: 1 },
   connectionSave: { minWidth: 108, height: 42, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: palette.ink },
+  bondCard: { marginTop: 12 },
+  bondHeader: { minHeight: 78, paddingHorizontal: 18, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  bondPairingButton: { minHeight: 36, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: palette.ink },
+  bondPairingText: { color: palette.white, fontSize: 12, fontWeight: '600' },
+  bondDeviceRow: { minHeight: 64, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: palette.line },
+  bondDeviceCopy: { flex: 1, paddingRight: 12 },
+  bondDeviceLabel: { color: palette.ink, fontSize: 16, fontWeight: '500' },
+  bondDeviceStatus: { marginTop: 3, color: palette.inkMuted, fontSize: 12 },
+  bondDeviceError: { color: palette.danger },
+  bondDeleteButton: { minWidth: 58, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.danger, borderRadius: radii.pill },
+  bondDeleteText: { color: palette.danger, fontSize: 13, fontWeight: '600' },
+  bondEmpty: { paddingHorizontal: 18, paddingVertical: 18, borderTopWidth: 1, borderTopColor: palette.line, color: palette.inkMuted, fontSize: 13, textAlign: 'center' },
+  bondDeleteAll: { minHeight: 48, marginHorizontal: 18, marginTop: 8, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: palette.line },
+  bondDeleteAllText: { color: palette.danger, fontSize: 15, fontWeight: '600' },
+  bondMessage: { paddingHorizontal: 18, paddingBottom: 14, color: palette.inkMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
   heightSetting: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 17 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   settingTitle: { color: palette.ink, fontSize: 17, fontWeight: '500' },

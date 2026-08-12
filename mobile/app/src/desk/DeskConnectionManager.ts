@@ -13,7 +13,7 @@ import type {
   DeskSnapshotListener,
   DeskUnsubscribe,
 } from './DeskClient';
-import { DeskRestClient } from './DeskRestClient';
+import { DeskRestClient, type DeskBondSnapshot } from './DeskRestClient';
 
 const initialSnapshot: DeskClientSnapshot = {
   phase: 'uninitialized',
@@ -129,6 +129,22 @@ export class DeskConnectionManager implements DeskClient {
 
   restartGateway(): Promise<void> {
     return this.requireActive().restartGateway();
+  }
+
+  getBluetoothBonds(): Promise<DeskBondSnapshot> {
+    return this.restClient.getBluetoothBonds();
+  }
+
+  setBluetoothPairingWindow(open: boolean): Promise<void> {
+    return this.restClient.setBluetoothPairingWindow(open);
+  }
+
+  deleteBluetoothBond(id: string): Promise<void> {
+    return this.restClient.deleteBluetoothBond(id);
+  }
+
+  deleteAllBluetoothBonds(): Promise<void> {
+    return this.restClient.deleteAllBluetoothBonds();
   }
 
   async disconnect(): Promise<void> {

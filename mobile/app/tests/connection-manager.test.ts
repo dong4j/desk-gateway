@@ -83,6 +83,37 @@ test('falls back to REST after a connected BLE device goes out of range', async 
   manager.dispose();
 });
 
+test('uses the REST management channel while BLE remains the active control transport', async () => {
+  const ble = new ReadyBleClient();
+  const requestedPaths: string[] = [];
+  const rest = new DeskRestClient(async (input) => {
+    requestedPaths.push(new URL(input).pathname);
+    return new Response(JSON.stringify({
+      devices: [],
+      capacity: 3,
+      pairing_window: { open: false, remaining_seconds: 0 },
+    }), { status: 200 });
+  });
+  const manager = new DeskConnectionManager(ble, rest, {
+    mode: 'ble',
+    restHost: 'desk-gateway.local',
+    restKey: 'secret',
+  });
+  let latestTransport: string | null = null;
+  manager.subscribe((snapshot) => {
+    latestTransport = snapshot.transport;
+  });
+
+  await manager.initialize();
+  await manager.connect();
+  const bonds = await manager.getBluetoothBonds();
+
+  assert.equal(bonds.capacity, 3);
+  assert.equal(latestTransport, 'ble');
+  assert.deepEqual(requestedPaths, ['/api/v1/bluetooth/bonds']);
+  manager.dispose();
+});
+
 class FailingBleClient implements DeskClient {
   connectAttempts = 0;
   commands: DeskCommandValue[] = [];

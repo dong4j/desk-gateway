@@ -251,6 +251,23 @@ export default function App() {
     runSafely(holdRef.current!.stop());
   }, []);
 
+  const getBluetoothBonds = useCallback(
+    () => clientRef.current!.getBluetoothBonds(),
+    [],
+  );
+  const setBluetoothPairingWindow = useCallback(
+    (open: boolean) => clientRef.current!.setBluetoothPairingWindow(open),
+    [],
+  );
+  const deleteBluetoothBond = useCallback(
+    (id: string) => clientRef.current!.deleteBluetoothBond(id),
+    [],
+  );
+  const deleteAllBluetoothBonds = useCallback(
+    () => clientRef.current!.deleteAllBluetoothBonds(),
+    [],
+  );
+
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
@@ -327,6 +344,10 @@ export default function App() {
             clientRef.current!.configure(settings);
             runSafely(clientRef.current!.connect());
           }}
+          onGetBluetoothBonds={getBluetoothBonds}
+          onSetBluetoothPairingWindow={setBluetoothPairingWindow}
+          onDeleteBluetoothBond={deleteBluetoothBond}
+          onDeleteAllBluetoothBonds={deleteAllBluetoothBonds}
           onSetChildLock={(enabled) =>
             runCommand(clientRef.current!.setChildLock(enabled))
           }
