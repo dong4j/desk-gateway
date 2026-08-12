@@ -128,7 +128,6 @@ static atomic_int s_preset1_height_mm;
 static atomic_int s_preset4_height_mm;
 static atomic_int s_preset_target_mm;
 static atomic_int s_preset_direction;
-static atomic_bool s_up_limit_latched;
 static atomic_uint_fast32_t s_motion_epoch;
 static atomic_uint_fast32_t s_height_epoch;
 static atomic_uint_fast32_t s_height_tick;
@@ -240,24 +239,6 @@ static esp_err_t yd_set_panel_enabled(bool enabled)
 }
 #endif
 
-/** Enforce the ceiling in the height-event path, independent of Web polling. */
-static void stop_up_if_max_height_reached(int height_mm)
-{
-    if ((uint8_t)atomic_load(&s_dr) != DR_UP) {
-        return;
-    }
-    int max_height_mm = atomic_load(&s_max_height_mm);
-    if (!yourdesk_max_height_reached(height_mm, max_height_mm,
-                                     DESK_MAX_HEIGHT_STOP_MARGIN_MM)) {
-        return;
-    }
-    cancel_preset_motion();
-    atomic_store(&s_up_limit_latched, true);
-    ESP_LOGW(TAG, "max height stop: current=%d mm configured=%d mm",
-             height_mm, max_height_mm);
-    (void)set_dr(DR_IDLE);
-}
-
 #if CONFIG_DESK_MOTION_DIAGNOSTICS && \
     CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
 /** Convert the fixed-frequency ESP32-S3 cycle counter used by ISR telemetry. */
@@ -304,8 +285,7 @@ static void motion_bus_diag_log(
              " key_tx=%" PRIu32 "/%" PRIu32
              " abort=%" PRIu32 " key_gap_max=%" PRIu32
              " us start_stop=%" PRIu32 "/%" PRIu32
-             " rejected=%" PRIu32 "/%" PRIu32
-             " sda_low=%" PRIu32
+             " sda_ignored=%" PRIu32 "/%" PRIu32
              " sm=%s:%u@0x%02X tx_dr=0x%02X",
              stage, dr == DR_UP ? "up" : "down",
              (uint32_t)(now - interval_tick) * portTICK_PERIOD_MS,
@@ -317,8 +297,7 @@ static void motion_bus_diag_log(
              motion_diag_cycles_to_us(stats->max_key_read_gap_cycles),
              stats->recognized_starts - baseline->recognized_starts,
              stats->recognized_stops - baseline->recognized_stops,
-             stats->rejected_starts - baseline->rejected_starts,
-             stats->rejected_stops - baseline->rejected_stops,
+             stats->ignored_own_sda_edges - baseline->ignored_own_sda_edges,
              stats->ignored_sda_edges_while_scl_low -
                  baseline->ignored_sda_edges_while_scl_low,
              motion_diag_phase_name(stats->phase), stats->bit_count,
@@ -395,10 +374,9 @@ static void motion_diagnostics_task(void *arg)
             int height_age_ms = elapsed_ms_since(
                 atomic_load(&s_height_tick), now);
             ESP_LOGI(TAG,
-                     "motion state dir=%s dr=0x%02X height=%d height_age=%d ms max=%d latch=%d target=%d",
+                     "motion state dir=%s dr=0x%02X height=%d height_age=%d ms max=%d target=%d",
                      dr == DR_UP ? "up" : "down", dr, height_mm,
                      height_age_ms, atomic_load(&s_max_height_mm),
-                     (int)atomic_load(&s_up_limit_latched),
                      atomic_load(&s_preset_target_mm));
             last_diag_tick = now;
         }
@@ -636,20 +614,6 @@ static void height_decode_task(void *arg)
                 /* Preserve a concurrently started newer motion as pending. */
                 atomic_store(&s_height_epoch, motion_epoch);
             }
-            /*
-             * The assembled candidate becomes trustworthy now. The age of its
-             * oldest digit describes assembly latency, not when the physical
-             * desk occupied this height; backdating the safety anchor made
-             * sparse imperial feedback look older than it really was.
-             */
-            stop_up_if_max_height_reached(height_mm);
-            if (yourdesk_up_latch_can_clear(
-                    height_mm, atomic_load(&s_max_height_mm),
-                    DESK_MAX_HEIGHT_STOP_MARGIN_MM, direction) &&
-                atomic_exchange(&s_up_limit_latched, false)) {
-                ESP_LOGI(TAG, "upward safety latch cleared at %d mm",
-                         height_mm);
-            }
         }
         if (accepted && previous != height_mm) {
             if (complete_frame) {
@@ -764,7 +728,6 @@ static esp_err_t yd_init(void)
     atomic_store(&s_max_height_mm, CONFIG_DESK_MAX_HEIGHT_MM);
     atomic_store(&s_preset1_height_mm, YOURDESK_HEIGHT_MIN_MM);
     atomic_store(&s_preset4_height_mm, 1020);
-    atomic_store(&s_up_limit_latched, false);
     atomic_store(&s_motion_epoch, 1);
     atomic_store(&s_height_epoch, 0);
     atomic_store(&s_height_tick, 0);
@@ -888,15 +851,6 @@ static esp_err_t yd_hold_direction(uint8_t dr)
     cancel_preset_motion();
     if (dr == DR_UP) {
         int height_mm = atomic_load(&s_height_mm);
-        int max_height_mm = atomic_load(&s_max_height_mm);
-        if (atomic_load(&s_up_limit_latched) ||
-            (height_mm >= 0 &&
-             yourdesk_max_height_reached(
-                 height_mm, max_height_mm,
-                 DESK_MAX_HEIGHT_STOP_MARGIN_MM))) {
-            (void)set_dr(DR_IDLE);
-            return ESP_ERR_INVALID_STATE;
-        }
         if (height_mm < 0) {
             ESP_LOGI(TAG,
                      "manual up: height unknown, waiting for controller frame");
@@ -944,8 +898,6 @@ static esp_err_t yd_goto_preset(uint8_t n)
                  (unsigned)n, target_mm);
         return set_dr(DR_DOWN);
     }
-    target_mm = yourdesk_preset_limit_target_mm(
-        target_mm, atomic_load(&s_max_height_mm));
     yourdesk_preset_direction_t direction = yourdesk_preset_direction(
         current_mm, target_mm, PRESET_STOP_MARGIN_MM);
     if (direction == YOURDESK_PRESET_STOP) {
@@ -957,12 +909,6 @@ static esp_err_t yd_goto_preset(uint8_t n)
     atomic_store(&s_preset_target_mm, target_mm);
     ESP_LOGI(TAG, "preset %u: current=%d mm target=%d mm direction=%s",
              (unsigned)n, current_mm, target_mm, direction > 0 ? "up" : "down");
-    if (direction == YOURDESK_PRESET_UP) {
-        if (atomic_load(&s_up_limit_latched)) {
-            cancel_preset_motion();
-            return ESP_ERR_INVALID_STATE;
-        }
-    }
     begin_height_resync();
     return set_dr(direction > 0 ? DR_UP : DR_DOWN);
 #else
@@ -978,18 +924,8 @@ static esp_err_t yd_set_max_height_mm(int max_height_mm)
         max_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
-    int previous_max_height_mm =
-        atomic_exchange(&s_max_height_mm, max_height_mm);
-
-    int height_mm = atomic_load(&s_height_mm);
-    if (height_mm >= 0) {
-        stop_up_if_max_height_reached(height_mm);
-        /* Only an explicitly higher ceiling may release an existing latch. */
-        if (max_height_mm > previous_max_height_mm &&
-            height_mm < max_height_mm - DESK_MAX_HEIGHT_STOP_MARGIN_MM) {
-            atomic_store(&s_up_limit_latched, false);
-        }
-    }
+    /* Keep the setting compatible while maximum-height enforcement is disabled. */
+    atomic_store(&s_max_height_mm, max_height_mm);
     return ESP_OK;
 #else
     (void)max_height_mm;
@@ -1049,11 +985,8 @@ static esp_err_t yd_get_height_mm(int *out_mm)
 
 static bool yd_is_upward_blocked(void)
 {
-#if YOURDESK_HEIGHT_INPUT_ENABLED
-    return atomic_load(&s_up_limit_latched);
-#else
+    /* Continuous motion currently has no height-derived lockout. */
     return false;
-#endif
 }
 
 static desk_status_t yd_get_status(void)

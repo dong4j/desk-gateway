@@ -79,9 +79,6 @@ export function HomeScreen({
   const heightCm = state?.heightKnown && state.heightMm !== null
     ? (state.heightMm / 10).toFixed(1)
     : '—';
-  const maxHeightCm = state?.maxHeightMm
-    ? (state.maxHeightMm / 10).toFixed(0)
-    : '—';
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
   const preset1HeightCm = ((config?.preset1HeightMm ?? 640) / 10).toFixed(0);
   const preset4HeightCm = ((config?.preset4HeightMm ?? 1020) / 10).toFixed(0);
@@ -170,7 +167,7 @@ export function HomeScreen({
             <Text style={styles.heightUnit}>cm</Text>
           </View>
           <View style={styles.limitPill}>
-            <Text style={styles.limitText}>上限 {maxHeightCm} cm</Text>
+            <Text style={styles.limitText}>高度限制已停用</Text>
           </View>
         </View>
 

@@ -38,18 +38,6 @@ int yourdesk_preset_target_mm(uint8_t preset, int preset1_height_mm,
  */
 yourdesk_preset_direction_t yourdesk_preset_bootstrap_direction(uint8_t preset);
 
-/** Clamp a requested preset to the configured physical ceiling. */
-int yourdesk_preset_limit_target_mm(int requested_mm, int max_height_mm);
-
-/** True when upward travel must stop early to avoid crossing the ceiling. */
-bool yourdesk_max_height_reached(int current_mm, int max_height_mm,
-                                int stop_margin_mm);
-
-/** Release a latched upward block only after DOWN reports a safe height. */
-bool yourdesk_up_latch_can_clear(
-    int height_mm, int max_height_mm, int stop_margin_mm,
-    yourdesk_preset_direction_t direction);
-
 /** Select initial travel direction; STOP means the current height is in range. */
 yourdesk_preset_direction_t yourdesk_preset_direction(
     int current_mm, int target_mm, int stop_margin_mm);

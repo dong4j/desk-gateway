@@ -84,14 +84,6 @@
     if (!lastStatus.height_known) {
       return '高度未知，请先短按下降或点击档位 1 获取高度';
     }
-    if (lastStatus.upward_blocked) {
-      return '已触发上限保护，请先下降并等待主机高度重新同步';
-    }
-    if (typeof lastStatus.height_mm === 'number' &&
-        typeof lastStatus.max_height_mm === 'number' &&
-        lastStatus.height_mm >= lastStatus.max_height_mm - 10) {
-      return '已达到最高安全高度，无法继续上升';
-    }
     return fallback;
   }
 
@@ -104,10 +96,6 @@
     document.body.classList.toggle('is-moving', moving);
     stateChip.textContent = st;
     const heightUnknown = !s.height_known;
-    const ceilingReached = !heightUnknown &&
-      typeof s.height_mm === 'number' && typeof s.max_height_mm === 'number' &&
-      s.height_mm >= s.max_height_mm - 10;
-    const upwardBlocked = !!s.upward_blocked;
     const sources = s.control_sources || {};
     const restEnabled = sources.rest !== false;
     const motionBlocked = !!s.child_lock || !restEnabled;
@@ -118,7 +106,7 @@
     upButton.disabled = motionBlocked;
     downButton.disabled = motionBlocked;
     p1Button.disabled = motionBlocked;
-    p4Button.disabled = motionBlocked || heightUnknown || upwardBlocked;
+    p4Button.disabled = motionBlocked || heightUnknown;
     if (s.child_lock) {
       stateHint.textContent = '童锁已开启；解除童锁后才能操作桌子。';
     } else if (!restEnabled) {
@@ -127,10 +115,6 @@
       stateHint.textContent = moving
         ? '正在等待控制盒高度帧。'
         : '等待控制盒高度；可按住升或降触发显示帧。';
-    } else if (upwardBlocked) {
-      stateHint.textContent = '已触发上限保护；当前显示为最近一次主机高度，请先下降以重新同步。';
-    } else if (ceilingReached && st === 'idle') {
-      stateHint.textContent = '已达到最高安全高度。';
     } else {
       stateHint.textContent = STATE_HINT[st] || st;
     }
@@ -157,7 +141,7 @@
     allowPanel.checked = sources.panel !== false;
     if (typeof s.max_height_mm === 'number') {
       const maxCm = (s.max_height_mm / 10).toFixed(1);
-      maxHeightBadge.textContent = `上限 ${maxCm} cm`;
+      maxHeightBadge.textContent = '高度限制已停用';
       if (document.activeElement !== maxHeightInput) {
         maxHeightInput.value = maxCm;
       }
@@ -239,15 +223,10 @@
       msg.textContent = '请输入 64.0–129.0 cm';
       return;
     }
-    const preset4HeightMm = Number(lastStatus.preset4_height_mm);
-    if (Number.isFinite(preset4HeightMm) && maxHeightMm < preset4HeightMm) {
-      msg.textContent = `最高安全高度不能低于站立档位 ${(preset4HeightMm / 10).toFixed(0)} cm`;
-      return;
-    }
     const requestedCm = (maxHeightMm / 10).toFixed(1);
     try {
       await api('/api/v1/desk/max-height', 'POST', { max_height_mm: maxHeightMm });
-      msg.textContent = `已保存 ${requestedCm} cm，当前已生效`;
+      msg.textContent = `已保存 ${requestedCm} cm，当前不参与运动控制`;
       await tick();
     } catch (_) {
       msg.textContent = '保存失败，请检查高度范围或网络';
@@ -259,12 +238,11 @@
     const msg = document.getElementById('presetHeightMsg');
     const preset1HeightMm = Math.round(Number(preset1HeightInput.value) * 10);
     const preset4HeightMm = Math.round(Number(preset4HeightInput.value) * 10);
-    const maxHeightMm = Number(lastStatus.max_height_mm);
     if (!Number.isInteger(preset1HeightMm) ||
         !Number.isInteger(preset4HeightMm) ||
         preset1HeightMm < 640 || preset1HeightMm >= preset4HeightMm ||
-        preset4HeightMm > 1290 || preset4HeightMm > maxHeightMm) {
-      msg.textContent = '请坐需低于站立，且站立不得超过最高安全高度';
+        preset4HeightMm > 1290) {
+      msg.textContent = '请坐需低于站立，档位高度范围为 64–129 cm';
       return;
     }
     try {
@@ -275,7 +253,7 @@
       msg.textContent = '档位高度已保存，App 将自动同步';
       await tick();
     } catch (_) {
-      msg.textContent = '保存失败，请检查档位顺序、高度上限或网络';
+      msg.textContent = '保存失败，请检查档位顺序、高度范围或网络';
     }
   };
 

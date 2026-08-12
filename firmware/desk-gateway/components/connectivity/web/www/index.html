@@ -16,7 +16,7 @@
       <div class="top-meta">
         <span id="meta">—</span>
         <span id="stateChip" class="pill">idle</span>
-        <span id="maxHeightBadge" class="pill">上限 102.0 cm</span>
+        <span id="maxHeightBadge" class="pill">高度限制已停用</span>
         <span id="firmwareBuildBadge" class="pill">构建时间 —</span>
         <span id="simBadge" class="pill pill-sim" hidden>SIM</span>
       </div>
@@ -71,14 +71,14 @@
         <details class="settings">
           <summary>设置</summary>
           <form id="maxHeightForm" class="settings-form">
-            <label for="maxHeight">最高安全高度（cm）</label>
+            <label for="maxHeight">最高安全高度暂存值（cm）</label>
             <div class="settings-row">
               <input id="maxHeight" name="maxHeight" type="number" min="64" max="129"
                      step="0.1" value="102.0" required inputmode="decimal" />
               <button type="submit">保存</button>
             </div>
           </form>
-          <p class="settings-note">保存后立即生效，断电或重启后仍会保留；固件会按最坏上升速度提前停止。</p>
+          <p class="settings-note">当前高度限制已停用；此值只保留配置，暂不参与升降控制。</p>
           <p id="maxHeightMsg" class="hint"></p>
 
           <form id="presetHeightForm" class="settings-form settings-divider">
@@ -99,7 +99,7 @@
               <button type="submit">保存</button>
             </div>
           </form>
-          <p class="settings-note">请坐必须低于站立，站立不得超过最高安全高度。</p>
+          <p class="settings-note">请坐必须低于站立，两个档位均独立于暂存的高度限制。</p>
           <p id="presetHeightMsg" class="hint"></p>
 
           <div class="settings-form settings-divider">

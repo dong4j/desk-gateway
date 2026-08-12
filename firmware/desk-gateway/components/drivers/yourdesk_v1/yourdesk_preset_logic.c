@@ -23,25 +23,6 @@ yourdesk_preset_direction_t yourdesk_preset_bootstrap_direction(uint8_t preset)
     return preset == 1 ? YOURDESK_PRESET_DOWN : YOURDESK_PRESET_STOP;
 }
 
-int yourdesk_preset_limit_target_mm(int requested_mm, int max_height_mm)
-{
-    return requested_mm < max_height_mm ? requested_mm : max_height_mm;
-}
-
-bool yourdesk_max_height_reached(int current_mm, int max_height_mm,
-                                int stop_margin_mm)
-{
-    return current_mm >= max_height_mm - stop_margin_mm;
-}
-
-bool yourdesk_up_latch_can_clear(
-    int height_mm, int max_height_mm, int stop_margin_mm,
-    yourdesk_preset_direction_t direction)
-{
-    return direction == YOURDESK_PRESET_DOWN &&
-           height_mm < max_height_mm - stop_margin_mm;
-}
-
 yourdesk_preset_direction_t yourdesk_preset_direction(
     int current_mm, int target_mm, int stop_margin_mm)
 {

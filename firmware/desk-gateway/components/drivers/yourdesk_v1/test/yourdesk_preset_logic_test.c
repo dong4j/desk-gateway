@@ -24,16 +24,6 @@ int main(void)
     assert(yourdesk_preset_target_mm(2, 650, 1050) == -1);
     assert(yourdesk_preset_bootstrap_direction(1) == YOURDESK_PRESET_DOWN);
     assert(yourdesk_preset_bootstrap_direction(4) == YOURDESK_PRESET_STOP);
-    assert(yourdesk_preset_limit_target_mm(1020, 900) == 900);
-    assert(yourdesk_preset_limit_target_mm(640, 900) == 640);
-    assert(!yourdesk_max_height_reached(1009, 1020, 10));
-    assert(yourdesk_max_height_reached(1010, 1020, 10));
-    assert(!yourdesk_up_latch_can_clear(
-        1010, 1020, 10, YOURDESK_PRESET_DOWN));
-    assert(yourdesk_up_latch_can_clear(
-        1000, 1020, 10, YOURDESK_PRESET_DOWN));
-    assert(!yourdesk_up_latch_can_clear(
-        1000, 1020, 10, YOURDESK_PRESET_STOP));
 
     assert(yourdesk_preset_direction(700, 1020, 5) == YOURDESK_PRESET_UP);
     assert(yourdesk_preset_direction(800, 640, 5) == YOURDESK_PRESET_DOWN);

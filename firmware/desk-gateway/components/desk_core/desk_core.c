@@ -326,12 +326,10 @@ static esp_err_t save_max_height(void)
 }
 
 static bool preset_heights_valid(int preset1_height_mm,
-                                 int preset4_height_mm,
-                                 int max_height_mm)
+                                 int preset4_height_mm)
 {
     return preset1_height_mm >= DESK_MAX_HEIGHT_MM_MIN &&
            preset1_height_mm < preset4_height_mm &&
-           preset4_height_mm <= max_height_mm &&
            preset4_height_mm <= DESK_MAX_HEIGHT_MM_MAX;
 }
 
@@ -340,9 +338,6 @@ static esp_err_t load_preset_heights(void)
 {
     s_preset1_height_mm = DESK_PRESET1_HEIGHT_MM_DEFAULT;
     s_preset4_height_mm = DESK_PRESET4_HEIGHT_MM_DEFAULT;
-    if (s_preset4_height_mm > s_max_height_mm) {
-        s_preset4_height_mm = s_max_height_mm;
-    }
 
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NS, NVS_READONLY, &h);
@@ -367,10 +362,9 @@ static esp_err_t load_preset_heights(void)
     if (preset4_err != ESP_OK) {
         return preset4_err;
     }
-    if (!preset_heights_valid((int)preset1, (int)preset4,
-                              s_max_height_mm)) {
-        ESP_LOGW(TAG, "ignore invalid stored presets: p1=%ld p4=%ld max=%d",
-                 (long)preset1, (long)preset4, s_max_height_mm);
+    if (!preset_heights_valid((int)preset1, (int)preset4)) {
+        ESP_LOGW(TAG, "ignore invalid stored presets: p1=%ld p4=%ld",
+                 (long)preset1, (long)preset4);
         return ESP_OK;
     }
     s_preset1_height_mm = (int)preset1;
@@ -537,9 +531,8 @@ static esp_err_t authorize_source(desk_control_source_t source)
 /**
  * Start or renew one manual direction through the same motion path.
  *
- * UP adds only the configured ceiling pre-check. Once a direction is already
- * active, both UP and DOWN merely renew the lease and leave height decoding
- * untouched.
+ * Both directions use the same command path. Once a direction is already
+ * active, renewal only extends its lease and leaves height decoding untouched.
  */
 static esp_err_t hold_direction_for_ms(bool upward, uint32_t timeout_ms)
 {
@@ -548,28 +541,6 @@ static esp_err_t hold_direction_for_ms(bool upward, uint32_t timeout_ms)
         drv ? (upward ? drv->hold_up : drv->hold_down) : NULL;
     if (!drv || !hold) {
         return ESP_ERR_NOT_SUPPORTED;
-    }
-
-    if (upward) {
-        if (!drv->get_height_mm) {
-            return ESP_ERR_NOT_SUPPORTED;
-        }
-        int current_mm = -1;
-        esp_err_t height_err = drv->get_height_mm(&current_mm);
-        if (height_err != ESP_OK && height_err != ESP_ERR_INVALID_STATE) {
-            if (drv->stop) {
-                (void)drv->stop();
-            }
-            return height_err;
-        }
-        if (height_err == ESP_OK &&
-            current_mm >=
-                s_max_height_mm - DESK_MAX_HEIGHT_STOP_MARGIN_MM) {
-            if (drv->stop) {
-                (void)drv->stop();
-            }
-            return ESP_ERR_INVALID_STATE;
-        }
     }
 
     desk_status_t moving_status =
@@ -754,9 +725,6 @@ esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
         if (drv->get_height_mm(&current_mm) == ESP_OK) {
             int target_mm =
                 n == 1 ? s_preset1_height_mm : s_preset4_height_mm;
-            if (target_mm > s_max_height_mm) {
-                target_mm = s_max_height_mm;
-            }
             preset_moves_up = current_mm < target_mm;
         }
     }
@@ -906,8 +874,7 @@ bool desk_core_get_source_enabled(desk_control_source_t source)
 esp_err_t desk_core_set_max_height_mm(int max_height_mm)
 {
     if (max_height_mm < DESK_MAX_HEIGHT_MM_MIN ||
-        max_height_mm > DESK_MAX_HEIGHT_MM_MAX ||
-        max_height_mm < s_preset4_height_mm) {
+        max_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
     const desk_driver_t *drv = desk_driver_get_active();
@@ -921,8 +888,9 @@ esp_err_t desk_core_set_max_height_mm(int max_height_mm)
     s_max_height_mm = max_height_mm;
     err = save_max_height();
     if (err == ESP_OK) {
-        ESP_LOGI(TAG, "max safe height=%d mm (stop margin=%d mm)",
-                 s_max_height_mm, DESK_MAX_HEIGHT_STOP_MARGIN_MM);
+        ESP_LOGI(TAG,
+                 "max safe height setting=%d mm (motion enforcement disabled)",
+                 s_max_height_mm);
     }
     return err;
 }
@@ -935,8 +903,7 @@ int desk_core_get_max_height_mm(void)
 esp_err_t desk_core_set_preset_heights_mm(int preset1_height_mm,
                                           int preset4_height_mm)
 {
-    if (!preset_heights_valid(preset1_height_mm, preset4_height_mm,
-                              s_max_height_mm)) {
+    if (!preset_heights_valid(preset1_height_mm, preset4_height_mm)) {
         return ESP_ERR_INVALID_ARG;
     }
     const desk_driver_t *drv = desk_driver_get_active();

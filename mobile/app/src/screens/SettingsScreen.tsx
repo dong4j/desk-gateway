@@ -136,10 +136,6 @@ export function SettingsScreen({
       setMaxHeightError('请输入 64–129 cm');
       return;
     }
-    if (centimetres < preset4HeightCm) {
-      setMaxHeightError(`最高安全高度不能低于站立档位 ${preset4HeightCm} cm`);
-      return;
-    }
     setMaxHeightError(null);
     setMaxHeightDraft(String(Math.round(centimetres)));
     onSetMaxHeightMm(Math.round(centimetres * 10));
@@ -151,15 +147,15 @@ export function SettingsScreen({
     const preset4Mm = Math.round(Number(preset4Draft) * 10);
     if (!Number.isInteger(preset1Mm) || !Number.isInteger(preset4Mm) ||
         preset1Mm < 640 || preset1Mm >= preset4Mm ||
-        preset4Mm > maxHeightCm * 10) {
-      setPresetHeightError('请坐需低于站立，且站立不得超过最高安全高度');
+        preset4Mm > MAX_DESK_HEIGHT_CM * 10) {
+      setPresetHeightError('请坐需低于站立，档位高度范围为 64–129 cm');
       return;
     }
     setPresetHeightError(null);
     onSetPresetHeightsMm(preset1Mm, preset4Mm);
   };
   const parsedMaxHeightDraft = Number(maxHeightDraft);
-  const minimumAllowedMaxHeightCm = Math.ceil(preset4HeightCm);
+  const minimumAllowedMaxHeightCm = MIN_DESK_HEIGHT_CM;
   const maxHeightSliderValue = Number.isFinite(parsedMaxHeightDraft)
     ? Math.max(
         minimumAllowedMaxHeightCm,
@@ -294,7 +290,7 @@ export function SettingsScreen({
         <View style={styles.card}>
           <View style={styles.heightSetting}>
             <View style={styles.rowBetween}>
-              <Text style={styles.settingTitle}>最高安全高度</Text>
+              <Text style={styles.settingTitle}>最高安全高度（暂未启用）</Text>
               <Text style={styles.settingValue}>{maxHeightCm.toFixed(1)} cm</Text>
             </View>
             <View style={styles.sliderControl}>
