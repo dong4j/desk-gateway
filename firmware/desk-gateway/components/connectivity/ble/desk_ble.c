@@ -7,12 +7,15 @@
  */
 #include "desk_ble.h"
 
+#include "desk_ble_bond_registry.h"
+#include "desk_ble_bond_storage.h"
 #include "desk_ble_protocol.h"
 #include "desk_ble_session.h"
 #include "desk_core.h"
 
 #include "esp_app_desc.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -20,6 +23,7 @@
 #include "host/ble_gap.h"
 #include "host/ble_gatt.h"
 #include "host/ble_hs.h"
+#include "host/ble_store.h"
 #include "host/ble_uuid.h"
 #include "host/util/util.h"
 #include "nimble/nimble_port.h"
@@ -63,6 +67,10 @@ static const ble_uuid128_t s_config_uuid = BLE_UUID128_INIT(
 static const ble_uuid128_t s_system_uuid = BLE_UUID128_INIT(
     0x10, 0x9b, 0x5a, 0x2e, 0x1d, 0x3c, 0x7a, 0x9f,
     0x4b, 0x4f, 0x4c, 0x6d, 0x05, 0x00, 0x4e, 0x7f);
+/* Canonical UUID: 7f4e0006-6d4c-4f4b-9f7a-3c1d2e5a9b10. */
+static const ble_uuid128_t s_client_info_uuid = BLE_UUID128_INIT(
+    0x10, 0x9b, 0x5a, 0x2e, 0x1d, 0x3c, 0x7a, 0x9f,
+    0x4b, 0x4f, 0x4c, 0x6d, 0x06, 0x00, 0x4e, 0x7f);
 /* Bluetooth SIG Device Information Service / Firmware Revision String. */
 static const ble_uuid16_t s_device_information_service_uuid =
     BLE_UUID16_INIT(0x180a);
@@ -73,6 +81,7 @@ static uint8_t s_own_addr_type;
 static uint16_t s_state_value_handle;
 static uint16_t s_config_value_handle;
 static desk_ble_session_t s_session;
+static desk_ble_bond_registry_t s_bond_registry;
 static struct ble_npl_callout s_hold_lease_callout;
 static struct ble_npl_event s_core_event;
 static portMUX_TYPE s_core_event_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -86,6 +95,116 @@ static volatile bool s_motion_owner_active;
 static volatile bool s_restart_pending;
 
 static void start_advertising(void);
+
+static desk_ble_peer_identity_t identity_from_ble_addr(
+    const ble_addr_t *address)
+{
+    desk_ble_peer_identity_t identity = {0};
+    if (address) {
+        identity.type = address->type;
+        memcpy(identity.value, address->val, sizeof(identity.value));
+    }
+    return identity;
+}
+
+static bool fill_random_id(
+    uint8_t out[DESK_BLE_BOND_OPAQUE_ID_LENGTH], void *context)
+{
+    (void)context;
+    esp_fill_random(out, DESK_BLE_BOND_OPAQUE_ID_LENGTH);
+    return true;
+}
+
+/** 启动和配对完成都以 NimBLE Store 为事实源刷新匿名元数据。 */
+static esp_err_t reconcile_bond_metadata(void)
+{
+    ble_addr_t peer_addresses[DESK_BLE_BOND_CAPACITY];
+    int peer_count = 0;
+    int rc = ble_store_util_bonded_peers(
+        peer_addresses, &peer_count, DESK_BLE_BOND_CAPACITY);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "enumerate BLE bonds failed: %d", rc);
+        return ESP_FAIL;
+    }
+    desk_ble_peer_identity_t identities[DESK_BLE_BOND_CAPACITY];
+    for (int i = 0; i < peer_count; ++i) {
+        identities[i] = identity_from_ble_addr(&peer_addresses[i]);
+    }
+    desk_ble_bond_registry_t candidate = s_bond_registry;
+    bool changed = false;
+    if (!desk_ble_bond_registry_reconcile(
+            &candidate, identities, (size_t)peer_count,
+            fill_random_id, NULL, &changed)) {
+        ESP_LOGE(TAG, "reconcile BLE bond metadata failed");
+        return ESP_FAIL;
+    }
+    if (changed) {
+        esp_err_t err = desk_ble_bond_storage_save(&candidate);
+        if (err != ESP_OK) {
+            return err;
+        }
+        s_bond_registry = candidate;
+    }
+    return ESP_OK;
+}
+
+/**
+ * ENC_CHANGE 可能早于持久 Store 枚举观察到新记录，因此用当前注册表加上
+ * 已确认的 Identity 原子补齐元数据；后续启动对账仍会清掉真实 Store 孤儿。
+ */
+static esp_err_t ensure_bond_metadata(
+    const desk_ble_peer_identity_t *identity)
+{
+    if (desk_ble_bond_registry_find_identity(&s_bond_registry, identity)) {
+        return ESP_OK;
+    }
+    size_t count = desk_ble_bond_registry_count(&s_bond_registry);
+    if (count >= DESK_BLE_BOND_CAPACITY) {
+        return ESP_ERR_NO_MEM;
+    }
+    desk_ble_peer_identity_t identities[DESK_BLE_BOND_CAPACITY];
+    size_t cursor = 0;
+    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+        if (s_bond_registry.records[i].in_use) {
+            identities[cursor++] = s_bond_registry.records[i].identity;
+        }
+    }
+    identities[cursor++] = *identity;
+    desk_ble_bond_registry_t candidate = s_bond_registry;
+    bool changed = false;
+    if (!desk_ble_bond_registry_reconcile(
+            &candidate, identities, cursor, fill_random_id, NULL,
+            &changed)) {
+        return ESP_FAIL;
+    }
+    if (!changed) {
+        return ESP_OK;
+    }
+    esp_err_t err = desk_ble_bond_storage_save(&candidate);
+    if (err == ESP_OK) {
+        s_bond_registry = candidate;
+    }
+    return err;
+}
+
+static void populate_slot_identity(desk_ble_connection_slot_t *slot,
+                                   const ble_addr_t *peer_id_addr)
+{
+    if (!slot || !peer_id_addr) {
+        return;
+    }
+    desk_ble_peer_identity_t identity =
+        identity_from_ble_addr(peer_id_addr);
+    const desk_ble_bond_record_t *record =
+        desk_ble_bond_registry_find_identity_const(&s_bond_registry,
+                                                   &identity);
+    if (!record) {
+        return;
+    }
+    slot->peer_identity_valid = true;
+    slot->peer_identity = identity;
+    slot->client_kind = record->client_kind;
+}
 
 /** Host 上下文每次改槽位后刷新只读聚合值，通知任务不直接读会话表。 */
 static void update_session_aggregates(void)
@@ -277,7 +396,8 @@ static int command_access(uint16_t conn_handle, uint16_t attr_handle,
     }
     desk_ble_connection_slot_t *slot =
         desk_ble_session_find(&s_session, conn_handle);
-    if (!slot || slot->delete_state == DESK_BLE_DELETE_PENDING) {
+    if (!slot || !slot->encrypted ||
+        slot->delete_state == DESK_BLE_DELETE_PENDING) {
         return BLE_ATT_ERR_UNLIKELY;
     }
     if (command != DESK_BLE_COMMAND_STOP &&
@@ -396,7 +516,6 @@ static esp_err_t execute_config_write(const desk_ble_config_write_t *write)
 static int config_access(uint16_t conn_handle, uint16_t attr_handle,
                          struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    (void)conn_handle;
     (void)attr_handle;
     (void)arg;
     if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
@@ -408,6 +527,12 @@ static int config_access(uint16_t conn_handle, uint16_t attr_handle,
     }
     if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
         return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_connection_slot_t *slot =
+        desk_ble_session_find(&s_session, conn_handle);
+    if (!slot || !slot->encrypted ||
+        slot->delete_state == DESK_BLE_DELETE_PENDING) {
+        return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
     }
 
     uint8_t raw[DESK_BLE_CONFIG_WRITE_LENGTH];
@@ -447,11 +572,16 @@ static void restart_task(void *arg)
 static int system_access(uint16_t conn_handle, uint16_t attr_handle,
                          struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    (void)conn_handle;
     (void)attr_handle;
     (void)arg;
     if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
         return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_connection_slot_t *slot =
+        desk_ble_session_find(&s_session, conn_handle);
+    if (!slot || !slot->encrypted ||
+        slot->delete_state == DESK_BLE_DELETE_PENDING) {
+        return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
     }
 
     uint8_t raw = 0;
@@ -482,6 +612,56 @@ static int system_access(uint16_t conn_handle, uint16_t attr_handle,
         return command_error_to_att(err);
     }
     ESP_LOGI(TAG, "system restart accepted");
+    return 0;
+}
+
+/**
+ * 客户端只登记协议版本和平台类型；Identity 始终由加密连接描述解析，
+ * 不接收客户端上传的地址或名称。
+ */
+static int client_info_access(uint16_t conn_handle, uint16_t attr_handle,
+                              struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)attr_handle;
+    (void)arg;
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_connection_slot_t *slot =
+        desk_ble_session_find(&s_session, conn_handle);
+    if (!slot || !slot->encrypted || !slot->peer_identity_valid ||
+        slot->delete_state == DESK_BLE_DELETE_PENDING) {
+        return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+    }
+    uint8_t raw[DESK_BLE_CLIENT_INFO_LENGTH];
+    if (OS_MBUF_PKTLEN(ctxt->om) != sizeof(raw)) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    if (os_mbuf_copydata(ctxt->om, 0, sizeof(raw), raw) != 0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_client_info_t info;
+    if (!desk_ble_client_info_decode(raw, sizeof(raw), &info)) {
+        return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+    }
+    desk_ble_client_kind_t kind =
+        (desk_ble_client_kind_t)info.client_kind;
+    desk_ble_bond_record_t *record = desk_ble_bond_registry_find_identity(
+        &s_bond_registry, &slot->peer_identity);
+    if (!record) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_client_kind_t previous = record->client_kind;
+    record->client_kind = kind;
+    esp_err_t err = desk_ble_bond_storage_save(&s_bond_registry);
+    if (err != ESP_OK) {
+        record->client_kind = previous;
+        ESP_LOGE(TAG, "save client info failed: %s", esp_err_to_name(err));
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    slot->client_kind = kind;
+    ESP_LOGI(TAG, "client info handle=%u kind=%s", conn_handle,
+             desk_ble_client_kind_name(kind));
     return 0;
 }
 
@@ -539,6 +719,11 @@ static const struct ble_gatt_chr_def s_characteristics[] = {
         .access_cb = system_access,
         .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC,
     },
+    {
+        .uuid = &s_client_info_uuid.u,
+        .access_cb = client_info_access,
+        .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC,
+    },
     {0},
 };
 
@@ -581,6 +766,10 @@ static int gap_event(struct ble_gap_event *event, void *arg)
                 return 0;
             }
             update_session_aggregates();
+            struct ble_gap_conn_desc desc;
+            if (ble_gap_conn_find(slot->conn_handle, &desc) == 0) {
+                populate_slot_identity(slot, &desc.peer_id_addr);
+            }
             ESP_LOGI(TAG, "client connected handle=%u generation=%lu count=%u",
                      slot->conn_handle, (unsigned long)slot->generation,
                      (unsigned)s_connection_count);
@@ -647,11 +836,64 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     {
         desk_ble_connection_slot_t *slot = desk_ble_session_find(
             &s_session, event->enc_change.conn_handle);
-        if (slot) {
-            slot->encrypted = event->enc_change.status == 0;
+        if (!slot) {
+            return 0;
         }
+        slot->encrypted = false;
         ESP_LOGI(TAG, "encryption changed handle=%u status=%d",
                  event->enc_change.conn_handle, event->enc_change.status);
+        if (event->enc_change.status != 0) {
+            return 0;
+        }
+        struct ble_gap_conn_desc desc;
+        int rc = ble_gap_conn_find(event->enc_change.conn_handle, &desc);
+        if (rc != 0 || !desc.sec_state.bonded) {
+            ESP_LOGW(TAG, "encrypted connection is not bonded handle=%u rc=%d",
+                     event->enc_change.conn_handle, rc);
+            (void)ble_gap_terminate(event->enc_change.conn_handle,
+                                   BLE_ERR_AUTH_FAIL);
+            return 0;
+        }
+        desk_ble_peer_identity_t identity =
+            identity_from_ble_addr(&desc.peer_id_addr);
+        bool existing = desk_ble_bond_registry_find_identity_const(
+                            &s_bond_registry, &identity) != NULL;
+        if (!existing && !desk_ble_session_allows_new_pairing(
+                             &s_session, esp_log_timestamp(),
+                             desk_ble_bond_registry_count(&s_bond_registry),
+                             DESK_BLE_BOND_CAPACITY)) {
+            ESP_LOGW(TAG, "reject new bond outside pairing window handle=%u",
+                     event->enc_change.conn_handle);
+            (void)ble_store_util_delete_peer(&desc.peer_id_addr);
+            (void)ble_gap_terminate(event->enc_change.conn_handle,
+                                   BLE_ERR_AUTH_FAIL);
+            return 0;
+        }
+        esp_err_t metadata_err = ensure_bond_metadata(&identity);
+        if (metadata_err != ESP_OK) {
+            ESP_LOGE(TAG, "persist new bond metadata failed: %s",
+                     esp_err_to_name(metadata_err));
+            if (!existing) {
+                (void)ble_store_util_delete_peer(&desc.peer_id_addr);
+            }
+            (void)ble_gap_terminate(event->enc_change.conn_handle,
+                                   BLE_ERR_AUTH_FAIL);
+            return 0;
+        }
+        slot->peer_identity_valid = true;
+        slot->peer_identity = identity;
+        const desk_ble_bond_record_t *record =
+            desk_ble_bond_registry_find_identity_const(&s_bond_registry,
+                                                       &identity);
+        slot->client_kind = record ? record->client_kind
+                                   : DESK_BLE_CLIENT_UNKNOWN;
+        slot->encrypted = true;
+        if (!existing &&
+            desk_ble_bond_registry_count(&s_bond_registry) >=
+                DESK_BLE_BOND_CAPACITY) {
+            desk_ble_session_close_pairing_window(&s_session);
+            ESP_LOGI(TAG, "pairing window closed: bond capacity reached");
+        }
         return 0;
     }
 
@@ -661,6 +903,11 @@ static int gap_event(struct ble_gap_event *event, void *arg)
          * 必须删除该 peer 的旧密钥并让 NimBLE 重试，否则首个加密写会一直
          * 卡在配对阶段。这里只删除当前 peer，不影响 Wi-Fi 或桌子设置。
          */
+        if (!desk_ble_session_pairing_window_is_open(
+                &s_session, esp_log_timestamp())) {
+            ESP_LOGW(TAG, "repeat pairing rejected: pairing window closed");
+            return BLE_GAP_REPEAT_PAIRING_IGNORE;
+        }
         struct ble_gap_conn_desc desc;
         int rc = ble_gap_conn_find(event->repeat_pairing.conn_handle, &desc);
         if (rc != 0) {
@@ -672,7 +919,26 @@ static int gap_event(struct ble_gap_event *event, void *arg)
             ESP_LOGE(TAG, "delete stale BLE bond failed: %d", rc);
             return BLE_GAP_REPEAT_PAIRING_IGNORE;
         }
-        ESP_LOGW(TAG, "stale BLE bond removed; retry pairing");
+        desk_ble_peer_identity_t identity =
+            identity_from_ble_addr(&desc.peer_id_addr);
+        desk_ble_bond_registry_t candidate = s_bond_registry;
+        if (desk_ble_bond_registry_remove(&candidate, &identity)) {
+            esp_err_t err = desk_ble_bond_storage_save(&candidate);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "remove repeated bond metadata failed: %s",
+                         esp_err_to_name(err));
+                return BLE_GAP_REPEAT_PAIRING_IGNORE;
+            }
+            s_bond_registry = candidate;
+        }
+        desk_ble_connection_slot_t *slot = desk_ble_session_find(
+            &s_session, event->repeat_pairing.conn_handle);
+        if (slot) {
+            slot->encrypted = false;
+            slot->peer_identity_valid = false;
+            slot->client_kind = DESK_BLE_CLIENT_UNKNOWN;
+        }
+        ESP_LOGW(TAG, "stale BLE bond and metadata removed; retry pairing");
         return BLE_GAP_REPEAT_PAIRING_RETRY;
     }
 
@@ -745,8 +1011,43 @@ static void on_stack_sync(void)
         ESP_LOGE(TAG, "resolve BLE address failed: %d", rc);
         return;
     }
+    esp_err_t metadata_err = reconcile_bond_metadata();
+    if (metadata_err != ESP_OK) {
+        ESP_LOGE(TAG, "BLE bond startup reconciliation failed: %s",
+                 esp_err_to_name(metadata_err));
+        return;
+    }
     s_stack_synced = true;
     start_advertising();
+}
+
+/** Store 容量不足只让本次写入失败，禁止示例 callback 淘汰最旧 Bond。 */
+static int bond_store_status(struct ble_store_status_event *event, void *arg)
+{
+    (void)arg;
+    if (!event) {
+        return BLE_HS_EINVAL;
+    }
+    switch (event->event_code) {
+    case BLE_STORE_EVENT_FULL:
+        /*
+         * FULL 是配对前的悲观预警：第三个合法 Bond 正好达到容量时也会触发。
+         * 仅在窗口有效且注册表仍有空位时允许继续；真正写溢出仍在下方拒绝。
+         */
+        if (desk_ble_session_allows_store_event(
+                &s_session, DESK_BLE_STORE_FULL, esp_log_timestamp(),
+                desk_ble_bond_registry_count(&s_bond_registry),
+                DESK_BLE_BOND_CAPACITY)) {
+            return 0;
+        }
+        ESP_LOGW(TAG, "BLE bond store full outside admission window");
+        return BLE_HS_ESTORE_CAP;
+    case BLE_STORE_EVENT_OVERFLOW:
+        ESP_LOGW(TAG, "BLE bond store overflow rejected without eviction");
+        return BLE_HS_ESTORE_CAP;
+    default:
+        return BLE_HS_EUNKNOWN;
+    }
 }
 
 static void nimble_host_task(void *arg)
@@ -808,6 +1109,16 @@ esp_err_t desk_ble_start(void)
 {
     desk_ble_session_init(&s_session);
     update_session_aggregates();
+    esp_err_t storage_err = desk_ble_bond_storage_load(&s_bond_registry);
+    if (storage_err == ESP_ERR_INVALID_VERSION ||
+        storage_err == ESP_ERR_INVALID_STATE) {
+        /* Bond Store 会在 sync 时重建安全的 unknown 元数据。 */
+        ESP_LOGW(TAG, "discard invalid BLE bond metadata: %s",
+                 esp_err_to_name(storage_err));
+        desk_ble_bond_registry_init(&s_bond_registry);
+    } else if (storage_err != ESP_OK) {
+        return storage_err;
+    }
     esp_err_t err = nimble_port_init();
     if (err != ESP_OK) {
         return err;
@@ -834,7 +1145,7 @@ esp_err_t desk_ble_start(void)
 
     ble_hs_cfg.reset_cb = on_stack_reset;
     ble_hs_cfg.sync_cb = on_stack_sync;
-    ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
+    ble_hs_cfg.store_status_cb = bond_store_status;
     ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;
     ble_hs_cfg.sm_bonding = 1;
     ble_hs_cfg.sm_mitm = 0; /* 无屏幕/键盘设备只能使用 Just Works。 */

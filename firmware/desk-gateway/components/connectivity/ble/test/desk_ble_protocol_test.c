@@ -108,11 +108,30 @@ static void test_config_protocol(void)
                                            &system_command));
 }
 
+static void test_client_info_decode(void)
+{
+    const uint8_t watch[] = {0x01, 0x01};
+    desk_ble_client_info_t info;
+    assert(desk_ble_client_info_decode(watch, sizeof(watch), &info));
+    assert(info.client_kind == 0x01);
+
+    const uint8_t future_kind[] = {0x01, 0x7f};
+    assert(desk_ble_client_info_decode(future_kind, sizeof(future_kind),
+                                       &info));
+    assert(info.client_kind == 0x00);
+
+    const uint8_t future_version[] = {0x02, 0x01};
+    assert(!desk_ble_client_info_decode(future_version,
+                                        sizeof(future_version), &info));
+    assert(!desk_ble_client_info_decode(watch, 1, &info));
+}
+
 int main(void)
 {
     test_command_decode();
     test_state_encode();
     test_config_protocol();
+    test_client_info_decode();
     puts("desk_ble_protocol_test: OK");
     return 0;
 }

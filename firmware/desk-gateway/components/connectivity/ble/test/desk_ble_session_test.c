@@ -71,7 +71,13 @@ static void test_pairing_window(void)
     const uint32_t opened_at = UINT32_MAX - UINT32_C(1000);
     desk_ble_session_open_pairing_window(&session, opened_at);
     assert(desk_ble_session_allows_new_pairing(&session, opened_at, 2, 3));
+    assert(desk_ble_session_allows_store_event(
+        &session, DESK_BLE_STORE_FULL, opened_at, 2, 3));
+    assert(!desk_ble_session_allows_store_event(
+        &session, DESK_BLE_STORE_OVERFLOW, opened_at, 2, 3));
     assert(!desk_ble_session_allows_new_pairing(&session, opened_at, 3, 3));
+    assert(!desk_ble_session_allows_store_event(
+        &session, DESK_BLE_STORE_FULL, opened_at, 3, 3));
     assert(desk_ble_session_pairing_window_remaining_ms(&session, opened_at) ==
            DESK_BLE_PAIRING_WINDOW_MS);
 
@@ -82,6 +88,8 @@ static void test_pairing_window(void)
     uint32_t at_deadline = opened_at + DESK_BLE_PAIRING_WINDOW_MS;
     assert(!desk_ble_session_pairing_window_is_open(&session, at_deadline));
     assert(!session.pairing_window_open);
+    assert(!desk_ble_session_allows_store_event(
+        &session, DESK_BLE_STORE_FULL, at_deadline, 2, 3));
 }
 
 static void test_delete_state(void)

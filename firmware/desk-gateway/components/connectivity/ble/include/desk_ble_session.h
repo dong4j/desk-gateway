@@ -33,6 +33,11 @@ typedef enum {
     DESK_BLE_DELETE_FAILED,
 } desk_ble_delete_state_t;
 
+typedef enum {
+    DESK_BLE_STORE_FULL = 0,
+    DESK_BLE_STORE_OVERFLOW,
+} desk_ble_store_event_t;
+
 typedef struct {
     uint8_t type;
     uint8_t value[DESK_BLE_PEER_ADDRESS_LENGTH];
@@ -113,6 +118,13 @@ uint32_t desk_ble_session_pairing_window_remaining_ms(
 
 /** 新身份只有窗口有效且 Bond 未满时才允许进入持久配对。 */
 bool desk_ble_session_allows_new_pairing(desk_ble_session_t *session,
+                                         uint32_t now_ms,
+                                         size_t bond_count,
+                                         size_t bond_capacity);
+
+/** FULL 可在第三个合法 Bond 时放行；OVERFLOW 永远拒绝且不得淘汰旧 Bond。 */
+bool desk_ble_session_allows_store_event(desk_ble_session_t *session,
+                                         desk_ble_store_event_t event,
                                          uint32_t now_ms,
                                          size_t bond_count,
                                          size_t bond_capacity);

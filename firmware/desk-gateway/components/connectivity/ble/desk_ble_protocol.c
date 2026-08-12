@@ -167,3 +167,14 @@ bool desk_ble_system_command_decode(const uint8_t *data, size_t len,
     *out_command = DESK_BLE_SYSTEM_COMMAND_RESTART;
     return true;
 }
+
+bool desk_ble_client_info_decode(const uint8_t *data, size_t len,
+                                 desk_ble_client_info_t *out_info)
+{
+    if (!data || !out_info || len != DESK_BLE_CLIENT_INFO_LENGTH ||
+        data[0] != DESK_BLE_CLIENT_INFO_VERSION) {
+        return false;
+    }
+    out_info->client_kind = data[1] <= 3 ? data[1] : 0;
+    return true;
+}

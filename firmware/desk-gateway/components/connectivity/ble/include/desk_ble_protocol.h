@@ -20,6 +20,8 @@ extern "C" {
 #define DESK_BLE_STATE_LENGTH     8
 #define DESK_BLE_CONFIG_LENGTH    8
 #define DESK_BLE_CONFIG_WRITE_LENGTH 4
+#define DESK_BLE_CLIENT_INFO_VERSION 0x01
+#define DESK_BLE_CLIENT_INFO_LENGTH  2
 #define DESK_BLE_HEIGHT_UNKNOWN   UINT16_C(0xFFFF)
 
 typedef enum {
@@ -86,6 +88,10 @@ typedef struct {
     uint16_t value;
 } desk_ble_config_write_t;
 
+typedef struct {
+    uint8_t client_kind;
+} desk_ble_client_info_t;
+
 /** 解析 Command characteristic 的单字节指令。 */
 bool desk_ble_command_decode(const uint8_t *data, size_t len,
                              desk_ble_command_t *out_command);
@@ -105,6 +111,10 @@ bool desk_ble_config_write_decode(const uint8_t *data, size_t len,
 /** 解析 System characteristic 的单字节管理命令。 */
 bool desk_ble_system_command_decode(const uint8_t *data, size_t len,
                                     desk_ble_system_command_t *out_command);
+
+/** 解析 Client Info v1；超出 0..3 的客户端类型按 unknown(0) 处理。 */
+bool desk_ble_client_info_decode(const uint8_t *data, size_t len,
+                                 desk_ble_client_info_t *out_info);
 
 #ifdef __cplusplus
 }

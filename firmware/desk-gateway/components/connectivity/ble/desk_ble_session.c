@@ -207,6 +207,20 @@ bool desk_ble_session_allows_new_pairing(desk_ble_session_t *session,
            desk_ble_session_pairing_window_is_open(session, now_ms);
 }
 
+bool desk_ble_session_allows_store_event(desk_ble_session_t *session,
+                                         desk_ble_store_event_t event,
+                                         uint32_t now_ms,
+                                         size_t bond_count,
+                                         size_t bond_capacity)
+{
+    if (event == DESK_BLE_STORE_OVERFLOW) {
+        return false;
+    }
+    return event == DESK_BLE_STORE_FULL &&
+           desk_ble_session_allows_new_pairing(
+               session, now_ms, bond_count, bond_capacity);
+}
+
 void desk_ble_session_mark_delete_pending(desk_ble_connection_slot_t *slot)
 {
     if (!slot) {
