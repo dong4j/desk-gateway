@@ -129,6 +129,32 @@ static void key_poll_once(sampled_bus_t *bus, uint8_t expected_dr)
     assert(bus->completed_key_reads == completed_before + 1);
 }
 
+/** Verify stable line samples cannot manufacture protocol edges or bus output. */
+static void test_duplicate_samples_are_inert(void)
+{
+    sampled_bus_t bus = {
+        .master_scl_high = true,
+        .master_sda_high = true,
+        .desired_dr = 0x2E,
+    };
+    yourdesk_soft_i2c_sampler_init(&bus.sampler, true, true, bus.desired_dr);
+
+    for (int i = 0; i < 1024; ++i) {
+        yourdesk_soft_i2c_sample_result_t result = sample_bus(&bus);
+        assert(!result.scl_rising);
+        assert(!result.scl_falling);
+        assert(!result.start_detected);
+        assert(!result.stop_detected);
+        assert(!result.address_completed);
+        assert(!result.key_read_aborted);
+        assert(!result.protocol_event.ready);
+        assert(!result.protocol_event.key_read_completed);
+        assert(!result.drive_sda_low);
+    }
+    assert(bus.completed_key_reads == 0);
+    assert(bus.digit_events == 0);
+}
+
 /** Require uninterrupted UP/DOWN polling through the sampled-line frontend. */
 static void test_motion_stream(void)
 {
@@ -174,6 +200,7 @@ static void test_digit_stream(void)
 
 int main(void)
 {
+    test_duplicate_samples_are_inert();
     test_motion_stream();
     test_digit_stream();
     puts("yourdesk ULP sampled-line vectors: OK");

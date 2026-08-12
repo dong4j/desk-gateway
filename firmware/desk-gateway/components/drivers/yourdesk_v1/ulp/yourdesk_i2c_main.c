@@ -17,6 +17,8 @@
 
 #define DIGIT_RING_CAPACITY 32u
 #define DIGIT_RING_MASK     (DIGIT_RING_CAPACITY - 1u)
+#define BUS_LEVEL_SCL_HIGH  (1u << 0)
+#define BUS_LEVEL_SDA_HIGH  (1u << 1)
 
 /* Main CPU -> ULP command mailbox. */
 volatile uint32_t desired_dr;
@@ -130,14 +132,34 @@ static void configure_bus_gpio(void)
     ulp_riscv_gpio_pulldown_disable(sda);
 }
 
+/**
+ * Read both bus lines from one RTC register snapshot.
+ *
+ * Reading GPIO4 and GPIO5 separately can observe different instants and costs
+ * two RTC-register accesses in the timing-critical loop. A single snapshot
+ * both preserves the CLK/DAT relationship and reduces the work required to
+ * observe each roughly 52 us controller half-cycle.
+ */
+static inline __attribute__((always_inline)) uint32_t read_bus_levels(void)
+{
+    uint32_t rtc_levels = REG_GET_FIELD(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT);
+    uint32_t levels = 0;
+    if ((rtc_levels & BIT(CONFIG_DESK_I2C_SCL_GPIO)) != 0) {
+        levels |= BUS_LEVEL_SCL_HIGH;
+    }
+    if ((rtc_levels & BIT(CONFIG_DESK_I2C_SDA_GPIO)) != 0) {
+        levels |= BUS_LEVEL_SDA_HIGH;
+    }
+    return levels;
+}
+
 int main(void)
 {
     configure_bus_gpio();
 
-    bool scl_high = ulp_riscv_gpio_get_level(
-                        (gpio_num_t)CONFIG_DESK_I2C_SCL_GPIO) != 0;
-    bool sda_high = ulp_riscv_gpio_get_level(
-                        (gpio_num_t)CONFIG_DESK_I2C_SDA_GPIO) != 0;
+    uint32_t previous_bus_levels = read_bus_levels();
+    bool scl_high = (previous_bus_levels & BUS_LEVEL_SCL_HIGH) != 0;
+    bool sda_high = (previous_bus_levels & BUS_LEVEL_SDA_HIGH) != 0;
     bool driving_sda_low = false;
     yourdesk_soft_i2c_sampler_t sampler;
     yourdesk_soft_i2c_sampler_init(&sampler, scl_high, sda_high,
@@ -146,10 +168,14 @@ int main(void)
     worker_ready = 1u;
 
     for (;;) {
-        scl_high = ulp_riscv_gpio_get_level(
-                       (gpio_num_t)CONFIG_DESK_I2C_SCL_GPIO) != 0;
-        sda_high = ulp_riscv_gpio_get_level(
-                       (gpio_num_t)CONFIG_DESK_I2C_SDA_GPIO) != 0;
+        uint32_t bus_levels = read_bus_levels();
+        if (bus_levels == previous_bus_levels) {
+            /* Stable lines must not enter the comparatively heavy parser. */
+            continue;
+        }
+        previous_bus_levels = bus_levels;
+        scl_high = (bus_levels & BUS_LEVEL_SCL_HIGH) != 0;
+        sda_high = (bus_levels & BUS_LEVEL_SDA_HIGH) != 0;
 
         yourdesk_soft_i2c_sample_result_t result =
             yourdesk_soft_i2c_sampler_sample(&sampler, scl_high, sda_high,
