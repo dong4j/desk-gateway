@@ -51,6 +51,18 @@ func encodesCommands() {
   #expect(DeskProtocol.encode(.preset4) == Data([0x14]))
 }
 
+@Test("Watch Client Info uses version 1 and watchOS kind")
+func encodesWatchClientInfo() {
+  #expect(DeskProtocol.encodeWatchClientInfo() == Data([0x01, 0x01]))
+}
+
+@Test("Desk Busy recognizes the stable ATT application error")
+func recognizesDeskBusy() {
+  #expect(DeskProtocol.isDeskBusyError(code: 128, description: "Write failed"))
+  #expect(DeskProtocol.isDeskBusyError(code: 7, description: "ATT error 0x80"))
+  #expect(!DeskProtocol.isDeskBusyError(code: 7, description: "Write not permitted"))
+}
+
 @Test("Malformed packets fail closed")
 func rejectsMalformedState() {
   #expect(throws: DeskProtocolError.invalidLength(expected: "8", actual: 3)) {

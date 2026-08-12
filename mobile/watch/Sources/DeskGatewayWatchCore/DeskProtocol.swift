@@ -104,6 +104,7 @@ public enum DeskProtocol {
   public static let commandUUID = "7F4E0002-6D4C-4F4B-9F7A-3C1D2E5A9B10"
   public static let stateUUID = "7F4E0003-6D4C-4F4B-9F7A-3C1D2E5A9B10"
   public static let configUUID = "7F4E0004-6D4C-4F4B-9F7A-3C1D2E5A9B10"
+  public static let clientInfoUUID = "7F4E0006-6D4C-4F4B-9F7A-3C1D2E5A9B10"
   public static let advertisingName = "DeskGateway"
 
   private static let unknownHeight = UInt16.max
@@ -111,6 +112,16 @@ public enum DeskProtocol {
   /// 编码单字节命令，不在 Watch 端扩展固件未定义的控制值。
   public static func encode(_ command: DeskCommand) -> Data {
     Data([command.rawValue])
+  }
+
+  /// Watch 只上报协议版本和平台枚举，不上传名称、地址或其他身份信息。
+  public static func encodeWatchClientInfo() -> Data {
+    Data([0x01, 0x01])
+  }
+
+  /// CoreBluetooth 会把固件 ATT Application Error 作为 code 128 交给客户端。
+  public static func isDeskBusyError(code: Int, description: String) -> Bool {
+    code == 0x80 || description.localizedCaseInsensitiveContains("0x80")
   }
 
   /// 严格解码 State v1；未知高度返回 nil，绝不由 Watch 估算。

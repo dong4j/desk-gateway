@@ -28,13 +28,15 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
   private let commandUUID = CBUUID(string: DeskProtocol.commandUUID)
   private let stateUUID = CBUUID(string: DeskProtocol.stateUUID)
   private let configUUID = CBUUID(string: DeskProtocol.configUUID)
+  private let clientInfoUUID = CBUUID(string: DeskProtocol.clientInfoUUID)
 
   private var centralManager: CBCentralManager!
   private var peripheral: CBPeripheral?
   private var commandCharacteristic: CBCharacteristic?
+  private var clientInfoCharacteristic: CBCharacteristic?
   private var pendingWrites: [PendingWrite] = []
   private var writeInFlight = false
-  private var awaitingInitialStop = false
+  private var awaitingClientInfo = false
   private var connectionRequested = false
 
   override init() {
@@ -120,9 +122,10 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
     centralManager?.stopScan()
     peripheral = nil
     commandCharacteristic = nil
+    clientInfoCharacteristic = nil
     pendingWrites.removeAll()
     writeInFlight = false
-    awaitingInitialStop = false
+    awaitingClientInfo = false
     deskState = nil
     configuration = nil
     errorMessage = nil
@@ -208,7 +211,7 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
       return
     }
     peripheral.discoverCharacteristics(
-      [commandUUID, stateUUID, configUUID],
+      [commandUUID, stateUUID, configUUID, clientInfoUUID],
       for: service
     )
   }
@@ -233,6 +236,8 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
       case configUUID:
         peripheral.setNotifyValue(true, for: characteristic)
         peripheral.readValue(for: characteristic)
+      case clientInfoUUID:
+        clientInfoCharacteristic = characteristic
       default:
         break
       }
@@ -242,10 +247,20 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
       fail(NSError(domain: "DeskGatewayWatch", code: 3))
       return
     }
-    // 加密 STOP 是最安全的首个 Write；成功回调同时证明配对和命令通道可用。
-    phase = .pairing
-    awaitingInitialStop = true
-    send(.stop)
+    if let clientInfoCharacteristic {
+      // Client Info 触发加密配对，但不会像旧 STOP 握手一样中断其他客户端的运动。
+      phase = .pairing
+      awaitingClientInfo = true
+      writeInFlight = true
+      peripheral.writeValue(
+        DeskProtocol.encodeWatchClientInfo(),
+        for: clientInfoCharacteristic,
+        type: .withResponse
+      )
+    } else {
+      // Client Info 是可选扩展；旧固件继续使用原 Command / State，不发送 STOP 握手。
+      phase = .ready
+    }
   }
 
   func peripheral(
@@ -288,11 +303,39 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
   ) {
     writeInFlight = false
     if let error {
+      let cocoaError = error as NSError
+      if characteristic.uuid == commandUUID,
+        DeskProtocol.isDeskBusyError(
+          code: cocoaError.code,
+          description: cocoaError.localizedDescription
+        )
+      {
+        pendingWrites.removeAll(where: { $0.command != .stop })
+        errorMessage = "另一台设备正在控制"
+        phase = .ready
+        flushWriteQueue()
+        return
+      }
+      if awaitingClientInfo && characteristic.uuid == clientInfoUUID {
+        awaitingClientInfo = false
+        fail(
+          NSError(
+            domain: "DeskGatewayWatch",
+            code: cocoaError.code,
+            userInfo: [
+              NSLocalizedDescriptionKey:
+                "BLE 配对失败，请在系统蓝牙设置中取消配对 DeskGateway，打开配对窗口后重试",
+              NSUnderlyingErrorKey: error,
+            ]
+          )
+        )
+        return
+      }
       fail(error)
       return
     }
-    if awaitingInitialStop && characteristic.uuid == commandUUID {
-      awaitingInitialStop = false
+    if awaitingClientInfo && characteristic.uuid == clientInfoUUID {
+      awaitingClientInfo = false
       phase = .ready
     }
     errorMessage = nil
