@@ -12,6 +12,7 @@ export const DESK_COMMAND_UUID = '7f4e0002-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_STATE_UUID = '7f4e0003-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_CONFIG_UUID = '7f4e0004-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_SYSTEM_UUID = '7f4e0005-6d4c-4f4b-9f7a-3c1d2e5a9b10';
+export const DESK_CLIENT_INFO_UUID = '7f4e0006-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DEVICE_INFORMATION_SERVICE_UUID = '180a';
 export const FIRMWARE_REVISION_UUID = '2a26';
 export const DESK_ADVERTISING_NAME = 'DeskGateway';
@@ -35,6 +36,11 @@ const configFieldCode: Record<DeskConfigField, number> = {
 export const DeskSystemCommand = {
   Restart: 0x01,
 } as const;
+
+/** Client Info 只上报协议版本和平台类型，不传递设备名称或系统标识。 */
+export function encodeDeskClientInfo(clientKind: 0x02 | 0x03): readonly number[] {
+  return [0x01, clientKind];
+}
 
 const motionByCode: Record<number, DeskMotion> = {
   0x00: 'idle',

@@ -12,6 +12,7 @@ import type {
 import { DeskCommand } from '../src/desk/commands';
 import { DeskBleClient } from '../src/desk/DeskBleClient';
 import {
+  DESK_CLIENT_INFO_UUID,
   DESK_CONFIG_UUID,
   DESK_STATE_UUID,
   FIRMWARE_REVISION_UUID,
@@ -29,7 +30,7 @@ const initialState = [
   0x04,
 ];
 
-test('connects, subscribes, bonds, then verifies encrypted STOP', async () => {
+test('connects, subscribes, bonds, then writes encrypted iOS Client Info', async () => {
   const adapter = new FakeBleAdapter();
   const client = new DeskBleClient(adapter);
   let latestPhase = 'missing';
@@ -49,7 +50,7 @@ test('connects, subscribes, bonds, then verifies encrypted STOP', async () => {
   assert.equal(latestPhase, 'ready');
   assert.equal(latestHeight, 640);
   assert.equal(latestFirmware, 'Aug 11 2026 19:52:22 # 1b5e1e21');
-  assert.deepEqual(adapter.writes, [[DeskCommand.Stop]]);
+  assert.deepEqual(adapter.writes, [[0x01, 0x02]]);
   assert.deepEqual(adapter.operations, [
     'initialize',
     'scan',
@@ -61,7 +62,7 @@ test('connects, subscribes, bonds, then verifies encrypted STOP', async () => {
     'read:config',
     'read:firmware',
     'bond',
-    'write:0',
+    'write:1,2',
   ]);
 
   adapter.emitState([
@@ -110,6 +111,23 @@ test('keeps old firmware controllable when Device Information is absent', async 
   client.dispose();
 });
 
+test('keeps old firmware controllable when Client Info is absent without sending STOP', async () => {
+  const adapter = new FakeBleAdapter(true, true, false);
+  const client = new DeskBleClient(adapter);
+  let latestPhase = 'missing';
+  client.subscribe((snapshot) => {
+    latestPhase = snapshot.phase;
+  });
+
+  await client.initialize();
+  await client.scanAndConnect();
+
+  assert.equal(latestPhase, 'ready');
+  assert.deepEqual(adapter.writes, [[0x01, 0x02]]);
+  assert.equal(adapter.operations.includes('write:0'), false);
+  client.dispose();
+});
+
 test('updates standing preset first when the new sitting height crosses the old standing height', async () => {
   const adapter = new FakeBleAdapter();
   const client = new DeskBleClient(adapter);
@@ -139,7 +157,7 @@ test('keeps Command and State usable when old firmware has no Config', async () 
 
   assert.equal(latestPhase, 'ready');
   assert.equal(latestConfig, null);
-  assert.deepEqual(adapter.writes, [[DeskCommand.Stop]]);
+  assert.deepEqual(adapter.writes, [[0x01, 0x02]]);
   client.dispose();
 });
 
@@ -167,7 +185,29 @@ test('keeps BLE ready when a command write is rejected', async () => {
   client.dispose();
 });
 
+test('maps Desk Busy 0x80 without disconnecting the BLE session', async () => {
+  const adapter = new FakeBleAdapter();
+  const client = new DeskBleClient(adapter);
+  let latestPhase = 'missing';
+  let latestError: string | null = null;
+  client.subscribe((snapshot) => {
+    latestPhase = snapshot.phase;
+    latestError = snapshot.error;
+  });
+
+  await client.initialize();
+  await client.scanAndConnect();
+  adapter.nextWriteError = new Error('GATT write failed with status 128');
+
+  await assert.rejects(client.sendCommand(DeskCommand.Preset4));
+  assert.equal(latestPhase, 'ready');
+  assert.equal(latestError, '另一台设备正在控制');
+  assert.equal(adapter.operations.includes('disconnect'), false);
+  client.dispose();
+});
+
 class FakeBleAdapter implements BleAdapter {
+  readonly clientKind = 0x02 as const;
   readonly peripheral: DeskPeripheral = {
     id: 'desk-1',
     name: 'DeskGateway',
@@ -176,6 +216,7 @@ class FakeBleAdapter implements BleAdapter {
   readonly operations: string[] = [];
   readonly writes: number[][] = [];
   rejectNextWrite = false;
+  nextWriteError: Error | null = null;
   private stateListener: BytesListener | null = null;
   private configListener: BytesListener | null = null;
   private disconnectListener: DisconnectListener | null = null;
@@ -186,6 +227,7 @@ class FakeBleAdapter implements BleAdapter {
   constructor(
     private readonly firmwareAvailable = true,
     private readonly configAvailable = true,
+    private readonly clientInfoAvailable = true,
   ) {}
 
   async initialize(): Promise<void> {
@@ -246,6 +288,14 @@ class FakeBleAdapter implements BleAdapter {
   ): Promise<void> {
     this.operations.push(`write:${bytes.join(',')}`);
     this.writes.push(Array.from(bytes));
+    if (characteristicUuid === DESK_CLIENT_INFO_UUID && !this.clientInfoAvailable) {
+      throw new Error('Client Info characteristic not found');
+    }
+    if (this.nextWriteError) {
+      const error = this.nextWriteError;
+      this.nextWriteError = null;
+      throw error;
+    }
     if (this.rejectNextWrite) {
       this.rejectNextWrite = false;
       throw new Error('ATT write rejected');

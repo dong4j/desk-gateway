@@ -12,6 +12,8 @@ export type DisconnectListener = (peripheralId: string) => void;
 export type Unsubscribe = () => void;
 
 export interface BleAdapter {
+  /** Client Info 使用的稳定平台枚举；协议层不直接依赖 React Native Platform。 */
+  readonly clientKind: 0x02 | 0x03;
   initialize(): Promise<void>;
   scanForPeripheral(
     serviceUuid: string,

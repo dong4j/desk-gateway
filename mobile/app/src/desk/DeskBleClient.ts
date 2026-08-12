@@ -13,6 +13,7 @@ import {
 } from './commands';
 import {
   DESK_ADVERTISING_NAME,
+  DESK_CLIENT_INFO_UUID,
   DESK_COMMAND_UUID,
   DESK_CONFIG_UUID,
   DESK_SERVICE_UUID,
@@ -24,6 +25,7 @@ import {
   FIRMWARE_REVISION_UUID,
   decodeDeskState,
   decodeFirmwareRevision,
+  encodeDeskClientInfo,
   encodeDeskConfigWrite,
   encodeDeskSystemCommand,
 } from './protocol';
@@ -108,7 +110,7 @@ export class DeskBleClient implements DeskClient {
     }
   }
 
-  /** 扫描第一个 DeskGateway，完成服务发现、Notify 和加密 STOP 验证。 */
+  /** 扫描第一个 DeskGateway，完成服务发现、Notify 和加密 Client Info 验证。 */
   async connect(): Promise<void> {
     try {
       this.update({ phase: 'scanning', firmwareRevision: null, error: null });
@@ -163,12 +165,7 @@ export class DeskBleClient implements DeskClient {
 
       this.update({ phase: 'pairing' });
       await this.adapter.ensureBond(peripheral.id);
-      // STOP 是触发加密配对最安全的首条命令，不会启动运动。
-      await withTimeout(
-        this.sendCommand(DeskCommand.Stop),
-        PAIRING_TIMEOUT_MS,
-        'BLE 配对超时，请断开设备后重新连接',
-      );
+      await this.writeClientInfo(peripheral.id);
       this.update({ phase: 'ready', error: null });
     } catch (error) {
       /* 配对超时后的原生 Write 不可取消；断开链路可安全终止它。 */
@@ -177,8 +174,11 @@ export class DeskBleClient implements DeskClient {
         await this.adapter.disconnect(peripheralId).catch(() => undefined);
         this.writeQueue = Promise.resolve();
       }
-      this.fail(error);
-      throw error;
+      const connectionError = this.snapshot.phase === 'pairing'
+        ? pairingError(error)
+        : error;
+      this.fail(connectionError);
+      throw connectionError;
     }
   }
 
@@ -285,7 +285,7 @@ export class DeskBleClient implements DeskClient {
     });
     const operation = write.catch((error: unknown) => {
       /* ATT 拒绝是一次操作失败，不代表 GATT 链路已经断开。 */
-      this.update({ error: '操作失败' });
+      this.update({ error: isDeskBusyError(error) ? '另一台设备正在控制' : '操作失败' });
       throw error;
     });
     this.writeQueue = operation.catch(() => undefined);
@@ -389,6 +389,29 @@ export class DeskBleClient implements DeskClient {
     }
   }
 
+  /**
+   * 新固件通过加密 Client Info 完成配对验证；旧固件缺少该可选特征时直接继续，
+   * 不能退回 STOP 握手，否则第二个客户端上线会中断现有运动。
+   */
+  private async writeClientInfo(peripheralId: string): Promise<void> {
+    try {
+      await withTimeout(
+        this.adapter.write(
+          peripheralId,
+          DESK_SERVICE_UUID,
+          DESK_CLIENT_INFO_UUID,
+          encodeDeskClientInfo(this.adapter.clientKind),
+        ),
+        PAIRING_TIMEOUT_MS,
+        'BLE 配对超时',
+      );
+    } catch (error) {
+      if (!isMissingCharacteristicError(error)) {
+        throw error;
+      }
+    }
+  }
+
   private fail(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     this.update({ phase: 'error', error: message });
@@ -400,4 +423,30 @@ export class DeskBleClient implements DeskClient {
       listener(this.snapshot);
     }
   }
+}
+
+/** react-native-ble-manager 在两端分别可能返回 0x80 或十进制 128。 */
+export function isDeskBusyError(error: unknown): boolean {
+  if (typeof error === 'object' && error !== null) {
+    const record = error as Record<string, unknown>;
+    if ([record.code, record.errorCode, record.attErrorCode].some(
+      (value) => value === 0x80 || value === '0x80',
+    )) {
+      return true;
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return /(?:ATT|GATT|status|code)[^\n]*(?:0x80|\b128\b)/i.test(message);
+}
+
+function isMissingCharacteristicError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /characteristic[^\n]*(?:not found|missing|does not exist)|(?:not found|missing)[^\n]*characteristic/i.test(message);
+}
+
+function pairingError(error: unknown): Error {
+  const detail = error instanceof Error ? error.message : String(error);
+  return new Error(
+    `BLE 配对失败：${detail}。请在系统蓝牙设置中忽略/取消配对 DeskGateway，打开配对窗口后重试`,
+  );
 }

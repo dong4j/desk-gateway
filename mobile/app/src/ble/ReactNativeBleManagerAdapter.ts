@@ -22,6 +22,7 @@ import type { DeskPeripheral } from '../desk/types';
 const BLE_READY_TIMEOUT_MS = 5_000;
 
 export class ReactNativeBleManagerAdapter implements BleAdapter {
+  readonly clientKind = Platform.OS === 'ios' ? 0x02 : 0x03;
   private initialized = false;
 
   async initialize(): Promise<void> {
