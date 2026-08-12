@@ -107,3 +107,27 @@ int yourdesk_projected_up_height_mm(int anchor_mm, int elapsed_ms,
                             1000;
     return projected > INT_MAX ? INT_MAX : (int)projected;
 }
+
+bool yourdesk_predictive_max_height_reached(
+    int anchor_mm, int elapsed_ms, int max_speed_mm_per_s,
+    int max_height_mm, int stop_margin_mm,
+    int margin_projection_max_age_ms)
+{
+    int margin_elapsed_ms = elapsed_ms;
+    if (margin_projection_max_age_ms >= 0 &&
+        margin_elapsed_ms > margin_projection_max_age_ms) {
+        margin_elapsed_ms = margin_projection_max_age_ms;
+    }
+    int margin_projected_mm = yourdesk_projected_up_height_mm(
+        anchor_mm, margin_elapsed_ms, max_speed_mm_per_s);
+    if (yourdesk_max_height_reached(
+            margin_projected_mm, max_height_mm, stop_margin_mm)) {
+        return true;
+    }
+
+    /* Never cap the absolute envelope: the configured ceiling remains hard. */
+    int hard_projected_mm = yourdesk_projected_up_height_mm(
+        anchor_mm, elapsed_ms, max_speed_mm_per_s);
+    return yourdesk_max_height_reached(
+        hard_projected_mm, max_height_mm, 0);
+}

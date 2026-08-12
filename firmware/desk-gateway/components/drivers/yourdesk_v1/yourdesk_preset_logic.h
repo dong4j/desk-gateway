@@ -70,3 +70,15 @@ bool yourdesk_height_transition_valid(
 /** Conservative upward position envelope used between sparse display frames. */
 int yourdesk_projected_up_height_mm(int anchor_mm, int elapsed_ms,
                                    int max_speed_mm_per_s);
+
+/**
+ * Decide whether sparse upward feedback requires a predictive stop.
+ *
+ * The configured margin applies only to a recent, bounded extrapolation. A
+ * second uncapped envelope has no margin and remains the absolute fail-safe,
+ * so stale feedback cannot make the desk cross the configured ceiling.
+ */
+bool yourdesk_predictive_max_height_reached(
+    int anchor_mm, int elapsed_ms, int max_speed_mm_per_s,
+    int max_height_mm, int stop_margin_mm,
+    int margin_projection_max_age_ms);

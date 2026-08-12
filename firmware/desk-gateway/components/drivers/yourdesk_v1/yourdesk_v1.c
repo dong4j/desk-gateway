@@ -79,6 +79,8 @@ static const char *TAG = "yourdesk_v1";
 #define HEIGHT_MAX_SPEED_MM_PER_S       35
 #define HEIGHT_STEP_SLACK_MM            20
 #define HEIGHT_SAFETY_POLL_MS           50
+/* Do not amplify the 10 mm early-stop margin with an indefinitely old frame. */
+#define HEIGHT_MARGIN_PROJECTION_MAX_AGE_MS 500
 /* Unknown-height UP is allowed only long enough to obtain the first real frame. */
 #define HEIGHT_ACQUIRE_TIMEOUT_MS        2000
 
@@ -314,20 +316,30 @@ static void height_safety_task(void *arg)
             }
             continue;
         }
-        int projected_mm = yourdesk_projected_up_height_mm(
-            anchor_mm, anchor_age_ms, HEIGHT_MAX_SPEED_MM_PER_S);
         int max_height_mm = atomic_load(&s_max_height_mm);
-        if (!yourdesk_max_height_reached(projected_mm, max_height_mm,
-                                         DESK_MAX_HEIGHT_STOP_MARGIN_MM)) {
+        if (!yourdesk_predictive_max_height_reached(
+                anchor_mm, anchor_age_ms, HEIGHT_MAX_SPEED_MM_PER_S,
+                max_height_mm, DESK_MAX_HEIGHT_STOP_MARGIN_MM,
+                HEIGHT_MARGIN_PROJECTION_MAX_AGE_MS)) {
             continue;
         }
+
+        int margin_age_ms = anchor_age_ms;
+        if (margin_age_ms > HEIGHT_MARGIN_PROJECTION_MAX_AGE_MS) {
+            margin_age_ms = HEIGHT_MARGIN_PROJECTION_MAX_AGE_MS;
+        }
+        int margin_projected_mm = yourdesk_projected_up_height_mm(
+            anchor_mm, margin_age_ms, HEIGHT_MAX_SPEED_MM_PER_S);
+        int hard_projected_mm = yourdesk_projected_up_height_mm(
+            anchor_mm, anchor_age_ms, HEIGHT_MAX_SPEED_MM_PER_S);
 
         cancel_preset_motion();
         begin_height_resync();
         atomic_store(&s_up_limit_latched, true);
         ESP_LOGW(TAG,
-                 "predictive max stop: anchor=%d mm age=%d ms projected=%d mm configured=%d mm",
-                 anchor_mm, anchor_age_ms, projected_mm, max_height_mm);
+                 "predictive max stop: anchor=%d mm age=%d ms margin_projected=%d mm hard_projected=%d mm configured=%d mm",
+                 anchor_mm, anchor_age_ms, margin_projected_mm,
+                 hard_projected_mm, max_height_mm);
         (void)set_dr(DR_IDLE);
     }
 }
