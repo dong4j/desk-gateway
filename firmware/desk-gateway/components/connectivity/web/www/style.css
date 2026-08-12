@@ -431,6 +431,55 @@ body.is-moving .height { color: #5c4a28; }
   border-top: 1px solid var(--line);
 }
 
+.bond-heading,
+.bond-row,
+.bond-row-main {
+  display: flex;
+  align-items: center;
+}
+.bond-heading,
+.bond-row { justify-content: space-between; }
+.bond-heading { gap: 0.75rem; }
+.bond-actions { flex-wrap: wrap; }
+.bond-list {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.25rem;
+}
+.bond-row {
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--line);
+}
+.bond-row-main {
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.bond-label {
+  overflow-wrap: anywhere;
+  color: var(--fg);
+  font-size: 0.9rem;
+}
+.bond-status {
+  color: var(--soft);
+  font-size: 0.78rem;
+}
+.bond-error { color: var(--danger); }
+.bond-delete-button {
+  flex: none;
+  padding: 0.5rem 0.8rem !important;
+  background: transparent !important;
+  border: 1px solid var(--danger) !important;
+  color: var(--danger) !important;
+}
+.bond-delete-button:disabled,
+.bond-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 /* 登录 / SoftAP */
 .auth-wrap {
   min-height: 100vh;

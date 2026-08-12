@@ -120,6 +120,22 @@
           </div>
           <p id="accessMsg" class="hint"></p>
 
+          <section class="settings-form settings-divider bond-section" aria-labelledby="bondTitle">
+            <div class="bond-heading">
+              <label id="bondTitle">蓝牙配对设备</label>
+              <span id="bondCount" class="pill">— / 3</span>
+            </div>
+            <div class="settings-row bond-actions">
+              <button type="button" id="pairingWindowButton">允许新设备配对</button>
+              <button type="button" id="deleteAllBondsButton" class="settings-danger-button">
+                删除全部
+              </button>
+            </div>
+            <p id="pairingWindowHint" class="settings-note">配对窗口默认关闭。</p>
+            <div id="bondList" class="bond-list" aria-live="polite"></div>
+            <p id="bondMsg" class="hint"></p>
+          </section>
+
           <form id="pwForm" class="settings-form settings-divider">
             <label for="newPassword">修改登录密码</label>
             <div class="settings-row">
@@ -144,6 +160,7 @@
   </div>
 
   <script src="/hold-control.js"></script>
+  <script src="/bond-management.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

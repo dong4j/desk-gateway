@@ -29,9 +29,18 @@
   const allowBluetooth = document.getElementById('allowBluetooth');
   const allowPanel = document.getElementById('allowPanel');
   const restartButton = document.getElementById('restartButton');
+  const bondCount = document.getElementById('bondCount');
+  const bondList = document.getElementById('bondList');
+  const bondMsg = document.getElementById('bondMsg');
+  const pairingWindowButton = document.getElementById('pairingWindowButton');
+  const pairingWindowHint = document.getElementById('pairingWindowHint');
+  const deleteAllBondsButton = document.getElementById('deleteAllBondsButton');
   let failStreak = 0;
   let lastStatus = {};
   let restarting = false;
+  let lastBondSnapshot = null;
+  let lastBondRefreshAt = 0;
+  let bondRefreshInFlight = false;
 
   const STATE_HINT = {
     idle: '按住下方按钮升降，松手即停。',
@@ -64,13 +73,112 @@
       throw new Error('unauthorized');
     }
     if (!r.ok) {
-      const error = new Error(payload?.err || ('http ' + r.status));
-      error.code = payload?.err || '';
+      const errorCode = payload?.err || payload?.error || '';
+      const error = new Error(errorCode || ('http ' + r.status));
+      error.code = errorCode;
       error.reason = payload?.reason || '';
       error.httpStatus = r.status;
       throw error;
     }
     return payload;
+  }
+
+  function renderBondDevices(snapshot) {
+    lastBondSnapshot = snapshot;
+    bondCount.textContent = `${snapshot.devices.length} / ${snapshot.capacity}`;
+    const pairingOpen = !!snapshot.pairing_window?.open;
+    const seconds = Math.max(0, Number(snapshot.pairing_window?.remaining_seconds) || 0);
+    pairingWindowButton.textContent = pairingOpen
+      ? '提前关闭配对窗口'
+      : '允许新设备配对';
+    pairingWindowButton.disabled = !pairingOpen &&
+      snapshot.devices.length >= snapshot.capacity;
+    pairingWindowHint.textContent = pairingOpen
+      ? `允许新设备配对，剩余 ${seconds} 秒。第三台设备配对成功后会自动关闭。`
+      : snapshot.devices.length >= snapshot.capacity
+        ? '已达到 3 台上限，请先删除旧设备。'
+        : '配对窗口默认关闭；开启后固定持续 120 秒。';
+
+    const conflict = DeskBondManagement.hasDeleteConflict(snapshot);
+    deleteAllBondsButton.disabled = snapshot.devices.length === 0 || conflict;
+    bondList.replaceChildren();
+    if (snapshot.devices.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'settings-note';
+      empty.textContent = '暂无已配对设备';
+      bondList.appendChild(empty);
+      return;
+    }
+
+    snapshot.devices.forEach((device) => {
+      const row = document.createElement('div');
+      row.className = 'bond-row';
+      const main = document.createElement('div');
+      main.className = 'bond-row-main';
+      const label = document.createElement('span');
+      label.className = 'bond-label';
+      label.textContent = device.label;
+      const status = document.createElement('span');
+      status.className = 'bond-status';
+      status.textContent = DeskBondManagement.statusText(device);
+      main.append(label, status);
+      if (device.delete_state === 'failed' && device.delete_error) {
+        const error = document.createElement('span');
+        error.className = 'bond-status bond-error';
+        error.textContent = device.delete_error;
+        main.appendChild(error);
+      }
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'bond-delete-button';
+      remove.textContent = device.delete_state === 'failed' ? '重试' : '删除';
+      remove.disabled = device.delete_state === 'pending';
+      remove.onclick = async () => {
+        if (!window.confirm(`确定删除“${device.label}”吗？在线设备会立即断开。`)) return;
+        remove.disabled = true;
+        bondMsg.textContent = '正在提交删除请求…';
+        try {
+          const result = await api(
+            `/api/v1/bluetooth/bonds/${encodeURIComponent(device.id)}`,
+            'DELETE');
+          bondMsg.textContent = result.ok
+            ? '删除请求已处理，正在刷新设备列表…'
+            : '删除失败';
+        } catch (error) {
+          bondMsg.textContent = error.httpStatus === 404
+            ? '设备已删除或不存在'
+            : '删除失败，请刷新后重试';
+        }
+        await refreshBondDevices(true);
+      };
+      row.append(main, remove);
+      bondList.appendChild(row);
+    });
+  }
+
+  async function refreshBondDevices(force = false) {
+    const now = Date.now();
+    const fast = DeskBondManagement.shouldPollFrequently(lastBondSnapshot);
+    const interval = fast ? 750 : 5000;
+    if (bondRefreshInFlight || (!force && now - lastBondRefreshAt < interval)) {
+      return;
+    }
+    bondRefreshInFlight = true;
+    try {
+      const snapshot = await api('/api/v1/bluetooth/bonds');
+      lastBondRefreshAt = Date.now();
+      renderBondDevices(snapshot);
+      if (!snapshot.devices.some((device) => device.delete_state === 'failed')) {
+        bondMsg.textContent = '';
+      }
+    } catch (error) {
+      if (error.message !== 'unauthorized') {
+        bondMsg.textContent = '无法读取配对设备，请检查网关状态';
+      }
+    } finally {
+      bondRefreshInFlight = false;
+    }
   }
 
   function motionError(error, fallback) {
@@ -215,6 +323,37 @@
   bindSourceToggle(allowBluetooth, 'bluetooth');
   bindSourceToggle(allowPanel, 'panel');
 
+  pairingWindowButton.onclick = async () => {
+    pairingWindowButton.disabled = true;
+    const open = !!lastBondSnapshot?.pairing_window?.open;
+    try {
+      await api('/api/v1/bluetooth/pairing-window', open ? 'DELETE' : 'POST');
+      bondMsg.textContent = open ? '配对窗口已关闭' : '已开放 120 秒配对窗口';
+    } catch (error) {
+      bondMsg.textContent = error.httpStatus === 409
+        ? '已达到配对上限，请先删除旧设备'
+        : '配对窗口设置失败，请重试';
+    }
+    await refreshBondDevices(true);
+  };
+
+  deleteAllBondsButton.onclick = async () => {
+    if (!window.confirm('确定删除全部蓝牙配对设备吗？桌子会先停止，在线设备会立即断开。')) {
+      return;
+    }
+    deleteAllBondsButton.disabled = true;
+    bondMsg.textContent = '正在删除全部配对设备…';
+    try {
+      await api('/api/v1/bluetooth/bonds', 'DELETE');
+      bondMsg.textContent = '全部删除请求已受理，正在等待设备断开…';
+    } catch (error) {
+      bondMsg.textContent = error.httpStatus === 409
+        ? '存在删除失败或进行中的设备，请先逐台处理'
+        : '删除全部失败，请重试';
+    }
+    await refreshBondDevices(true);
+  };
+
   document.getElementById('maxHeightForm').onsubmit = async (e) => {
     e.preventDefault();
     const msg = document.getElementById('maxHeightMsg');
@@ -301,6 +440,7 @@
         showBanner('无法连接网关，请确认与板子在同一局域网');
       }
     }
+    void refreshBondDevices();
   }
   tick();
   setInterval(tick, 250);

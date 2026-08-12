@@ -92,3 +92,8 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${WEB_DIR}/test/desk_web_ble_api_test.c" \
     -o "${TEST_DIR}/web-ble-api-test"
 "${TEST_DIR}/web-ble-api-test"
+
+node --check "${WEB_DIR}/www/app.js"
+node --check "${WEB_DIR}/www/bond-management.js"
+node "${WEB_DIR}/test/hold-control.test.js"
+node "${WEB_DIR}/test/bond-management.test.js"
