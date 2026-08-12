@@ -1352,6 +1352,16 @@ static int gap_event(struct ble_gap_event *event, void *arg)
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "remove repeated bond metadata failed: %s",
                          esp_err_to_name(err));
+                /*
+                 * Store 密钥已经删除，不能继续把旧记录伪装成正常 Bond。
+                 * 保留记录并暴露 failed 状态，让管理端可重试；重启时的
+                 * Store/NVS 对账也会清理这条已经失去密钥的元数据。
+                 */
+                desk_ble_bond_record_t *record =
+                    desk_ble_bond_registry_find_identity(&s_bond_registry,
+                                                         &identity);
+                mark_delete_failed(
+                    record, "重复配对元数据清理失败，请在设备管理中重试");
                 return BLE_GAP_REPEAT_PAIRING_IGNORE;
             }
             s_bond_registry = candidate;

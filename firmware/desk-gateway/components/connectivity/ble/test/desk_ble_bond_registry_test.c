@@ -123,7 +123,14 @@ static void test_delete_state_matches_handle_and_generation(void)
     desk_ble_bond_mark_delete_failed(record, "disconnect timeout");
     assert(record->delete_state == DESK_BLE_DELETE_FAILED);
     assert(strcmp(record->delete_error, "disconnect timeout") == 0);
+    assert(desk_ble_bond_registry_has_delete_conflict(&registry));
     assert(!desk_ble_bond_delete_matches_disconnect(record, 7, 42));
+
+    /* failed 记录必须能够重新进入 pending，供管理接口执行显式重试。 */
+    desk_ble_bond_mark_delete_pending(record, false, 0, 0, 0);
+    assert(record->delete_state == DESK_BLE_DELETE_PENDING);
+    assert(record->delete_error[0] == '\0');
+    desk_ble_bond_mark_delete_failed(record, "disconnect timeout");
 
     /* 对账保留同一 Identity 的运行期失败状态，删除孤儿时才一并清理。 */
     assert(desk_ble_bond_registry_reconcile(
