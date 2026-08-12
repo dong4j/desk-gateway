@@ -24,7 +24,13 @@
 #define DIGIT_RING_CAPACITY 32u
 #define DIGIT_RING_MASK     (DIGIT_RING_CAPACITY - 1u)
 #define ULP_READY_TIMEOUT_MS 100u
-#define DIGIT_DRAIN_PERIOD_MS 2u
+#define DIGIT_DRAIN_PERIOD_TICKS 1u
+#define DIGIT_DRAIN_TASK_PRIORITY (tskIDLE_PRIORITY + 5u)
+
+_Static_assert(DIGIT_DRAIN_PERIOD_TICKS > 0,
+               "digit drain must block for at least one scheduler tick");
+_Static_assert(DIGIT_DRAIN_TASK_PRIORITY < configMAX_PRIORITIES,
+               "digit drain priority must be a valid FreeRTOS priority");
 
 static const char *TAG = "yourdesk_i2c_ulp";
 
@@ -108,7 +114,11 @@ static void digit_drain_task(void *arg)
             s_digit_read_seq++;
             shared_store(&ulp_digit_read_seq, s_digit_read_seq);
         }
-        vTaskDelay(pdMS_TO_TICKS(DIGIT_DRAIN_PERIOD_MS));
+        /* This task only bridges a 32-entry shared ring into FreeRTOS queues.
+         * It must block for a real scheduler tick: at CONFIG_FREERTOS_HZ=100,
+         * pdMS_TO_TICKS(2) becomes zero and a high-priority vTaskDelay(0) loop
+         * starves IDLE0 until the task watchdog fires. */
+        vTaskDelay((TickType_t)DIGIT_DRAIN_PERIOD_TICKS);
     }
 }
 
@@ -142,11 +152,13 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
     ulp_set_wakeup_period(0, 1000);
     ESP_RETURN_ON_ERROR(ulp_riscv_run(), TAG, "start ULP I2C worker");
 
-    uint32_t waited_ms = 0;
+    const TickType_t ready_start_tick = xTaskGetTickCount();
+    const TickType_t ready_timeout_ticks =
+        pdMS_TO_TICKS(ULP_READY_TIMEOUT_MS);
     while (shared_load(&ulp_worker_ready) == 0 &&
-           waited_ms < ULP_READY_TIMEOUT_MS) {
-        vTaskDelay(pdMS_TO_TICKS(1));
-        waited_ms++;
+           (xTaskGetTickCount() - ready_start_tick) < ready_timeout_ticks) {
+        /* One tick is the minimum blocking delay, independent of tick rate. */
+        vTaskDelay(1);
     }
     if (shared_load(&ulp_worker_ready) == 0) {
         ulp_riscv_halt();
@@ -155,7 +167,7 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
     }
 
     if (xTaskCreatePinnedToCore(digit_drain_task, "yd_ulp_digit", 3072,
-                                NULL, configMAX_PRIORITIES - 5,
+                                NULL, DIGIT_DRAIN_TASK_PRIORITY,
                                 NULL, 0) != pdPASS) {
         ulp_riscv_halt();
         (void)rtc_gpio_set_level((gpio_num_t)CONFIG_DESK_I2C_SDA_GPIO, 1);
