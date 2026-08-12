@@ -2,8 +2,8 @@
 
 Desk Gateway 的跨平台移动端工程，采用 React Native、Expo Development Build 和 TypeScript。
 
-当前状态是 **Phase 1 iOS 真机控制 UI**：已按确认原型实现 Home / Settings，并通过统一
-客户端支持 BLE GATT 与局域网 REST。技术决策和真机门禁见
+当前状态是 **iOS 真机控制已完成、Android 与三客户端并发待验收**：已按确认原型实现
+Home / Settings，并通过统一客户端支持 BLE GATT 与局域网 REST。技术决策和真机门禁见
 [`docs/architecture/mobile-app-technology-selection.md`](../../docs/architecture/mobile-app-technology-selection.md)。
 
 BLE 优先、Wi-Fi 回退、mDNS 和安全边界见
@@ -21,6 +21,7 @@ iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 - 自动模式优先 BLE，BLE 失败或断开后回退 `desk-gateway.local` 的 REST 接口。
 - 可在设置页选择自动、仅 BLE、仅 Wi-Fi，并配置 REST 地址和 `X-Desk-Key` 密码。
 - 发现 Desk Accessory Service。
+- iOS 写入 `01 02`、Android 写入 `01 03` Client Info 完成配对握手，不再用 STOP 握手。
 - 读取并订阅固定 8 字节 State Characteristic。
 - 读取标准 Device Information `180A/2A26` 并显示固件构建时间。
 - 通过加密 Command Characteristic 验证 STOP、HOLD 和两个档位。
@@ -30,6 +31,9 @@ iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 - Home 与 Settings 均可写入童锁，且只展示 ESP32 回读状态。
 - Settings 页面可设置最高安全高度、REST / Bluetooth / Panel 来源权限和重启网关。
 - Settings 页面提供连接方式、本地自动连接和触感偏好；开关整行可点击，不使用嵌套触摸区。
+- Settings 的“蓝牙配对设备”卡片通过 REST 显示在线/控制中状态，管理 120 秒配对窗口，
+  并支持系统确认的单删、全删、异步轮询与失败重试。
+- 收到 Desk Busy `0x80` 时显示“另一台设备正在控制”，保持 BLE 连接和状态订阅。
 - 旧固件未提供 Config 时仍可控制桌子，但设备设置会明确禁用。
 
 ## 开发命令
@@ -87,11 +91,12 @@ npm run doctor
 本地 TypeScript、Metro bundle 或模拟器通过都不能证明 BLE 可用。冻结 BLE 库前，必须在 iPhone 和 Android 真机完成：
 
 1. 扫描、连接和服务发现。
-2. 首次加密 Write 配对。
+2. 首次 Client Info 加密 Write 配对。
 3. State Notify。
 4. HOLD 续期和松手停止。
 5. 断连、App 退后台和关闭蓝牙后的停止行为。
 6. ESP32 与 App 重启后的 bond 恢复。
+7. iPhone、Apple Watch 与 Android 同时在线时的运动所有权、任意 STOP 和删除安全矩阵。
 
 Command / State v1 保持不变；新增 Config / System characteristic 承载设备设置和重启。
 iOS 已完成真实 BLE 运动控制、两张正式页面和设备设置写入。Android 真机、BLE/Wi-Fi

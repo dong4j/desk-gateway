@@ -3,9 +3,9 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-WATCH-001 |
-| 版本 | 0.14 |
-| 日期 | 2026-08-12 |
-| 状态 | W0 代码与 watchOS Simulator 安装完成；Apple Watch 真机验收待完成 |
+| 版本 | 0.15 |
+| 日期 | 2026-08-13 |
+| 状态 | W0 与多客户端适配代码、测试和通用构建完成；Apple Watch 真机验收待完成 |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
 | 移动端方案 | [移动端技术选型与 Phase 0 方案](./mobile-app-technology-selection.md) |
 | 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
@@ -13,9 +13,9 @@
 本文定义 Desk Gateway 的 Apple Watch 控制方案、已确认原型和实现验收边界。
 首版创建独立 watchOS App，直接复用 ESP32 GATT v1，不修改固件协议。
 
-当前 Watch 仍受固件单 BLE Central 限制。后续三客户端阶段将让 Watch 写入加密的
-Client Info 代替正常连接时的配对 STOP，并与 iPhone、Android 同时保持连接；该能力
-目前只有设计，尚未实现。
+当前 Watch 已写入加密 Client Info 代替正常连接时的配对 STOP；固件允许它与 iPhone、
+Android 同时保持连接，并以 Desk Busy `0x80` 拒绝非所有者的运动命令。三台真机并发
+仍待安全验收，不能由通用 watchOS 构建替代。
 
 > **当前固件边界（2026-08-12）**：硬件 I²C 产品路径只提供手动升、降和 STOP；高度为未知，
 > “请坐/站立”档位命令等待 TOF200C 后恢复。本文中的高度和档位界面属于目标设计。
@@ -85,6 +85,7 @@ Watch 不定义新协议，直接消费已冻结的 Service：
 | Service | `7f4e0001-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Desk Accessory Service |
 | Command | `7f4e0002-6d4c-4f4b-9f7a-3c1d2e5a9b10` | 加密 Write |
 | State | `7f4e0003-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Read + Notify，固定 8 字节 |
+| Client Info | `7f4e0006-6d4c-4f4b-9f7a-3c1d2e5a9b10` | 加密 Write：`01 01` 表示 v1 / watchOS |
 
 | Hex | Watch 操作 |
 |---|---|
@@ -107,7 +108,7 @@ State Notify 用于显示真实高度、运动状态、童锁、Bluetooth 来源
 ### 4.1 实现
 
 - 扫描并连接 `DeskGateway`；
-- 首次加密 Write 触发系统配对；
+- 连接后写入 Client Info 触发系统配对，不发送 STOP 握手；
 - 订阅高度与状态 Notify；
 - Digital Crown 正向旋转持续上升、反向旋转持续下降；
 - 停止旋转后立即 STOP，运动状态提供独立 STOP；
@@ -123,7 +124,6 @@ State Notify 用于显示真实高度、运动状态、童锁、Bluetooth 来源
 - Siri / App Intent；
 - 后台持续控制；
 - 多网关管理；
-- 手机 BLE 连接与 Watch BLE 连接同时在线。
 
 Complication 后续可以显示高度或作为启动入口，但不能提供无需确认的升降动作。
 
@@ -149,26 +149,25 @@ ESP32 仍按现有协议执行停止。
 
 ---
 
-## 6. 单连接约束
+## 6. 三连接与运动所有权
 
 当前固件配置为：
 
 ```text
 CONFIG_BT_NIMBLE_MAX_BONDS=3
-CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
 ```
 
-因此可以保存多个客户端的 bond，但同一时刻只能连接一个 BLE Central。首版采用明确
-的单连接行为：
+固件允许三个已绑定 Central 同时在线并接收 Notify，但同一时刻只有一个 BLE 客户端拥有
+运动控制权：
 
 - Watch 打开后尝试直接连接；
-- 若 iPhone 或 LightBlue 已占用连接，Watch 显示“设备正被其他控制端使用”；
+- 若 iPhone 或 Android 正在控制，Watch 的 HOLD / PRESET 收到 `0x80` 后显示
+  “另一台设备正在控制”，连接和状态订阅保持正常；
+- 任意客户端 STOP 都可立即停止并释放所有权；
 - 不自动通过 REST 或 WatchConnectivity 绕行，避免同一次操作走向不可预测的链路；
-- 手机 App 进入后台时应按手机端既有规则 STOP 并释放 BLE 连接；
-- 只有真机证明日常确实需要手机和 Watch 同时在线，才评估把最大连接数提高到 2，
-  并补充连接所有权与并发命令仲裁。
-
-提高连接数属于后续固件变更，不包含在 Watch 首版技术验证中。
+- 手机 App 进入后台时仍按既有规则 STOP；它可以保持或释放连接，但不得隐式转移运动；
+- Watch 若是运动所有者，断连会先 STOP；非所有者断连不影响现有运动。
 
 ---
 
@@ -225,7 +224,7 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 - 实现 CoreBluetooth 扫描、连接、服务发现、配对和 Notify；
 - 实现 Crown 增量判向、HOLD 续期、超时 STOP 和固定高度按钮；
 - 自动化先验证协议编解码和 Crown 状态机；
-- 真机先验证 Read/Notify 和加密 `STOP`，再开放运动命令；
+- 真机先验证 Read/Notify 和加密 Client Info，再开放运动命令；
 - 使用 Apple Watch 真机，不以 Simulator 结果代替 BLE 验收。
 
 ### W1：安全控制闭环
@@ -235,11 +234,11 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 - 页面离开、锁屏、失联和杀进程测试；
 - 童锁和来源权限拒绝测试。
 
-### 当前实现证据（2026-08-12）
+### 当前实现证据（2026-08-13）
 
 - `mobile/watch/Package.swift` 提供协议和 Crown 状态机的独立测试入口；
-- `swift test` 已通过 12 个测试，覆盖固定命令字节、State/Config 解码、方向反转、
-  250 ms watchdog 续期和 500 ms 无输入 STOP；
+- `swift test` 已通过 14 个测试，覆盖固定命令字节、State/Config 解码、Client Info、
+  Desk Busy、方向反转、250 ms watchdog 续期和 500 ms 无输入 STOP；
 - `xcodegen generate` 可重复生成独立 watchOS 工程；
 - `xcodebuild -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`
   已通过，App 使用 `WKWatchOnly` 表达 Watch-only 形态，并包含蓝牙用途声明；
@@ -269,7 +268,8 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 - 连续 20 次连接/断开不需要重启 Watch 或 ESP32；
 - 每次松手都立即停止，异常路径不超过固件租约窗口；
 - 童锁和 Bluetooth 来源权限无法被 Watch 绕过；
-- Watch 与 iPhone 抢占单连接时有明确提示，不出现隐式切换控制链路。
+- Watch、iPhone 与 Android 同时在线时，非所有者 Busy、任意 STOP 和所有者断连行为符合
+  多客户端安全矩阵。
 
 ---
 
@@ -296,5 +296,6 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
 | WatchConnectivity | 仅作非实时设置同步，不承载运动命令 | 2026-08-11 |
 | REST | 仅作后续诊断或显式降级方案 | 2026-08-11 |
 | GATT | 复用 v1，不为 Watch 修改固件协议 | 2026-08-11 |
-| 首版连接模型 | 保持单 BLE 连接，冲突时明确提示 | 2026-08-11 |
+| 连接模型 | 最多三个 Central 在线；单一运动所有者，Desk Busy 不断连 | 2026-08-13 |
+| 配对握手 | 写入 `01 01` Client Info，不使用 STOP 作为正常握手 | 2026-08-13 |
 | Simulator Mock | 仅 Debug Simulator 自动启用；真机和 Release 始终使用真实 BLE | 2026-08-12 |

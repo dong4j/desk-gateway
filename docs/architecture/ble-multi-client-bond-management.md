@@ -3,9 +3,9 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-BLE-MULTI-001 |
-| 版本 | 0.2 |
-| 日期 | 2026-08-12 |
-| 状态 | 设计补充已确认；实现未开始 |
+| 版本 | 1.0 |
+| 日期 | 2026-08-13 |
+| 状态 | 代码与自动化门禁已完成；三台真机安全矩阵待验收 |
 | 开发分支 | `codex/ble-multi-client-bond-management` |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
 | 客户端 | [Apple Watch](./apple-watch-control.md) / [移动端](./mobile-app-technology-selection.md) |
@@ -13,8 +13,8 @@
 本文冻结 Desk Gateway 同时连接 iPhone、Apple Watch 和 Android 手机时的 BLE
 连接模型、运动控制权、配对设备身份、删除 API、Web / 手机端入口以及验收门禁。
 
-当前固件仍是单 BLE Central 实现。本文件描述的是后续实现目标，不能作为当前固件已经
-支持三连接或配对管理的证据。
+固件、Web、React Native 手机端和 Watch 客户端已按本文完成实现。自动化与静态构建结果
+见第 12.1 节；在第 12.2 节三台真机门禁完成前，结论保持**代码 GO、产品验收 NO-GO**。
 
 ---
 
@@ -67,7 +67,7 @@ API；Watch 不提供删除入口，只负责登记自身客户端类型。
 
 ## 3. 配置基线
 
-目标配置为：
+当前配置为：
 
 ```text
 CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
@@ -76,7 +76,7 @@ CONFIG_BT_NIMBLE_MAX_BONDS=3
 
 两个值的含义不同：
 
-| 配置 | 含义 | 设计理由 |
+| 配置 | 含义 | 实现理由 |
 |---|---|---|
 | `MAX_CONNECTIONS=3` | 最多三个同时在线的 BLE Central | 覆盖 iPhone、Apple Watch、Android 同时连接 |
 | `MAX_BONDS=3` | 最多持久保存三个已配对身份 | 仅保留用户明确使用的三台设备，满额后先删除旧设备 |
@@ -84,10 +84,10 @@ CONFIG_BT_NIMBLE_MAX_BONDS=3
 Bond 数量不预留无界冗余。更换手机或出现旧 Bond 时，由本方案的单删 / 全删入口显式
 释放名额，避免通过持续扩大 Bond 上限掩盖设备管理问题。
 
-当前固件使用的 `ble_store_util_status_rr` 会在 Bond Store 溢出时删除最旧 Bond，只适合
-示例程序，与本方案的显式设备管理语义冲突。实现时必须替换为产品侧 Store Status
-Callback：容量不足时拒绝新 Bond，禁止自动调用 `ble_gap_unpair_oldest_peer()` 或任何
-等价淘汰逻辑。`MAX_BONDS=3` 表示硬上限，不表示循环覆盖槽位。
+早期固件使用的 `ble_store_util_status_rr` 会在 Bond Store 溢出时删除最旧 Bond，只适合
+示例程序。当前实现已替换为产品侧 Store Status Callback：容量不足时拒绝新 Bond，禁止
+自动调用 `ble_gap_unpair_oldest_peer()` 或任何等价淘汰逻辑。`MAX_BONDS=3` 表示硬上限，
+不表示循环覆盖槽位。
 
 ESP32-S3 上三个连接与 Wi-Fi 共存仍需要真机验证，包括堆内存余量、Notify 时延、HOLD
 续租和断连 STOP；仅通过编译不能证明三连接运行稳定。
@@ -384,7 +384,7 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 
 ---
 
-## 11. 预计实现范围
+## 11. 已实现范围
 
 ### 11.1 固件
 
@@ -424,6 +424,10 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 - Watch `swift test` 和通用 watchOS 无签名构建通过；
 - `git diff --check` 通过。
 
+截至 2026-08-13，上述自动化与静态门禁均已通过：固件隔离构建使用 ESP-IDF v6.0.2；
+手机端 `npm run typecheck` 与 34 项测试通过；Watch `swift test` 14 项测试和通用 watchOS
+无签名构建通过。详细命令与最终结果记录在仓库根目录完成结果报告中。
+
 ### 12.2 三台真机门禁
 
 测试设备固定为 iPhone、Apple Watch 和 Android 手机：
@@ -449,7 +453,20 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 
 ---
 
-## 13. 实施顺序
+## 13. 实施结果 checklist
+
+- [x] 冻结 Busy `0x80`、Client Info 和三连接设计；
+- [x] 实现连接表、槽位代次、多订阅 Notify 和 BLE 运动所有权；
+- [x] 替换 Round-Robin Store Callback，实现容量拒绝、配对窗口和启动对账；
+- [x] 实现 Client Info、opaque Bond ID 和客户端类型持久化；
+- [x] 实现 Host 命令队列、单删、全删、失败状态和安全断开；
+- [x] 实现已认证 REST API 与 Web 管理 UI；
+- [x] 更新 Watch、iOS 和 Android 客户端握手与 Busy 语义；
+- [x] 实现手机端配对窗口、设备列表、失败重试和系统确认；
+- [x] 完成固件、Web、手机和 Watch 自动化与静态构建门禁；
+- [ ] 完成 iPhone、Apple Watch、Android 与真实升降桌三台真机安全矩阵。
+
+## 14. 原实施顺序
 
 1. 冻结本文档、Busy `0x80` 和 BLE Profile 扩展；
 2. 抽取可测试的连接表、槽位代次、所有权和 Host 命令队列；
@@ -464,5 +481,5 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 11. 完成自动化门禁；
 12. 执行三台真机和真实升降桌验收。
 
-后续实现不得把“连接数调整为 3”单独视为功能完成。只有连接表、所有权、删除语义、
-两套管理 UI 和真机安全矩阵全部闭环，才能将本文状态改为“已实现”。
+本次实现没有把“连接数调整为 3”单独视为功能完成；连接表、所有权、删除语义和两套管理
+UI 已闭环。三台真机安全矩阵仍是产品验收的最后门禁，完成前不得宣称硬件并发能力已验收。

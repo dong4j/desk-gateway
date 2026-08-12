@@ -3,8 +3,8 @@
 | 项 | 内容 |
 |---|---|
 | 文档 | DG-ARCH-BLE-ACC-001 |
-| 日期 | 2026-08-11 |
-| 状态 | Command / State v1 + Config v2 / System 扩展已实现；LightBlue 核心控制和 iPhone Config v2 已真机验收；三客户端与 Bond 管理仅完成设计 |
+| 日期 | 2026-08-13 |
+| 状态 | 三连接、Client Info、运动所有权与 Bond 管理已实现并通过自动化；三台真机并发待验收 |
 | 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
 | 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
 
@@ -56,9 +56,9 @@ Desk Gateway **盒子本体**仍可不带旋钮/屏（纯网关），但平台�
 
 Gateway 广播名为 `DeskGateway`，广播包包含 Desk Accessory Service UUID。
 
-当前固件仍只允许一个 BLE Central。后续三客户端实现保持下表既有 UUID 和字节布局，
-并以可选的 Client Info Characteristic 做向后兼容扩展；连接表、运动所有权和 Bond 管理
-语义以[三客户端设计](./ble-multi-client-bond-management.md)为准。
+当前固件最多允许三个 BLE Central 同时在线，既有 UUID 和字节布局保持不变，并以可选的
+Client Info Characteristic 做向后兼容扩展；连接表、运动所有权和 Bond 管理语义以
+[三客户端方案](./ble-multi-client-bond-management.md)为准。
 
 | Attribute | UUID | Properties | 说明 |
 |---|---|---|---|
@@ -67,6 +67,7 @@ Gateway 广播名为 `DeskGateway`，广播包包含 Desk Accessory Service UUID
 | State | `7f4e0003-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Read, Notify | 固定 8 字节、小端序状态 |
 | Config | `7f4e0004-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Read, Notify, Write, Write Encrypted | 设备设置快照与单字段更新 |
 | System | `7f4e0005-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Write, Write Encrypted | 与运动命令隔离的管理指令 |
+| Client Info | `7f4e0006-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Write, Write Encrypted | 两字节客户端协议版本和平台类型；同时触发配对 |
 | Device Information Service | `180A` | Primary Service | Bluetooth SIG 标准设备信息服务 |
 | Firmware Revision String | `2A26` | Read | ASCII：`构建日期 构建时间 @ Git版本` |
 
@@ -85,8 +86,9 @@ Command 不实现 BLE UART，也不兼容任何第三方 App 的私有协议。�
 | `11` | PRESET_1 | 闭环前往设备配置的档位 1（默认 64 cm） |
 | `14` | PRESET_4 | 闭环前往设备配置的档位 4（默认 102 cm） |
 
-未知指令、长度不为 1、童锁拒绝、Bluetooth 来源关闭或驱动不支持时，Write
-返回 ATT 错误，不会绕过 `desk_core`。
+未知指令、长度不为 1、童锁拒绝、Bluetooth 来源关闭或驱动不支持时，Write 返回 ATT
+错误，不会绕过 `desk_core`。非 BLE 运动所有者发送 HOLD / PRESET 时固定返回应用错误
+`0x80`（Desk Busy）；STOP 始终可由任意连接执行并释放所有权。
 
 ### 4.1 HOLD 租约
 
@@ -137,7 +139,6 @@ Config Read / Notify v2 固定返回 8 字节：
 | `6..7` | `preset4_height_mm`，uint16 little-endian |
 
 Config Write 固定为 `[version, field, value_le16]`，每次只修改一个字段，避免客户端拿旧
-快照覆盖 Web 或其他入口刚更新的设置：
 
 | Field | 含义 | Value |
 |---|---|---|
@@ -168,6 +169,13 @@ System 与桌体 Command 分离，避免把重启误解释成运动：
 
 System Write 同样要求加密连接；未知值或错误长度会返回 ATT 错误。
 
+### 4.5 Client Info
+
+Client Info 固定写入 `[版本, 客户端类型]`：版本为 `01`；类型 `00` 为未知、`01` 为
+watchOS、`02` 为 iOS、`03` 为 Android。新 Watch 和手机客户端使用该加密写入完成配对
+握手，不能再用 STOP 作为正常连接握手。旧固件找不到该 Characteristic 时，客户端继续
+使用原 Command / State / Config，但不得假定多连接可用。
+
 ## 5. 交互建议（给旋钮类配件的参考，非强制）
 
 | 操作 | 建议映射 |
@@ -182,9 +190,12 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
 
 ## 6. 安全与配对
 
-- Command、Config 写入和 System characteristic 强制 `WRITE_ENC`；首次写入由 NimBLE 发起 **Just Works** 配对。
-- `CONFIG_BT_NIMBLE_NVS_PERSIST=y`，绑定密钥跨重启保存；当前最多保存 3 个 bond，
-  但同时只允许 1 个连接。
+- Command、Config、System 和 Client Info 强制 `WRITE_ENC`；新客户端通过 Client Info
+  触发 **Just Works** 配对。
+- `CONFIG_BT_NIMBLE_NVS_PERSIST=y`，绑定密钥跨重启保存；最多保存 3 个 Bond，并允许
+  3 个 Central 同时连接。
+- 新身份只在已认证入口开启的 120 秒配对窗口内准入；Store 满额时拒绝新 Bond，不淘汰
+  任何旧 Bond。
 - State 可在未配对连接上读取和订阅，运动 Write 不允许明文连接。
 - BLE 与 Web 密码独立；盒子没有屏幕和键盘，因此当前不能提供 MITM 认证。
 - 已加密连接仍必须通过全局童锁和 Bluetooth 来源权限，STOP 继续保持最高优先级。
@@ -198,7 +209,8 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
    I (...) desk_ble: advertising as DeskGateway
    ```
 
-2. iPhone 打开 LightBlue，扫描并连接 `DeskGateway`。
+2. 先在已认证 Web 或手机设置页开启 120 秒配对窗口，再用 iPhone LightBlue 扫描并连接
+   `DeskGateway`；已绑定设备重连不需要重新开启窗口。
 3. 展开标准 Device Information Service `180A`，读取 Firmware Revision String
    `2A26`；内容应与串口启动日志中的编译时间和 Git 派生 App Version 一致。
 4. 展开 Service `7f4e0001-...`，对 State `7f4e0003-...` 执行 Read，再开启
@@ -229,8 +241,8 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
 
 | 阶段 | 内容 |
 |---|---|
-| 文档与代码（当前） | `connectivity/ble`：NimBLE GATT Server、desk_core 接入、租约、断连停止、状态 Notify |
-| 真机门禁 | LightBlue 核心控制和 iPhone Config v2 已通过；按本文件第 7 节补齐断连、权限和异常停止证据 |
+| 文档与代码（当前） | 三连接、连接表代次、运动所有权、配对窗口、无淘汰 Store、Client Info、Bond 管理及多订阅 Notify 已实现 |
+| 真机门禁 | LightBlue 核心控制和 iPhone Config v2 已通过；三客户端并发与 Bond 删除安全矩阵仍待执行 |
 | 后续 | 开源「参考旋钮+OLED」固件或对接指南；可选 Central 模式适配成品外设 |
 
 本能力不改变 Web/REST 协议。BLE 与 Wi-Fi 核心控制已通过真机验收；
@@ -247,3 +259,4 @@ System Write 同样要求加密连接；未知值或错误长度会返回 ATT �
 | 1.3 | 2026-08-11 | Config 升级为 v2，新增设备持久化的档位 1/4 高度并在 Web、App 间同步；保留 v1 读写兼容 |
 | 1.4 | 2026-08-11 | 记录 LightBlue 核心控制和 iPhone Config v2 真机通过；断连、权限与异常停止矩阵仍待补齐 |
 | 1.5 | 2026-08-11 | Firmware Revision 改为构建时间与 Git 派生版本，移动端可确认烧录对应提交 |
+| 1.6 | 2026-08-13 | 实现三客户端并发、Client Info、运动所有权、配对窗口和 Bond 管理；自动化通过，三台真机待验收 |

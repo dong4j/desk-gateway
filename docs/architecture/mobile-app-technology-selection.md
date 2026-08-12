@@ -3,9 +3,9 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-MOBILE-001 |
-| 版本 | 0.5 |
-| 日期 | 2026-08-11 |
-| 状态 | iPhone 主控制与设置已完成；BLE 和指定 IP REST 已使用；Android 与自动回退矩阵待验收 |
+| 版本 | 0.6 |
+| 日期 | 2026-08-13 |
+| 状态 | 双平台代码、多客户端握手与配对管理 UI 已完成；Android 与三客户端真机矩阵待验收 |
 | 目标平台 | iOS + Android |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
 | 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
@@ -15,8 +15,9 @@
 边界。iOS 已按原型实现 Home / Settings，继续消费现有 ESP32 GATT v1；设备设置写入、
 震动反馈和 BLE 优先 / REST 回退代码均已落地，Android 真机和异常矩阵仍待完成。
 
-三客户端并发、Client Info 登记以及 Web / 手机端配对设备单删和全删目前仅完成设计，
-不属于现有 App 的已实现能力。
+三客户端 Client Info 登记、Desk Busy 语义以及手机设置页的配对窗口、设备查询、单删和
+全删已经实现；这些管理请求即使当前控制链路是 BLE，也独立使用已认证 REST。Android
+和三台真机并发仍是开放门禁。
 
 ---
 
@@ -108,9 +109,10 @@ BLE 原生模块不能在 Expo Go 中运行。工程从第一天就使用 Develo
 
 - 能按 Desk Accessory Service UUID 扫描到设备。
 - 能完成连接、服务发现和 State Notify。
-- 首次加密 Write 能完成配对。
+- 首次 Client Info 加密 Write 能完成配对。
 - App 和 ESP32 重启后 bond 可恢复。
 - 加密 Write 能稳定发送 STOP、HOLD 和档位命令。
+- 三个 Central 同时在线时，Desk Busy 不断连且不覆盖当前运动所有者。
 - 断连、前后台切换和权限拒绝不会留下持续运动。
 
 ---
@@ -126,6 +128,7 @@ BLE 原生模块不能在 Expo Go 中运行。工程从第一天就使用 Develo
 | State | `7f4e0003-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Read + Notify，固定 8 字节 |
 | Config | `7f4e0004-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Read + Notify + 加密 Write，设备设置 |
 | System | `7f4e0005-6d4c-4f4b-9f7a-3c1d2e5a9b10` | 加密 Write，当前仅软重启 |
+| Client Info | `7f4e0006-6d4c-4f4b-9f7a-3c1d2e5a9b10` | 加密 Write：iOS `01 02`、Android `01 03` |
 
 命令：
 
@@ -164,6 +167,7 @@ react-native-ble-manager
 | `protocol.ts` | UUID、命令编码、8 字节 State 解码；纯 TypeScript |
 | `BleAdapter` | 隔离具体 BLE 库 API，便于 Phase 0 A/B 验证 |
 | `DeskBleClient` | 扫描、连接、发现、配对、订阅、Write、断线恢复 |
+| `DeskRestClient` | 控制 REST、Bond 查询与删除、配对窗口管理；使用 `X-Desk-Key` |
 | `DeskController` | HOLD 续期、STOP 优先级、App 生命周期安全策略 |
 | Store | 向 UI 发布连接、状态、高度和错误；不直接操作原生 BLE |
 | UI | 只调用业务动作，不接触 UUID、Base64 或原始字节 |
@@ -248,6 +252,10 @@ iOS 真机完成构建、安装和 BLE 连接验证。
 写入；重启通过独立 System characteristic 执行。App 不做设备设置的乐观更新，只展示
 ESP32 回读值。旧固件缺少 Config 时仍可连接和运动控制，但相关设置保持禁用。
 
+连接区域已增加“蓝牙配对设备”卡片，显示 `已配对数量 / 3`、在线/控制中状态和删除失败
+原因；支持 120 秒配对窗口、系统确认单删/全删、异步删除轮询和失败重试。未配置网关地址
+或 REST 密码时入口禁用并提示“需先配置局域网管理”。
+
 新增 Config / System 不改变现有 Command / State UUID、字节布局和 LightBlue v1 客户端。
 
 ### Phase 3：双平台交付
@@ -268,6 +276,9 @@ Phase 0 代码完成不等于移动端 BLE 已选型完成。最终 GO 必须同
 - iOS 真机完成加密配对和完整控制闭环。
 - Android 真机完成加密配对和完整控制闭环。
 - 任意客户端异常退出不会让桌子持续运动超过固件租约窗口。
+- iOS / Android 写入各自 Client Info；收到 Desk Busy `0x80` 时保持连接并显示
+  “另一台设备正在控制”。
+- 配对设备管理通过 REST 正确处理 200/202/404/409/500，删除失败不做乐观移除。
 - 保留串口日志与 App 日志作为验收证据。
 
 在 Android 真机门禁完成前，只能标记“工程骨架可构建 / iOS 已验证”，不能宣称跨平台 BLE 已完成。
@@ -286,3 +297,5 @@ Phase 0 代码完成不等于移动端 BLE 已选型完成。最终 GO 必须同
 | 工程结构 | `mobile/app/`，暂不重构根仓库为 monorepo | 2026-08-11 |
 | 固件信息 | 标准 Device Information `180A/2A26`；Desk Command / State v1 保持不变 | 2026-08-11 |
 | 设备设置 | 独立 Config 单字段写入 + Notify；System 独立承载重启 | 2026-08-11 |
+| 多客户端握手 | iOS `01 02`、Android `01 03` Client Info；不使用 STOP 握手 | 2026-08-13 |
+| Bond 管理 | 设置页复用已认证 REST；支持配对窗口、单删、全删、轮询和失败重试 | 2026-08-13 |

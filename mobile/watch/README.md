@@ -113,15 +113,16 @@ Apple 官方真机运行流程见
 
 ### 6. 首次 BLE 验收顺序
 
-当前固件只允许一个 BLE Central。开始前退出手机端 Desk Gateway、LightBlue 等可能
-占用连接的客户端，并确认网关已通电和广播：
+首次绑定前先在已认证 Web 或手机设置页开启 120 秒配对窗口，并确认网关已通电和广播：
 
 1. 首次启动时允许蓝牙权限；
 2. 等待顶部显示“已连接”，并确认高度来自真实桌面；
-3. 首次加密 Write 如触发系统配对提示，选择允许；
+3. Watch 写入 `01 01` Client Info 触发系统配对提示时选择允许；正常握手不会发送 STOP；
 4. 让手保持在桌面原控制器旁，极短旋转 Crown 后立即点击 STOP；
 5. 确认停止链路后，再分别测试上升、下降、250 ms watchdog 续期和 500 ms 无输入 STOP；
 6. 最后测试“请坐”档位 1、“站立”档位 4、童锁和 Bluetooth 来源拒绝。
+7. 与 iPhone、Android 同时在线，验证非所有者显示“另一台设备正在控制”但不掉线，
+   任意客户端 STOP 都能立即停止。
 
 自动化构建、Simulator 和 UI 截图都不能替代这一真机安全门禁。
 
@@ -134,5 +135,5 @@ Apple 官方真机运行流程见
 | Signing 或 provisioning 失败 | 检查 Xcode 登录账号、Team、自动签名和 Bundle ID；持久修改必须写回 `project.yml` |
 | Watch 显示蓝牙不可用 | 在 Watch 的隐私与安全性设置中检查蓝牙授权；确认当前运行目标确实是物理 Watch |
 | 一直扫描不到 Desk Gateway | 确认网关正在广播，并断开手机 App、LightBlue 等其他 BLE Central |
-| 显示设备被其他控制端使用 | 当前固件仅允许一个连接；先释放现有 BLE 客户端，再在 Watch 重连 |
+| 显示另一台设备正在控制 | 当前 Watch 不是 BLE 运动所有者；可继续查看状态或发送 STOP，等待所有者释放后再控制 |
 | 仍提示同时定义 `WKWatchOnly` 和 `WKRunsIndependentlyOfCompanionApp` | 删除 Watch 上的旧 App，确认生成配置只保留 `WKWatchOnly`，再执行 Product → Clean Build Folder 后重装 |
