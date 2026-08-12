@@ -305,7 +305,7 @@ static void height_safety_task(void *arg)
         int anchor_mm = atomic_load(&s_safety_anchor_mm);
         int anchor_age_ms = elapsed_ms_since(
             atomic_load(&s_safety_anchor_tick), now);
-        if (anchor_mm < YOURDESK_HEIGHT_MIN_MM) {
+        if (anchor_mm < YOURDESK_HEIGHT_FEEDBACK_MIN_MM) {
             if (anchor_age_ms >= HEIGHT_ACQUIRE_TIMEOUT_MS) {
                 cancel_preset_motion();
                 ESP_LOGW(TAG, "height acquisition timeout (%d ms) -> stop",

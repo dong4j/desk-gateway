@@ -69,7 +69,7 @@ bool yourdesk_height_transition_valid(
     yourdesk_preset_direction_t direction, bool resync_pending,
     int max_speed_mm_per_s, int step_slack_mm)
 {
-    if (candidate_mm < YOURDESK_HEIGHT_MIN_MM ||
+    if (candidate_mm < YOURDESK_HEIGHT_FEEDBACK_MIN_MM ||
         candidate_mm > YOURDESK_HEIGHT_MAX_MM) {
         return false;
     }

@@ -10,7 +10,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Confirmed display range of the current YourDesk control box. */
+/*
+ * The metric preset endpoint is 640 mm, while the same physical minimum is
+ * displayed as 25.0 in and converts to 635 mm.  Keep feedback validity
+ * separate from configurable preset limits so both unit modes remain usable.
+ */
+#define YOURDESK_HEIGHT_FEEDBACK_MIN_MM 635
 #define YOURDESK_HEIGHT_MIN_MM 640
 #define YOURDESK_HEIGHT_MAX_MM 1290
 

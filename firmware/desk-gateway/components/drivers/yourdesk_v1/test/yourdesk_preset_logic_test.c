@@ -9,6 +9,16 @@
 
 int main(void)
 {
+    /* Feedback accepts the imperial endpoint without lowering preset limits. */
+    assert(YOURDESK_HEIGHT_FEEDBACK_MIN_MM == 635);
+    assert(YOURDESK_HEIGHT_MIN_MM == 640);
+    assert(yourdesk_height_transition_valid(
+        -1, 635, 0, YOURDESK_PRESET_STOP, false, 35, 20));
+    assert(yourdesk_height_transition_valid(
+        635, 648, 400, YOURDESK_PRESET_UP, false, 35, 20));
+    assert(!yourdesk_height_transition_valid(
+        -1, 634, 0, YOURDESK_PRESET_STOP, false, 35, 20));
+
     assert(yourdesk_preset_target_mm(1, 650, 1050) == 650);
     assert(yourdesk_preset_target_mm(4, 650, 1050) == 1050);
     assert(yourdesk_preset_target_mm(2, 650, 1050) == -1);
