@@ -501,8 +501,7 @@ https://api.tenclass.net/xiaozhi/ota/
 
 ## 8. 通过小智控制 Desk Gateway
 
-本地 Server 跑通语音对话后，还不能直接把自然语言当作任意 REST 请求执行。需要增加一个
-受控的 MCP 工具层：
+本地 Server 跑通语音对话后，通过 MCP 接入点增加受控的 Desk Gateway REST 工具层：
 
 ```mermaid
 flowchart LR
@@ -513,37 +512,13 @@ flowchart LR
     Core --> Desk["升降桌"]
 ```
 
-推荐的工具边界：
+当前 Desk Gateway 已使用 TOF400C 完成最高安全高度和档位 1/4 的设备侧闭环。默认最高安全
+高度为 `940 mm`，档位 1/4 默认为 `560 mm` 和 `870 mm`。“最高”和“站立档位”必须作为
+两个不同动作处理；只有启用 ToF 的当前产品固件完成真桌验收后，才能开放持续上升到安全
+上限的语音工具。
 
-```text
-desk.raise_to_max
-desk.lower_to_min
-desk.stop
-desk.goto_sit
-desk.goto_stand
-```
-
-但这些名字不代表当前 Desk Gateway 已经具备对应能力。尤其不能把
-`desk.raise_to_max` 直接映射为现有持续 `/api/v1/desk/up`：
-
-- 当前上升接口需要显式 STOP；
-- 当前固件的上升运动超时为 `0`；
-- 当前 Driver 还没有可靠的“已到最高点”闭环判断；
-- 网络、MCP 或 Server 断开时，不能依赖远端再补发 STOP。
-
-正式接入前必须先在 ESP32 设备侧实现有界的 `to-max` / `to-min` 动作：由本地固件负责
-超时、目标高度、限位和停止，MCP 桥接只触发一次动作。当前 Desk Gateway 的档位和高度
-能力边界以[当前状态与任务优先级](./5-current-status-and-priorities.md)和
-[键盘、旋钮与语音控制](./keyboard-voice-control.md)为准。
-
-MCP 服务或桥接进程中的 Desk Gateway 地址和密钥应通过环境变量注入，例如：
-
-```text
-DESK_GATEWAY_URL=http://192.168.21.65
-DESK_GATEWAY_KEY=<本地密钥>
-```
-
-密钥不得写入提示词、日志、Git 仓库或小智固件。
+完整架构、MCP Endpoint 部署、桥接代码、工具语义、安全前提和验收步骤见
+[通过小智 AI 控制升降桌](./11-xiaozhi-ai-desk-control.md)。
 
 ## 9. 验收清单
 
@@ -567,8 +542,9 @@ DESK_GATEWAY_KEY=<本地密钥>
 
 ### 9.3 升降桌控制
 
-- [ ] MCP 工具没有直接把“升到最高”映射为无限期 `/desk/up`。
-- [ ] `to-max` / `to-min` 在 ESP32 侧具有本地超时和停止兜底。
+- [ ] `desk.raise_to_max` 只在 TOF400C 高度有效、最高安全高度已配置并完成真桌验收后启用。
+- [ ] “升到最高”和“站立档位”分别映射到安全上限与档位 4，没有混用。
+- [ ] 上升到最高、档位 1/4、传感器失效和右侧障碍均由 ESP32 本地闭环停止。
 - [ ] `desk.stop` 不受对话状态或普通来源权限阻塞。
 - [ ] 已完成真桌短行程、断网、Server 退出和紧急停止测试。
 
