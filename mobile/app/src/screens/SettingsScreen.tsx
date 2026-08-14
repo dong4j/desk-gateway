@@ -25,6 +25,11 @@ import type {
 } from '../desk/DeskClient';
 import { formatFirmwareBuildTime } from '../desk/formatFirmwareBuildTime';
 import {
+  heightPresetErrorMessage,
+  heightPresetMmFromCm,
+  normalizeHeightPresetName,
+} from '../desk/HeightPresets';
+import {
   bondErrorMessage,
   bondPollIntervalMs,
   bondStatusText,
@@ -36,6 +41,7 @@ import {
 import type {
   DeskBondDevice,
   DeskBondSnapshot,
+  DeskHeightPresetSnapshot,
 } from '../desk/DeskRestClient';
 import {
   BluetoothIcon,
@@ -58,6 +64,7 @@ const MAX_HEIGHT_LABELS = [64, 80, 100, 120, 129] as const;
 
 interface SettingsScreenProps {
   snapshot: DeskClientSnapshot;
+  heightPresets: DeskHeightPresetSnapshot | null;
   autoConnect: boolean;
   hapticFeedback: boolean;
   hapticStrength: number;
@@ -75,6 +82,13 @@ interface SettingsScreenProps {
   onDeleteBluetoothBond: (id: string) => Promise<void>;
   onDeleteAllBluetoothBonds: () => Promise<void>;
   onRenameBluetoothBond: (id: string, alias: string) => Promise<void>;
+  onCreateHeightPreset: (name: string, heightMm: number) => Promise<void>;
+  onUpdateHeightPreset: (
+    id: string,
+    name: string,
+    heightMm: number,
+  ) => Promise<void>;
+  onDeleteHeightPreset: (id: string) => Promise<void>;
   onSetChildLock: (enabled: boolean) => void;
   onSetSourceEnabled: (
     source: 'rest' | 'bluetooth' | 'panel',
@@ -91,6 +105,7 @@ interface SettingsScreenProps {
 
 export function SettingsScreen({
   snapshot,
+  heightPresets,
   autoConnect,
   hapticFeedback,
   hapticStrength,
@@ -108,6 +123,9 @@ export function SettingsScreen({
   onDeleteBluetoothBond,
   onDeleteAllBluetoothBonds,
   onRenameBluetoothBond,
+  onCreateHeightPreset,
+  onUpdateHeightPreset,
+  onDeleteHeightPreset,
   onSetChildLock,
   onSetSourceEnabled,
   onSetMaxHeightMm,
@@ -138,6 +156,14 @@ export function SettingsScreen({
   const [bondMessage, setBondMessage] = useState<string | null>(null);
   const [editingBondId, setEditingBondId] = useState<string | null>(null);
   const [bondAliasDraft, setBondAliasDraft] = useState('');
+  const [customPresetNameDraft, setCustomPresetNameDraft] = useState('');
+  const [customPresetHeightDraft, setCustomPresetHeightDraft] = useState('');
+  const [editingHeightPresetId, setEditingHeightPresetId] =
+    useState<string | null>(null);
+  const [editingHeightPresetName, setEditingHeightPresetName] = useState('');
+  const [editingHeightPresetHeight, setEditingHeightPresetHeight] = useState('');
+  const [heightPresetBusy, setHeightPresetBusy] = useState(false);
+  const [heightPresetMessage, setHeightPresetMessage] = useState<string | null>(null);
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
   const bondManagementAvailable = isBondManagementConfigured(restHost, restKey);
   const bondPairingDisabled = !bondManagementAvailable || bondBusy !== null ||
@@ -314,6 +340,77 @@ export function SettingsScreen({
     }
     setPresetHeightError(null);
     onSetPresetHeightsMm(preset1Mm, preset4Mm);
+  };
+
+  const runHeightPresetOperation = async (
+    operation: () => Promise<void>,
+    successMessage: string,
+  ): Promise<boolean> => {
+    setHeightPresetBusy(true);
+    setHeightPresetMessage(null);
+    try {
+      await operation();
+      setHeightPresetMessage(successMessage);
+      return true;
+    } catch (error) {
+      setHeightPresetMessage(heightPresetErrorMessage(error));
+      return false;
+    } finally {
+      setHeightPresetBusy(false);
+    }
+  };
+
+  const createCustomHeightPreset = () => {
+    let name: string;
+    let heightMm: number;
+    try {
+      name = normalizeHeightPresetName(customPresetNameDraft);
+      heightMm = heightPresetMmFromCm(customPresetHeightDraft);
+    } catch (error) {
+      setHeightPresetMessage(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    void runHeightPresetOperation(
+      () => onCreateHeightPreset(name, heightMm),
+      '自定义档位已新增',
+    ).then((succeeded) => {
+      if (succeeded) {
+        setCustomPresetNameDraft('');
+        setCustomPresetHeightDraft('');
+      }
+    });
+  };
+
+  const saveCustomHeightPreset = (id: string) => {
+    let name: string;
+    let heightMm: number;
+    try {
+      name = normalizeHeightPresetName(editingHeightPresetName);
+      heightMm = heightPresetMmFromCm(editingHeightPresetHeight);
+    } catch (error) {
+      setHeightPresetMessage(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    void runHeightPresetOperation(
+      () => onUpdateHeightPreset(id, name, heightMm),
+      '自定义档位已更新',
+    ).then((succeeded) => {
+      if (succeeded) setEditingHeightPresetId(null);
+    });
+  };
+
+  const confirmDeleteHeightPreset = (id: string, name: string) => {
+    Alert.alert('删除自定义档位？', `“${name}”删除后不能恢复。`, [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '删除',
+        style: 'destructive',
+        onPress: () => void runHeightPresetOperation(
+          () => onDeleteHeightPreset(id),
+          '自定义档位已删除',
+        ),
+      },
+    ]);
   };
   const parsedMaxHeightDraft = Number(maxHeightDraft);
   const minimumAllowedMaxHeightCm = MIN_DESK_HEIGHT_CM;
@@ -722,6 +819,136 @@ export function SettingsScreen({
             {presetHeightError ? (
               <Text style={styles.heightError}>{presetHeightError}</Text>
             ) : null}
+            <Text style={styles.presetBuiltInNote}>内置档位，可以修改高度但不能删除。</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.customPresetSetting}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.settingTitle}>自定义档位</Text>
+              <Text style={styles.settingDescription}>
+                {heightPresets
+                  ? `${heightPresets.custom_count} / ${heightPresets.custom_capacity}`
+                  : '需局域网管理'}
+              </Text>
+            </View>
+            <View style={styles.customPresetCreateRow}>
+              <TextInput
+                accessibilityLabel="新档位名称"
+                editable={!heightPresetBusy}
+                maxLength={48}
+                placeholder="例如：午休"
+                value={customPresetNameDraft}
+                onChangeText={setCustomPresetNameDraft}
+                style={[styles.presetInput, styles.customPresetNameInput]}
+              />
+              <TextInput
+                accessibilityLabel="新档位高度，单位厘米"
+                editable={!heightPresetBusy}
+                keyboardType="decimal-pad"
+                placeholder="cm"
+                value={customPresetHeightDraft}
+                onChangeText={setCustomPresetHeightDraft}
+                onSubmitEditing={createCustomHeightPreset}
+                style={[styles.presetInput, styles.customPresetHeightInput]}
+              />
+              <Pressable
+                accessibilityRole="button"
+                disabled={heightPresetBusy || !heightPresets ||
+                  heightPresets.custom_count >= heightPresets.custom_capacity}
+                onPress={createCustomHeightPreset}
+                style={({ pressed }) => [
+                  styles.heightSave,
+                  (heightPresetBusy || !heightPresets ||
+                    heightPresets.custom_count >= heightPresets.custom_capacity) &&
+                    styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.heightSaveText}>新增</Text>
+              </Pressable>
+            </View>
+            {heightPresets?.presets.filter((preset) => !preset.built_in)
+              .map((preset) => (
+                <View key={preset.id} style={styles.customPresetRow}>
+                  {editingHeightPresetId === preset.id ? (
+                    <View style={styles.customPresetEditFields}>
+                      <TextInput
+                        accessibilityLabel="修改档位名称"
+                        maxLength={48}
+                        value={editingHeightPresetName}
+                        onChangeText={setEditingHeightPresetName}
+                        style={[styles.presetInput, styles.customPresetNameInput]}
+                      />
+                      <TextInput
+                        accessibilityLabel="修改档位高度，单位厘米"
+                        keyboardType="decimal-pad"
+                        value={editingHeightPresetHeight}
+                        onChangeText={setEditingHeightPresetHeight}
+                        style={[styles.presetInput, styles.customPresetHeightInput]}
+                      />
+                    </View>
+                  ) : (
+                    <View style={styles.settingCopy}>
+                      <Text style={styles.settingTitle}>{preset.name}</Text>
+                      <Text style={styles.settingDescription}>
+                        {(preset.height_mm / 10).toFixed(1)} cm
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.customPresetActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={heightPresetBusy}
+                      onPress={() => {
+                        if (editingHeightPresetId === preset.id) {
+                          saveCustomHeightPreset(preset.id);
+                        } else {
+                          setEditingHeightPresetId(preset.id);
+                          setEditingHeightPresetName(preset.name);
+                          setEditingHeightPresetHeight(
+                            (preset.height_mm / 10).toFixed(1),
+                          );
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.bondRenameButton,
+                        heightPresetBusy && styles.disabled,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={styles.bondRenameText}>
+                        {editingHeightPresetId === preset.id ? '保存' : '修改'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={heightPresetBusy}
+                      onPress={() => {
+                        if (editingHeightPresetId === preset.id) {
+                          setEditingHeightPresetId(null);
+                        } else {
+                          confirmDeleteHeightPreset(preset.id, preset.name);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.bondDeleteButton,
+                        heightPresetBusy && styles.disabled,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={styles.bondDeleteText}>
+                        {editingHeightPresetId === preset.id ? '取消' : '删除'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            {heightPresets && heightPresets.custom_count === 0 ? (
+              <Text style={styles.customPresetEmpty}>暂无自定义档位</Text>
+            ) : null}
+            {heightPresetMessage ? (
+              <Text style={styles.heightError}>{heightPresetMessage}</Text>
+            ) : null}
           </View>
           <View style={styles.divider} />
           <Pressable
@@ -1095,6 +1322,15 @@ const styles = StyleSheet.create({
   presetInputLine: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   presetInput: { flex: 1, minWidth: 0, height: 40, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.white, color: palette.ink, fontSize: 16, textAlign: 'center' },
   presetSave: { minWidth: 62 },
+  presetBuiltInNote: { marginTop: 9, color: palette.inkMuted, fontSize: 12 },
+  customPresetSetting: { paddingHorizontal: 18, paddingTop: 17, paddingBottom: 17 },
+  customPresetCreateRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  customPresetNameInput: { flex: 1, textAlign: 'left' },
+  customPresetHeightInput: { width: 76, flex: 0 },
+  customPresetRow: { minHeight: 62, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: palette.line },
+  customPresetEditFields: { flex: 1, paddingRight: 8, flexDirection: 'row', gap: 7 },
+  customPresetActions: { flexDirection: 'row', gap: 6 },
+  customPresetEmpty: { paddingTop: 14, color: palette.inkMuted, fontSize: 13, textAlign: 'center' },
   divider: { height: 1, backgroundColor: palette.line },
   securityRow: { minHeight: 78, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 15 },
   settingCopy: { flex: 1 },

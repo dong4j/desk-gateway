@@ -80,6 +80,7 @@
             童锁
           </label>
         </div>
+        <div id="customPresetControls" class="custom-preset-controls" aria-live="polite"></div>
 
         <section id="reminderCard" class="reminder-card" aria-labelledby="reminderTitle">
           <div class="reminder-heading">
@@ -168,6 +169,22 @@
           <p class="settings-note">请坐必须低于站立；上升档位同样受最高高度和右侧障碍限制。</p>
           <p id="presetHeightMsg" class="hint"></p>
 
+          <form id="customPresetForm" class="settings-form settings-divider">
+            <div class="bond-heading">
+              <label for="customPresetName">自定义档位</label>
+              <span id="customPresetCount" class="pill">0 / 16</span>
+            </div>
+            <div class="settings-row custom-preset-form-row">
+              <input id="customPresetName" type="text" maxlength="48"
+                     placeholder="例如：午休" required />
+              <input id="customPresetHeight" type="number" min="56" max="94"
+                     step="0.1" placeholder="高度 cm" required inputmode="decimal" />
+              <button id="customPresetAdd" type="submit">新增</button>
+            </div>
+            <div id="customPresetList" class="custom-preset-list" aria-live="polite"></div>
+            <p id="customPresetMsg" class="hint"></p>
+          </form>
+
           <div class="settings-form settings-divider">
             <label>允许操作的入口</label>
             <label class="source-option">
@@ -239,6 +256,7 @@
 
   <script src="/hold-control.js"></script>
   <script src="/bond-management.js"></script>
+  <script src="/height-presets.js"></script>
   <script src="/reminder-control.js"></script>
   <script src="/app.js"></script>
 </body>

@@ -41,6 +41,13 @@
   const pairingWindowButton = document.getElementById('pairingWindowButton');
   const pairingWindowHint = document.getElementById('pairingWindowHint');
   const deleteAllBondsButton = document.getElementById('deleteAllBondsButton');
+  const customPresetControls = document.getElementById('customPresetControls');
+  const customPresetCount = document.getElementById('customPresetCount');
+  const customPresetList = document.getElementById('customPresetList');
+  const customPresetMsg = document.getElementById('customPresetMsg');
+  const customPresetName = document.getElementById('customPresetName');
+  const customPresetHeight = document.getElementById('customPresetHeight');
+  const customPresetAdd = document.getElementById('customPresetAdd');
   const reminderCard = document.getElementById('reminderCard');
   const reminderPhase = document.getElementById('reminderPhase');
   const reminderTime = document.getElementById('reminderTime');
@@ -70,6 +77,9 @@
   let lastBondSnapshot = null;
   let lastBondRefreshAt = 0;
   let bondRefreshInFlight = false;
+  let lastHeightPresetSnapshot = null;
+  let lastHeightPresetRefreshAt = 0;
+  let heightPresetRefreshInFlight = false;
 
   const STATE_HINT = {
     idle: '按住下方按钮升降，松手即停。',
@@ -240,6 +250,130 @@
       }
     } finally {
       bondRefreshInFlight = false;
+    }
+  }
+
+  function heightPresetFailure(error, fallback) {
+    if (error?.code === 'preset_capacity_full') return '自定义档位已达到上限';
+    if (error?.code === 'preset_not_deletable') return '内置档位不能删除';
+    if (error?.code === 'preset_not_found') return '档位已不存在，列表已刷新';
+    return fallback;
+  }
+
+  function updateCustomPresetControlAvailability() {
+    customPresetControls.querySelectorAll('[data-height-mm]').forEach((control) => {
+      const target = Number(control.dataset.heightMm);
+      const movesUp = lastStatus.height_known &&
+        typeof lastStatus.height_mm === 'number' &&
+        lastStatus.height_mm < target;
+      control.disabled = !lastStatus.height_known || !!lastStatus.child_lock ||
+        lastStatus.control_sources?.rest === false ||
+        !!lastStatus.controller_reset_active ||
+        (!!lastStatus.upward_blocked && movesUp);
+    });
+  }
+
+  function renderHeightPresets(snapshot) {
+    lastHeightPresetSnapshot = snapshot;
+    customPresetCount.textContent =
+      `${snapshot.custom_count} / ${snapshot.custom_capacity}`;
+    customPresetAdd.disabled = !DeskHeightPresets.canCreate(snapshot);
+    customPresetControls.replaceChildren();
+    customPresetList.replaceChildren();
+
+    const custom = snapshot.presets.filter((preset) => !preset.built_in);
+    custom.forEach((preset) => {
+      const control = document.createElement('button');
+      control.type = 'button';
+      control.className = 'custom-preset-control';
+      control.textContent = `${preset.name} · ${(preset.height_mm / 10).toFixed(1)} cm`;
+      control.dataset.heightMm = String(preset.height_mm);
+      control.onclick = () => api(
+        `/api/v1/desk/height-presets/${encodeURIComponent(preset.id)}/goto`,
+        'POST').catch((error) =>
+          showBanner(motionError(error, '自定义档位执行失败')));
+      customPresetControls.appendChild(control);
+
+      const row = document.createElement('div');
+      row.className = 'custom-preset-row';
+      const copy = document.createElement('div');
+      copy.className = 'custom-preset-copy';
+      const label = document.createElement('span');
+      label.textContent = preset.name;
+      const height = document.createElement('small');
+      height.textContent = `${(preset.height_mm / 10).toFixed(1)} cm`;
+      copy.append(label, height);
+      const actions = document.createElement('div');
+      actions.className = 'bond-row-actions';
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'bond-rename-button';
+      edit.textContent = '修改';
+      edit.onclick = async () => {
+        const nameDraft = window.prompt('档位名称', preset.name);
+        if (nameDraft === null) return;
+        const heightDraft = window.prompt(
+          '档位高度（cm）', (preset.height_mm / 10).toFixed(1));
+        if (heightDraft === null) return;
+        try {
+          await api(`/api/v1/desk/height-presets/${encodeURIComponent(preset.id)}`,
+            'POST', {
+              name: DeskHeightPresets.normalizeName(nameDraft),
+              height_mm: DeskHeightPresets.heightMmFromCm(heightDraft),
+            });
+          customPresetMsg.textContent = '自定义档位已更新';
+        } catch (error) {
+          customPresetMsg.textContent = heightPresetFailure(
+            error, error.message || '档位修改失败');
+        }
+        await refreshHeightPresets(true);
+      };
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'bond-delete-button';
+      remove.textContent = '删除';
+      remove.onclick = async () => {
+        if (!window.confirm(`确定删除“${preset.name}”档位吗？`)) return;
+        try {
+          await api(`/api/v1/desk/height-presets/${encodeURIComponent(preset.id)}`,
+            'DELETE');
+          customPresetMsg.textContent = '自定义档位已删除';
+        } catch (error) {
+          customPresetMsg.textContent = heightPresetFailure(
+            error, '档位删除失败');
+        }
+        await refreshHeightPresets(true);
+      };
+      actions.append(edit, remove);
+      row.append(copy, actions);
+      customPresetList.appendChild(row);
+    });
+    if (custom.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'settings-note';
+      empty.textContent = '暂无自定义档位';
+      customPresetList.appendChild(empty);
+    }
+    updateCustomPresetControlAvailability();
+  }
+
+  async function refreshHeightPresets(force = false) {
+    const now = Date.now();
+    if (heightPresetRefreshInFlight ||
+        (!force && now - lastHeightPresetRefreshAt < 5000)) {
+      return;
+    }
+    heightPresetRefreshInFlight = true;
+    try {
+      const snapshot = await api('/api/v1/desk/height-presets');
+      lastHeightPresetRefreshAt = Date.now();
+      renderHeightPresets(snapshot);
+    } catch (error) {
+      if (error.message !== 'unauthorized') {
+        customPresetMsg.textContent = '无法读取自定义档位';
+      }
+    } finally {
+      heightPresetRefreshInFlight = false;
     }
   }
 
@@ -445,6 +579,7 @@
         preset4HeightInput.value = preset4Cm;
       }
     }
+    updateCustomPresetControlAvailability();
   }
 
   const bindHold = (button, startPath) => DeskHoldControl.bindHold({
@@ -654,6 +789,23 @@
     }
   };
 
+  document.getElementById('customPresetForm').onsubmit = async (event) => {
+    event.preventDefault();
+    try {
+      await api('/api/v1/desk/height-presets', 'POST', {
+        name: DeskHeightPresets.normalizeName(customPresetName.value),
+        height_mm: DeskHeightPresets.heightMmFromCm(customPresetHeight.value),
+      });
+      customPresetName.value = '';
+      customPresetHeight.value = '';
+      customPresetMsg.textContent = '自定义档位已新增';
+    } catch (error) {
+      customPresetMsg.textContent = heightPresetFailure(
+        error, error.message || '新增档位失败');
+    }
+    await refreshHeightPresets(true);
+  };
+
   document.getElementById('pwForm').onsubmit = async (e) => {
     e.preventDefault();
     const password = new FormData(e.target).get('password');
@@ -699,6 +851,7 @@
       }
     }
     void refreshBondDevices();
+    void refreshHeightPresets();
   }
   tick();
   setInterval(tick, 250);

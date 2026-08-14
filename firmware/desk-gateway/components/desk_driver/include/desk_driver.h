@@ -64,6 +64,13 @@ typedef struct desk_driver {
     esp_err_t (*reset_controller)(void);
     /** 1-based preset index */
     esp_err_t (*goto_preset)(uint8_t n);
+    /**
+     * 前往任意网关档位高度。
+     *
+     * 实现必须使用设备侧真实高度闭环并自动停止；高度未知时禁止退化成
+     * 持续方向命令。
+     */
+    esp_err_t (*goto_height_mm)(int target_height_mm);
     esp_err_t (*save_preset)(uint8_t n);
     /** 不支持高度时返回 ESP_ERR_NOT_SUPPORTED */
     esp_err_t (*get_height_mm)(int *out_mm);

@@ -77,6 +77,13 @@ cc -std=c11 -Wall -Wextra -Werror \
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${CORE_DIR}/include" \
+    "${CORE_DIR}/desk_height_presets.c" \
+    "${CORE_DIR}/test/desk_height_presets_test.c" \
+    -o "${TEST_DIR}/height-presets-test"
+"${TEST_DIR}/height-presets-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${CORE_DIR}/include" \
     "${CORE_DIR}/desk_motion_watch.c" \
     "${CORE_DIR}/test/desk_motion_watch_test.c" \
     -o "${TEST_DIR}/motion-watch-test"
@@ -147,8 +154,10 @@ cc -std=c11 -Wall -Wextra -Werror \
 
 node --check "${WEB_DIR}/www/app.js"
 node --check "${WEB_DIR}/www/bond-management.js"
+node --check "${WEB_DIR}/www/height-presets.js"
 node --check "${WEB_DIR}/www/reminder-control.js"
 node "${WEB_DIR}/test/hold-control.test.js"
 node "${WEB_DIR}/test/bond-management.test.js"
+node "${WEB_DIR}/test/height-presets.test.js"
 node "${WEB_DIR}/test/source-toggle.test.js"
 node "${WEB_DIR}/test/reminder-control.test.js"

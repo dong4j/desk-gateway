@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { DeskClientSnapshot } from '../desk/DeskClient';
+import type { DeskHeightPreset } from '../desk/DeskRestClient';
 import { formatFirmwareBuildTime } from '../desk/formatFirmwareBuildTime';
 import { DeskScene } from '../ui/DeskScene';
 import {
@@ -33,6 +34,7 @@ import { palette, radii, shadows } from '../ui/theme';
 
 interface HomeScreenProps {
   snapshot: DeskClientSnapshot;
+  customPresets: DeskHeightPreset[];
   onConnect: () => void;
   onOpenSettings: () => void;
   onHoldUpStart: () => void;
@@ -41,6 +43,7 @@ interface HomeScreenProps {
   onStop: () => void;
   onPreset1: () => void;
   onPreset4: () => void;
+  onCustomPreset: (id: string) => void;
   onResetController: () => void;
   onToggleChildLock: () => void;
 }
@@ -56,6 +59,7 @@ const ERROR_TOAST_ANIMATION_MS = 180;
 
 export function HomeScreen({
   snapshot,
+  customPresets,
   onConnect,
   onOpenSettings,
   onHoldUpStart,
@@ -64,6 +68,7 @@ export function HomeScreen({
   onStop,
   onPreset1,
   onPreset4,
+  onCustomPreset,
   onResetController,
   onToggleChildLock,
 }: HomeScreenProps) {
@@ -97,6 +102,8 @@ export function HomeScreen({
     state.heightMm < preset1HeightMm;
   const preset4MovesUp = state?.heightKnown === true && state.heightMm !== null &&
     state.heightMm < preset4HeightMm;
+  const customPresetBlocked = !connected || state?.childLock === true ||
+    config?.restAllowed === false || state?.controllerResetActive === true;
 
   useEffect(() => {
     if (state?.controllerResetRecommended !== true) {
@@ -257,6 +264,26 @@ export function HomeScreen({
             onPress={onPreset4}
           />
         </View>
+        {customPresets.length > 0 ? (
+          <View style={styles.customPresetGrid}>
+            {customPresets.map((preset) => {
+              const movesUp = state?.heightKnown === true &&
+                state.heightMm !== null && state.heightMm < preset.height_mm;
+              return (
+                <View key={preset.id} style={styles.customPresetSlot}>
+                  <PresetCard
+                    icon={null}
+                    label={preset.name}
+                    height={(preset.height_mm / 10).toFixed(1)}
+                    disabled={customPresetBlocked || heightUnknown ||
+                      (upwardBlocked && movesUp)}
+                    onPress={() => onCustomPreset(preset.id)}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
 
         <Pressable
           accessibilityRole="switch"
@@ -466,6 +493,8 @@ const styles = StyleSheet.create({
   holdText: { color: palette.ink, fontSize: 16, fontWeight: '600' },
   stopButton: { width: 60, height: 60, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.danger, borderRadius: 30, backgroundColor: palette.danger, ...shadows.floating },
   presetRow: { marginTop: 12, flexDirection: 'row', gap: 11 },
+  customPresetGrid: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  customPresetSlot: { width: '48%', minHeight: 70 },
   presetCard: { flex: 1, minHeight: 70, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: palette.line, borderRadius: 16, backgroundColor: palette.surface },
   presetLabel: { color: palette.ink, fontSize: 15, fontWeight: '600' },
   presetHeightLine: { flexDirection: 'row', alignItems: 'baseline', marginTop: 1 },

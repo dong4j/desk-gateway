@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ReactNativeBleManagerAdapter } from './src/ble/ReactNativeBleManagerAdapter';
@@ -24,6 +24,7 @@ import type {
 import { DeskConnectionManager } from './src/desk/DeskConnectionManager';
 import { DeskHoldController } from './src/desk/DeskHoldController';
 import { DeskRestClient } from './src/desk/DeskRestClient';
+import type { DeskHeightPresetSnapshot } from './src/desk/DeskRestClient';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { HoldHapticController } from './src/ui/HoldHapticController';
@@ -69,6 +70,8 @@ export default function App() {
   const [screen, setScreen] = useState<'home' | 'settings'>('home');
   const [preferences, setPreferences] = useState(defaultPreferences);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const [heightPresetSnapshot, setHeightPresetSnapshot] =
+    useState<DeskHeightPresetSnapshot | null>(null);
   hapticFeedbackEnabledRef.current = preferences.hapticFeedback;
   hapticStrengthRef.current = preferences.hapticStrength;
 
@@ -180,6 +183,33 @@ export default function App() {
     clientRef.current?.configure(connectionSettings(preferences));
   }, [preferences.connectionMode, preferences.restHost, preferences.restKey]);
 
+  const refreshHeightPresets = useCallback(async () => {
+    const next = await clientRef.current!.getHeightPresets();
+    setHeightPresetSnapshot(next);
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesLoaded || !preferences.restHost.trim() ||
+        !preferences.restKey) {
+      setHeightPresetSnapshot(null);
+      return;
+    }
+    let active = true;
+    const refresh = () => {
+      void clientRef.current!.getHeightPresets()
+        .then((next) => {
+          if (active) setHeightPresetSnapshot(next);
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    const timer = setInterval(refresh, 5_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [preferences.restHost, preferences.restKey, preferencesLoaded]);
+
   const connect = useCallback(async () => {
     await clientRef.current!.initialize();
     await clientRef.current!.connect();
@@ -272,6 +302,22 @@ export default function App() {
       clientRef.current!.renameBluetoothBond(id, alias),
     [],
   );
+  const createHeightPreset = useCallback(async (name: string, heightMm: number) => {
+    await clientRef.current!.createHeightPreset(name, heightMm);
+    await refreshHeightPresets();
+  }, [refreshHeightPresets]);
+  const updateHeightPreset = useCallback(async (
+    id: string,
+    name: string,
+    heightMm: number,
+  ) => {
+    await clientRef.current!.updateHeightPreset(id, name, heightMm);
+    await refreshHeightPresets();
+  }, [refreshHeightPresets]);
+  const deleteHeightPreset = useCallback(async (id: string) => {
+    await clientRef.current!.deleteHeightPreset(id);
+    await refreshHeightPresets();
+  }, [refreshHeightPresets]);
 
   return (
     <SafeAreaProvider>
@@ -279,6 +325,9 @@ export default function App() {
       {screen === 'home' ? (
         <HomeScreen
           snapshot={snapshot}
+          customPresets={heightPresetSnapshot?.presets.filter(
+            (preset) => !preset.built_in,
+          ) ?? []}
           onConnect={() => runCommand(connect())}
           onOpenSettings={() => {
             feedback();
@@ -297,6 +346,15 @@ export default function App() {
           onPreset4={() =>
             runCommand(clientRef.current!.sendCommand(DeskCommand.Preset4))
           }
+          onCustomPreset={(id) => {
+            feedback();
+            runSafely(clientRef.current!.gotoHeightPreset(id).catch((error) => {
+              Alert.alert(
+                '档位执行失败',
+                error instanceof Error ? error.message : String(error),
+              );
+            }));
+          }}
           onResetController={() =>
             runCommand(clientRef.current!.resetController())
           }
@@ -311,6 +369,7 @@ export default function App() {
       ) : (
         <SettingsScreen
           snapshot={snapshot}
+          heightPresets={heightPresetSnapshot}
           autoConnect={preferences.autoConnect}
           hapticFeedback={preferences.hapticFeedback}
           hapticStrength={preferences.hapticStrength}
@@ -357,6 +416,9 @@ export default function App() {
           onDeleteBluetoothBond={deleteBluetoothBond}
           onDeleteAllBluetoothBonds={deleteAllBluetoothBonds}
           onRenameBluetoothBond={renameBluetoothBond}
+          onCreateHeightPreset={createHeightPreset}
+          onUpdateHeightPreset={updateHeightPreset}
+          onDeleteHeightPreset={deleteHeightPreset}
           onSetChildLock={(enabled) =>
             runCommand(clientRef.current!.setChildLock(enabled))
           }

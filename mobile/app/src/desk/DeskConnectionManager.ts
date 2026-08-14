@@ -13,7 +13,11 @@ import type {
   DeskSnapshotListener,
   DeskUnsubscribe,
 } from './DeskClient';
-import { DeskRestClient, type DeskBondSnapshot } from './DeskRestClient';
+import {
+  DeskRestClient,
+  type DeskBondSnapshot,
+  type DeskHeightPresetSnapshot,
+} from './DeskRestClient';
 
 const initialSnapshot: DeskClientSnapshot = {
   phase: 'uninitialized',
@@ -153,6 +157,26 @@ export class DeskConnectionManager implements DeskClient {
 
   renameBluetoothBond(id: string, alias: string): Promise<void> {
     return this.restClient.renameBluetoothBond(id, alias);
+  }
+
+  getHeightPresets(): Promise<DeskHeightPresetSnapshot> {
+    return this.restClient.getHeightPresets();
+  }
+
+  createHeightPreset(name: string, heightMm: number): Promise<void> {
+    return this.restClient.createHeightPreset(name, heightMm);
+  }
+
+  updateHeightPreset(id: string, name: string, heightMm: number): Promise<void> {
+    return this.restClient.updateHeightPreset(id, name, heightMm);
+  }
+
+  deleteHeightPreset(id: string): Promise<void> {
+    return this.restClient.deleteHeightPreset(id);
+  }
+
+  gotoHeightPreset(id: string): Promise<void> {
+    return this.restClient.gotoHeightPreset(id);
   }
 
   async disconnect(): Promise<void> {

@@ -67,6 +67,20 @@ export interface DeskBondSnapshot {
   };
 }
 
+export interface DeskHeightPreset {
+  id: string;
+  name: string;
+  height_mm: number;
+  built_in: boolean;
+  deletable: boolean;
+}
+
+export interface DeskHeightPresetSnapshot {
+  presets: DeskHeightPreset[];
+  custom_count: number;
+  custom_capacity: number;
+}
+
 const REQUEST_TIMEOUT_MS = 3_000;
 const MOVING_POLL_MS = 250;
 const IDLE_POLL_MS = 1_000;
@@ -187,6 +201,46 @@ export class DeskRestClient implements DeskClient {
       '/api/v1/desk/controller/reset',
       { method: 'POST' },
     ));
+  }
+
+  async getHeightPresets(): Promise<DeskHeightPresetSnapshot> {
+    this.ensureConfigured();
+    return this.request<DeskHeightPresetSnapshot>('/api/v1/desk/height-presets');
+  }
+
+  async createHeightPreset(name: string, heightMm: number): Promise<void> {
+    this.ensureConfigured();
+    await this.request('/api/v1/desk/height-presets', {
+      method: 'POST',
+      body: JSON.stringify({ name, height_mm: heightMm }),
+    });
+  }
+
+  async updateHeightPreset(
+    id: string,
+    name: string,
+    heightMm: number,
+  ): Promise<void> {
+    this.ensureHeightPresetId(id);
+    await this.request(`/api/v1/desk/height-presets/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      body: JSON.stringify({ name, height_mm: heightMm }),
+    });
+  }
+
+  async deleteHeightPreset(id: string): Promise<void> {
+    this.ensureHeightPresetId(id);
+    await this.request(`/api/v1/desk/height-presets/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async gotoHeightPreset(id: string): Promise<void> {
+    this.ensureHeightPresetId(id);
+    await this.request(
+      `/api/v1/desk/height-presets/${encodeURIComponent(id)}/goto`,
+      { method: 'POST' },
+    );
   }
 
   /** Bond 管理始终走已认证 REST，即使当前控制通道是 BLE。 */
@@ -394,6 +448,14 @@ export class DeskRestClient implements DeskClient {
     }
     if (!this.restKey) {
       throw this.connectionError('请先设置 REST 密码');
+    }
+  }
+
+  private ensureHeightPresetId(id: string): void {
+    this.ensureConfigured();
+    if (id !== 'sit' && id !== 'stand' &&
+        !/^custom_[0-9a-f]{8}$/.test(id)) {
+      throw new Error('无效的高度档位 ID');
     }
   }
 

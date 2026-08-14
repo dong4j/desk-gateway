@@ -51,6 +51,8 @@ extern const uint8_t www_hold_control_js_start[] asm("_binary_hold_control_js_st
 extern const uint8_t www_hold_control_js_end[] asm("_binary_hold_control_js_end");
 extern const uint8_t www_bond_management_js_start[] asm("_binary_bond_management_js_start");
 extern const uint8_t www_bond_management_js_end[] asm("_binary_bond_management_js_end");
+extern const uint8_t www_height_presets_js_start[] asm("_binary_height_presets_js_start");
+extern const uint8_t www_height_presets_js_end[] asm("_binary_height_presets_js_end");
 extern const uint8_t www_reminder_control_js_start[] asm("_binary_reminder_control_js_start");
 extern const uint8_t www_reminder_control_js_end[] asm("_binary_reminder_control_js_end");
 extern const uint8_t www_app_js_start[] asm("_binary_app_js_start");
@@ -508,6 +510,163 @@ static esp_err_t handler_bluetooth_alias(httpd_req_t *req)
     return send_ble_management_result(req, result);
 }
 
+static cJSON *height_presets_json(void)
+{
+    desk_core_height_preset_snapshot_t snapshot;
+    desk_core_get_height_presets(&snapshot);
+    cJSON *root = cJSON_CreateObject();
+    cJSON *presets = cJSON_AddArrayToObject(root, "presets");
+    size_t custom_count = 0;
+    for (size_t i = 0; i < snapshot.count; ++i) {
+        const desk_core_height_preset_t *preset = &snapshot.presets[i];
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "id", preset->id);
+        cJSON_AddStringToObject(item, "name", preset->name);
+        cJSON_AddNumberToObject(item, "height_mm", preset->height_mm);
+        cJSON_AddBoolToObject(item, "built_in", preset->built_in);
+        cJSON_AddBoolToObject(item, "deletable", preset->deletable);
+        cJSON_AddItemToArray(presets, item);
+        if (!preset->built_in) {
+            custom_count += 1;
+        }
+    }
+    cJSON_AddNumberToObject(root, "custom_count", custom_count);
+    cJSON_AddNumberToObject(root, "custom_capacity",
+                            snapshot.custom_capacity);
+    return root;
+}
+
+static esp_err_t send_height_preset_result(httpd_req_t *req, esp_err_t err)
+{
+    int status = err == ESP_OK ? 200 :
+                 err == ESP_ERR_NOT_FOUND ? 404 :
+                 err == ESP_ERR_NOT_ALLOWED ? 403 :
+                 err == ESP_ERR_NO_MEM ? 409 : 400;
+    cJSON *body = cJSON_CreateObject();
+    cJSON_AddBoolToObject(body, "ok", err == ESP_OK);
+    if (err == ESP_ERR_NOT_FOUND) {
+        cJSON_AddStringToObject(body, "error", "preset_not_found");
+    } else if (err == ESP_ERR_NOT_ALLOWED) {
+        cJSON_AddStringToObject(body, "error", "preset_not_deletable");
+    } else if (err == ESP_ERR_NO_MEM) {
+        cJSON_AddStringToObject(body, "error", "preset_capacity_full");
+    } else if (err != ESP_OK) {
+        cJSON_AddStringToObject(body, "error", "invalid_preset");
+    }
+    return send_cjson(req, status, body);
+}
+
+/** 只接受一个档位 ID，防止 wildcard 路由把额外路径片段当作 ID。 */
+static bool extract_height_preset_id(const char *uri, bool goto_action,
+                                     char *out, size_t out_size)
+{
+    static const char prefix[] = "/api/v1/desk/height-presets/";
+    static const char goto_suffix[] = "/goto";
+    if (!uri || !out || out_size == 0 ||
+        strncmp(uri, prefix, sizeof(prefix) - 1) != 0) {
+        return false;
+    }
+    const char *start = uri + sizeof(prefix) - 1;
+    size_t length = strlen(start);
+    if (goto_action) {
+        if (length <= sizeof(goto_suffix) - 1 ||
+            strcmp(start + length - (sizeof(goto_suffix) - 1),
+                   goto_suffix) != 0) {
+            return false;
+        }
+        length -= sizeof(goto_suffix) - 1;
+    }
+    if (length == 0 || length >= out_size ||
+        memchr(start, '/', length) != NULL) {
+        return false;
+    }
+    memcpy(out, start, length);
+    out[length] = '\0';
+    return true;
+}
+
+static esp_err_t handler_height_presets_get(httpd_req_t *req)
+{
+    return authed(req) ? send_cjson(req, 200, height_presets_json())
+                       : send_unauthorized(req);
+}
+
+static esp_err_t handler_height_presets_create(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        return send_unauthorized(req);
+    }
+    char body[192];
+    if (read_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_height_preset_result(req, ESP_ERR_INVALID_ARG);
+    }
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *name = root ? cJSON_GetObjectItem(root, "name") : NULL;
+    const cJSON *height = root ? cJSON_GetObjectItem(root, "height_mm") : NULL;
+    char id[DESK_HEIGHT_PRESET_ID_BUFFER_LENGTH] = {0};
+    esp_err_t err = cJSON_IsString(name) && cJSON_IsNumber(height) &&
+                            height->valuedouble == (double)height->valueint
+                        ? desk_core_create_height_preset(
+                              name->valuestring, height->valueint,
+                              id, sizeof(id))
+                        : ESP_ERR_INVALID_ARG;
+    cJSON_Delete(root);
+    if (err != ESP_OK) {
+        return send_height_preset_result(req, err);
+    }
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddBoolToObject(response, "ok", true);
+    cJSON_AddStringToObject(response, "id", id);
+    return send_cjson(req, 200, response);
+}
+
+static esp_err_t handler_height_preset_update_or_goto(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        return send_unauthorized(req);
+    }
+    bool goto_action = strstr(req->uri, "/goto") != NULL;
+    char id[DESK_HEIGHT_PRESET_ID_BUFFER_LENGTH];
+    if (!extract_height_preset_id(req->uri, goto_action, id, sizeof(id))) {
+        return send_height_preset_result(req, ESP_ERR_NOT_FOUND);
+    }
+    if (goto_action) {
+        return send_height_preset_result(
+            req, desk_core_goto_height_preset(DESK_CONTROL_SOURCE_REST, id));
+    }
+
+    char body[192];
+    if (read_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_height_preset_result(req, ESP_ERR_INVALID_ARG);
+    }
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *name = root ? cJSON_GetObjectItem(root, "name") : NULL;
+    const cJSON *height = root ? cJSON_GetObjectItem(root, "height_mm") : NULL;
+    esp_err_t err = cJSON_IsNumber(height) &&
+                            height->valuedouble == (double)height->valueint &&
+                            (!name || cJSON_IsString(name))
+                        ? desk_core_update_height_preset(
+                              id, cJSON_IsString(name) ? name->valuestring
+                                                      : NULL,
+                              height->valueint)
+                        : ESP_ERR_INVALID_ARG;
+    cJSON_Delete(root);
+    return send_height_preset_result(req, err);
+}
+
+static esp_err_t handler_height_preset_delete(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        return send_unauthorized(req);
+    }
+    char id[DESK_HEIGHT_PRESET_ID_BUFFER_LENGTH];
+    if (!extract_height_preset_id(req->uri, false, id, sizeof(id))) {
+        return send_height_preset_result(req, ESP_ERR_NOT_FOUND);
+    }
+    return send_height_preset_result(
+        req, desk_core_delete_height_preset(id));
+}
+
 /** 给 HTTP 响应留出发送时间，再执行芯片软重启。 */
 static void restart_task(void *arg)
 {
@@ -859,6 +1018,12 @@ static esp_err_t handler_bond_management_js(httpd_req_t *req)
                       www_bond_management_js_start,
                       www_bond_management_js_end);
 }
+static esp_err_t handler_height_presets_js(httpd_req_t *req)
+{
+    return send_embed(req, "application/javascript",
+                      www_height_presets_js_start,
+                      www_height_presets_js_end);
+}
 static esp_err_t handler_reminder_control_js(httpd_req_t *req)
 {
     return send_embed(req, "application/javascript",
@@ -923,7 +1088,7 @@ esp_err_t desk_web_start(void)
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.server_port = 80;
     cfg.uri_match_fn = httpd_uri_match_wildcard;
-    cfg.max_uri_handlers = 24;
+    cfg.max_uri_handlers = 32;
     cfg.max_open_sockets = 7;
     cfg.lru_purge_enable = true;
     cfg.stack_size = 8192;
@@ -941,6 +1106,7 @@ esp_err_t desk_web_start(void)
         {.uri = "/login.html", .method = HTTP_GET, .handler = handler_login_page},
         {.uri = "/hold-control.js", .method = HTTP_GET, .handler = handler_hold_control_js},
         {.uri = "/bond-management.js", .method = HTTP_GET, .handler = handler_bond_management_js},
+        {.uri = "/height-presets.js", .method = HTTP_GET, .handler = handler_height_presets_js},
         {.uri = "/reminder-control.js", .method = HTTP_GET, .handler = handler_reminder_control_js},
         {.uri = "/app.js", .method = HTTP_GET, .handler = handler_app_js},
         {.uri = "/style.css", .method = HTTP_GET, .handler = handler_css},
@@ -950,6 +1116,10 @@ esp_err_t desk_web_start(void)
         {.uri = "/api/v1/auth/login", .method = HTTP_POST, .handler = handler_login},
         {.uri = "/api/v1/auth/password", .method = HTTP_POST, .handler = handler_password},
         {.uri = "/api/v1/desk/status", .method = HTTP_GET, .handler = handler_status},
+        {.uri = "/api/v1/desk/height-presets", .method = HTTP_GET, .handler = handler_height_presets_get},
+        {.uri = "/api/v1/desk/height-presets", .method = HTTP_POST, .handler = handler_height_presets_create},
+        {.uri = "/api/v1/desk/height-presets/*", .method = HTTP_POST, .handler = handler_height_preset_update_or_goto},
+        {.uri = "/api/v1/desk/height-presets/*", .method = HTTP_DELETE, .handler = handler_height_preset_delete},
         {.uri = "/api/v1/bluetooth/bonds", .method = HTTP_GET, .handler = handler_bluetooth_bonds},
         {.uri = "/api/v1/bluetooth/pairing-window", .method = HTTP_POST, .handler = handler_bluetooth_pairing_window},
         {.uri = "/api/v1/bluetooth/pairing-window", .method = HTTP_DELETE, .handler = handler_bluetooth_pairing_window},

@@ -18,7 +18,9 @@
 #include "nvs_flash.h"
 #include "sdkconfig.h"
 
+#include <stdio.h>
 #include <stdatomic.h>
+#include <string.h>
 
 static const char *TAG = "desk_core";
 static const char *NVS_NS = "desk_core";
@@ -29,6 +31,17 @@ static const char *NVS_KEY_SOURCES_LEGACY = "ctrl_sources";
 static const char *NVS_KEY_SOURCES = "ctrl_src_v2";
 static const char *NVS_KEY_PRESET1_HEIGHT = "tof_p1_mm";
 static const char *NVS_KEY_PRESET4_HEIGHT = "tof_p4_mm";
+static const char *NVS_KEY_CUSTOM_PRESETS = "height_presets";
+
+#define DESK_HEIGHT_PRESET_STORAGE_MAGIC 0x44505354U
+#define DESK_HEIGHT_PRESET_STORAGE_VERSION 1
+
+typedef struct {
+    uint32_t magic;
+    uint8_t version;
+    uint8_t reserved[3];
+    desk_height_preset_registry_t registry;
+} desk_height_preset_storage_t;
 
 /*
  * 上升不使用通用运动超时：手动上升由松手/显式 STOP 结束，站姿档位
@@ -72,6 +85,7 @@ static desk_control_policy_t s_control_policy = {
 static int s_max_height_mm = CONFIG_DESK_MAX_HEIGHT_MM;
 static int s_preset1_height_mm = DESK_PRESET1_HEIGHT_MM_DEFAULT;
 static int s_preset4_height_mm = DESK_PRESET4_HEIGHT_MM_DEFAULT;
+static desk_height_preset_registry_t s_custom_presets;
 static desk_jog_direction_t s_jog_pending_direction;
 static uint32_t s_jog_last_event_ms;
 static atomic_bool s_controller_reset_active;
@@ -465,6 +479,62 @@ static esp_err_t save_preset_heights(void)
     return err;
 }
 
+/** 旧固件没有该 blob；缺失或损坏时保留两个内置档位并忽略自定义数据。 */
+static esp_err_t load_custom_presets(void)
+{
+    desk_height_preset_registry_init(&s_custom_presets);
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READONLY, &h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    desk_height_preset_storage_t stored = {0};
+    size_t length = sizeof(stored);
+    err = nvs_get_blob(h, NVS_KEY_CUSTOM_PRESETS, &stored, &length);
+    nvs_close(h);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return ESP_OK;
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    if (length != sizeof(stored) ||
+        stored.magic != DESK_HEIGHT_PRESET_STORAGE_MAGIC ||
+        stored.version != DESK_HEIGHT_PRESET_STORAGE_VERSION ||
+        !desk_height_preset_registry_valid(
+            &stored.registry, DESK_MAX_HEIGHT_MM_MIN,
+            DESK_MAX_HEIGHT_MM_MAX)) {
+        ESP_LOGW(TAG, "ignore invalid custom height presets");
+        return ESP_OK;
+    }
+    s_custom_presets = stored.registry;
+    return ESP_OK;
+}
+
+/** 所有自定义档位作为单个版本化 blob 提交，避免断电留下半次 CRUD。 */
+static esp_err_t save_custom_presets(void)
+{
+    const desk_height_preset_storage_t stored = {
+        .magic = DESK_HEIGHT_PRESET_STORAGE_MAGIC,
+        .version = DESK_HEIGHT_PRESET_STORAGE_VERSION,
+        .registry = s_custom_presets,
+    };
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_set_blob(h, NVS_KEY_CUSTOM_PRESETS, &stored, sizeof(stored));
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    return err;
+}
+
 /**
  * 启动时用一次极短 DOWN 脉冲唤醒控制盒高度显示帧。
  *
@@ -580,6 +650,7 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
     (void)load_control_sources();
     (void)load_max_height();
     (void)load_preset_heights();
+    (void)load_custom_presets();
 #if CONFIG_DESK_SIM_HEIGHT
     sim_init();
     ESP_LOGI(TAG, "SIM height fallback compiled; height-capable drivers bypass it");
@@ -975,6 +1046,58 @@ esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
     return err;
 }
 
+/** 自定义档位只能走驱动的真实高度闭环，不能拼接普通 HOLD。 */
+static esp_err_t goto_height_mm(desk_control_source_t source, int target_mm)
+{
+    esp_err_t auth_err = authorize_source(source);
+    if (auth_err != ESP_OK) {
+        return auth_err;
+    }
+    if (target_mm < DESK_MAX_HEIGHT_MM_MIN ||
+        target_mm > DESK_MAX_HEIGHT_MM_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    s_jog_pending_direction = DESK_JOG_NONE;
+    const desk_driver_t *drv = desk_driver_get_active();
+    if (!drv || !drv->goto_height_mm) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    bool moves_up = false;
+    int current_mm = -1;
+    if (drv->get_height_mm && drv->get_height_mm(&current_mm) == ESP_OK) {
+        moves_up = current_mm < target_mm;
+    }
+    esp_err_t err = drv->goto_height_mm(target_mm);
+    if (err == ESP_OK) {
+        arm_hold_ms(moves_up ? DESK_UPWARD_MOTION_TIMEOUT_MS
+                             : CONFIG_DESK_MOTION_TIMEOUT_MS);
+#if CONFIG_DESK_SIM_HEIGHT
+        s_sim_mm = target_mm;
+#endif
+        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
+    }
+    return err;
+}
+
+esp_err_t desk_core_goto_height_preset(desk_control_source_t source,
+                                       const char *id)
+{
+    if (!id) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (strcmp(id, "sit") == 0) {
+        return desk_core_goto_preset(source, 1);
+    }
+    if (strcmp(id, "stand") == 0) {
+        return desk_core_goto_preset(source, 4);
+    }
+    const desk_height_preset_record_t *record =
+        desk_height_preset_find_const(&s_custom_presets, id);
+    return record ? goto_height_mm(source, record->height_mm)
+                  : ESP_ERR_NOT_FOUND;
+}
+
 esp_err_t desk_core_save_preset(desk_control_source_t source, uint8_t n)
 {
     esp_err_t auth_err = authorize_source(source);
@@ -1156,6 +1279,125 @@ esp_err_t desk_core_set_preset_heights_mm(int preset1_height_mm,
     ESP_LOGI(TAG, "preset heights: p1=%d mm p4=%d mm",
              s_preset1_height_mm, s_preset4_height_mm);
     return ESP_OK;
+}
+
+static void fill_height_preset(desk_core_height_preset_t *out,
+                               const char *id, const char *name,
+                               int height_mm, bool built_in)
+{
+    snprintf(out->id, sizeof(out->id), "%s", id);
+    snprintf(out->name, sizeof(out->name), "%s", name);
+    out->height_mm = height_mm;
+    out->built_in = built_in;
+    out->deletable = !built_in;
+}
+
+void desk_core_get_height_presets(desk_core_height_preset_snapshot_t *out)
+{
+    if (!out) {
+        return;
+    }
+    memset(out, 0, sizeof(*out));
+    out->custom_capacity = DESK_HEIGHT_PRESET_CUSTOM_CAPACITY;
+    fill_height_preset(&out->presets[out->count++], "sit", "请坐",
+                       s_preset1_height_mm, true);
+    fill_height_preset(&out->presets[out->count++], "stand", "站立",
+                       s_preset4_height_mm, true);
+    for (size_t i = 0; i < DESK_HEIGHT_PRESET_CUSTOM_CAPACITY; ++i) {
+        const desk_height_preset_record_t *record =
+            &s_custom_presets.records[i];
+        if (!record->in_use) {
+            continue;
+        }
+        char id[DESK_HEIGHT_PRESET_ID_BUFFER_LENGTH];
+        if (!desk_height_preset_format_id(record->numeric_id, id,
+                                          sizeof(id))) {
+            continue;
+        }
+        fill_height_preset(&out->presets[out->count++], id, record->name,
+                           record->height_mm, false);
+    }
+}
+
+esp_err_t desk_core_create_height_preset(const char *name, int height_mm,
+                                         char *out_id, size_t out_id_size)
+{
+    if (!desk_height_preset_name_valid(name) ||
+        height_mm < DESK_MAX_HEIGHT_MM_MIN ||
+        height_mm > DESK_MAX_HEIGHT_MM_MAX || !out_id) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (desk_height_preset_count(&s_custom_presets) >=
+        DESK_HEIGHT_PRESET_CUSTOM_CAPACITY) {
+        return ESP_ERR_NO_MEM;
+    }
+    desk_height_preset_registry_t previous = s_custom_presets;
+    if (!desk_height_preset_create(
+            &s_custom_presets, name, height_mm, DESK_MAX_HEIGHT_MM_MIN,
+            DESK_MAX_HEIGHT_MM_MAX, out_id, out_id_size)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = save_custom_presets();
+    if (err != ESP_OK) {
+        s_custom_presets = previous;
+    }
+    return err;
+}
+
+esp_err_t desk_core_update_height_preset(const char *id, const char *name,
+                                         int height_mm)
+{
+    if (!id || height_mm < DESK_MAX_HEIGHT_MM_MIN ||
+        height_mm > DESK_MAX_HEIGHT_MM_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (strcmp(id, "sit") == 0) {
+        return desk_core_set_preset_heights_mm(height_mm,
+                                               s_preset4_height_mm);
+    }
+    if (strcmp(id, "stand") == 0) {
+        return desk_core_set_preset_heights_mm(s_preset1_height_mm,
+                                               height_mm);
+    }
+    if (!desk_height_preset_name_valid(name)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!desk_height_preset_find_const(&s_custom_presets, id)) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    desk_height_preset_registry_t previous = s_custom_presets;
+    if (!desk_height_preset_update(
+            &s_custom_presets, id, name, height_mm,
+            DESK_MAX_HEIGHT_MM_MIN, DESK_MAX_HEIGHT_MM_MAX)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = save_custom_presets();
+    if (err != ESP_OK) {
+        s_custom_presets = previous;
+    }
+    return err;
+}
+
+esp_err_t desk_core_delete_height_preset(const char *id)
+{
+    if (!id) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (strcmp(id, "sit") == 0 || strcmp(id, "stand") == 0) {
+        return ESP_ERR_NOT_ALLOWED;
+    }
+    if (!desk_height_preset_find_const(&s_custom_presets, id)) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    desk_height_preset_registry_t previous = s_custom_presets;
+    if (!desk_height_preset_delete(&s_custom_presets, id)) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    esp_err_t err = save_custom_presets();
+    if (err != ESP_OK) {
+        s_custom_presets = previous;
+    }
+    return err;
 }
 
 desk_core_snapshot_t desk_core_snapshot(void)

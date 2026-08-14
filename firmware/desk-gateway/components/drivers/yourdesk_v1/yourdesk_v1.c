@@ -1047,17 +1047,23 @@ static esp_err_t yd_reset_controller(void)
     return set_dr(DR_RESET);
 }
 
-static esp_err_t yd_goto_preset(uint8_t n)
+/**
+ * 使用真实高度启动一个有界目标动作。
+ *
+ * 只有两个内置档位保留无 TOF 构建下的既有启动方向；任意自定义高度在
+ * 当前高度未知时直接拒绝，避免猜错方向后持续移动。
+ */
+static esp_err_t yd_start_height_target(
+    int target_mm, yourdesk_preset_direction_t unknown_height_direction,
+    const char *log_label)
 {
     if (panel_has_priority()) {
         return ESP_ERR_INVALID_STATE;
     }
 #if YOURDESK_CLOSED_LOOP_ENABLED
-    int target_mm = yourdesk_preset_target_mm(
-        n, atomic_load(&s_preset1_height_mm),
-        atomic_load(&s_preset4_height_mm));
-    if (target_mm < 0) {
-        return ESP_ERR_NOT_SUPPORTED;
+    if (target_mm < DESK_MAX_HEIGHT_MM_MIN ||
+        target_mm > DESK_MAX_HEIGHT_MM_MAX) {
+        return ESP_ERR_INVALID_ARG;
     }
 
     int current_mm = -1;
@@ -1066,17 +1072,16 @@ static esp_err_t yd_goto_preset(uint8_t n)
 #if CONFIG_DESK_TOF_ENABLE
         return ESP_ERR_INVALID_STATE;
 #else
-        yourdesk_preset_direction_t bootstrap =
-            yourdesk_preset_bootstrap_direction(n);
-        if (bootstrap == YOURDESK_PRESET_STOP) {
+        if (unknown_height_direction == YOURDESK_PRESET_STOP) {
             return ESP_ERR_INVALID_STATE;
         }
-        atomic_store(&s_preset_direction, bootstrap);
+        atomic_store(&s_preset_direction, unknown_height_direction);
         atomic_store(&s_preset_target_mm, target_mm);
         begin_height_resync();
-        ESP_LOGI(TAG, "preset %u bootstrap: height unknown, direction=down target=%d mm",
-                 (unsigned)n, target_mm);
-        esp_err_t err = set_dr(DR_DOWN);
+        ESP_LOGI(TAG, "%s bootstrap: height unknown, target=%d mm",
+                 log_label, target_mm);
+        esp_err_t err = set_dr(unknown_height_direction > 0 ? DR_UP
+                                                            : DR_DOWN);
         if (err != ESP_OK) {
             cancel_preset_motion();
         }
@@ -1101,8 +1106,9 @@ static esp_err_t yd_goto_preset(uint8_t n)
 
     atomic_store(&s_preset_direction, direction);
     atomic_store(&s_preset_target_mm, target_mm);
-    ESP_LOGI(TAG, "preset %u: current=%d mm target=%d mm direction=%s",
-             (unsigned)n, current_mm, target_mm, direction > 0 ? "up" : "down");
+    ESP_LOGI(TAG, "%s: current=%d mm target=%d mm direction=%s",
+             log_label, current_mm, target_mm,
+             direction > 0 ? "up" : "down");
 #if YOURDESK_HEIGHT_INPUT_ENABLED
     begin_height_resync();
 #endif
@@ -1112,9 +1118,30 @@ static esp_err_t yd_goto_preset(uint8_t n)
     }
     return err;
 #else
-    (void)n;
+    (void)target_mm;
+    (void)unknown_height_direction;
+    (void)log_label;
     return ESP_ERR_NOT_SUPPORTED;
 #endif
+}
+
+static esp_err_t yd_goto_preset(uint8_t n)
+{
+    int target_mm = yourdesk_preset_target_mm(
+        n, atomic_load(&s_preset1_height_mm),
+        atomic_load(&s_preset4_height_mm));
+    if (target_mm < 0) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    return yd_start_height_target(target_mm,
+                                  yourdesk_preset_bootstrap_direction(n),
+                                  n == 1 ? "preset 1" : "preset 4");
+}
+
+static esp_err_t yd_goto_height_mm(int target_height_mm)
+{
+    return yd_start_height_target(target_height_mm, YOURDESK_PRESET_STOP,
+                                  "custom preset");
 }
 
 static esp_err_t yd_set_max_height_mm(int max_height_mm)
@@ -1245,6 +1272,7 @@ const desk_driver_t yourdesk_v1_driver = {
     .raise_to_max = yd_raise_to_max,
     .reset_controller = yd_reset_controller,
     .goto_preset = yd_goto_preset,
+    .goto_height_mm = yd_goto_height_mm,
     .save_preset = yd_save_preset,
     .get_height_mm = yd_get_height_mm,
     .set_max_height_mm = yd_set_max_height_mm,

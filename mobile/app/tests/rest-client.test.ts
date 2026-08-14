@@ -171,6 +171,50 @@ test('preserves firmware Bond errors and rejects unsafe IDs locally', async () =
   client.dispose();
 });
 
+test('queries and manages gateway height presets through REST', async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const snapshot = {
+    presets: [
+      { id: 'sit', name: '请坐', height_mm: 560, built_in: true, deletable: false },
+      { id: 'custom_00000001', name: '午休', height_mm: 720,
+        built_in: false, deletable: true },
+    ],
+    custom_count: 1,
+    custom_capacity: 16,
+  };
+  const client = new DeskRestClient(async (url, init) => {
+    requests.push({ url, init });
+    return jsonResponse(init?.method ? { ok: true } : snapshot);
+  });
+  client.configure('desk-gateway.local', 'secret');
+
+  const loaded = await client.getHeightPresets();
+  await client.createHeightPreset('午休', 720);
+  await client.updateHeightPreset('custom_00000001', '阅读', 760);
+  await client.gotoHeightPreset('custom_00000001');
+  await client.deleteHeightPreset('custom_00000001');
+
+  assert.equal(loaded.presets[1].name, '午休');
+  assert.deepEqual(
+    requests.map((request) => [
+      new URL(request.url).pathname,
+      request.init?.method ?? 'GET',
+    ]),
+    [
+      ['/api/v1/desk/height-presets', 'GET'],
+      ['/api/v1/desk/height-presets', 'POST'],
+      ['/api/v1/desk/height-presets/custom_00000001', 'POST'],
+      ['/api/v1/desk/height-presets/custom_00000001/goto', 'POST'],
+      ['/api/v1/desk/height-presets/custom_00000001', 'DELETE'],
+    ],
+  );
+  await assert.rejects(
+    client.deleteHeightPreset('../status'),
+    /无效的高度档位 ID/,
+  );
+  client.dispose();
+});
+
 function jsonResponse(payload: unknown, statusCode = 200): Response {
   return new Response(JSON.stringify(payload), {
     status: statusCode,
