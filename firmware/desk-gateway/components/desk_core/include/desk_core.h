@@ -25,6 +25,7 @@ typedef struct {
     bool height_sim; /* true = 本地模拟，非嗅探真值 */
     bool child_lock;
     bool upward_blocked;
+    bool raise_to_max_supported;
     bool controller_reset_supported;
     bool controller_reset_active;
     int max_height_mm;
@@ -61,6 +62,8 @@ void desk_core_set_event_listener(desk_core_event_listener_t listener,
 esp_err_t desk_core_stop(void);
 esp_err_t desk_core_hold_up(desk_control_source_t source);
 esp_err_t desk_core_hold_down(desk_control_source_t source);
+/** 使用驱动本地真实高度闭环上升到最高安全高度。 */
+esp_err_t desk_core_raise_to_max(desk_control_source_t source);
 /**
  * 启动厂商控制盒故障重置；固件负责定时结束，STOP 可随时中断。
  */

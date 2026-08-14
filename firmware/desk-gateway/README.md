@@ -151,6 +151,13 @@ synchronized across Web, BLE, and the mobile App. Upward motion is blocked when
 TOF400C is unavailable; below `800 mm`, it is also blocked when TOF050C is
 unavailable.
 
+Authenticated automation that explicitly needs the highest safe position uses
+`POST /api/v1/desk/raise-to-max`. The endpoint is available only when the active
+driver advertises a device-side bounded action backed by real height feedback;
+it never falls back to the manual `/api/v1/desk/up` hold behavior. Query
+`raise_to_max_supported` from `GET /api/v1/desk/status` before exposing the
+action to an external voice or MCP tool.
+
 ## License
 
 MIT — see repository root [LICENSE](../../LICENSE).

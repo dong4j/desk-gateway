@@ -257,6 +257,8 @@ static cJSON *snapshot_json(void)
     cJSON_AddBoolToObject(o, "right_gap_known", tof.right_gap_known);
     cJSON_AddBoolToObject(o, "child_lock", s.child_lock);
     cJSON_AddBoolToObject(o, "upward_blocked", s.upward_blocked);
+    cJSON_AddBoolToObject(o, "raise_to_max_supported",
+                          s.raise_to_max_supported);
     cJSON_AddBoolToObject(o, "controller_reset_supported",
                           s.controller_reset_supported);
     cJSON_AddBoolToObject(o, "controller_reset_active",
@@ -519,6 +521,8 @@ static esp_err_t handler_cmd(httpd_req_t *req)
     esp_err_t err = ESP_ERR_NOT_FOUND;
     if (strcmp(uri, "/api/v1/desk/controller/reset") == 0) {
         err = desk_core_reset_controller(DESK_CONTROL_SOURCE_REST);
+    } else if (strcmp(uri, "/api/v1/desk/raise-to-max") == 0) {
+        err = desk_core_raise_to_max(DESK_CONTROL_SOURCE_REST);
     } else if (strcmp(uri, "/api/v1/desk/jog/up") == 0) {
         err = desk_core_jog_up(DESK_CONTROL_SOURCE_REST);
     } else if (strcmp(uri, "/api/v1/desk/jog/down") == 0) {

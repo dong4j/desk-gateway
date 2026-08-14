@@ -701,6 +701,37 @@ esp_err_t desk_core_hold_down(desk_control_source_t source)
     return err;
 }
 
+esp_err_t desk_core_raise_to_max(desk_control_source_t source)
+{
+    esp_err_t err = authorize_source(source);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    const desk_driver_t *drv = desk_driver_get_active();
+    desk_caps_t caps = {0};
+    if (drv && drv->get_caps) {
+        caps = drv->get_caps();
+    }
+    if (!drv || !drv->raise_to_max || !caps.raise_to_max) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    /*
+     * 语义动作不能继承旋钮租约或下降超时。驱动成功受理后，最终 STOP
+     * 必须由自己的真实高度链路产生，网络断开不会改变停止条件。
+     * 只有受理成功后才取消旧租约，避免前置安全检查失败时让原运动
+     * 丢失既有的本地超时保护。
+     */
+    err = drv->raise_to_max();
+    if (err == ESP_OK) {
+        s_jog_pending_direction = DESK_JOG_NONE;
+        cancel_hold_timer();
+        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
+    }
+    return err;
+}
+
 esp_err_t desk_core_reset_controller(desk_control_source_t source)
 {
     esp_err_t err = authorize_source(source);
@@ -1073,6 +1104,7 @@ desk_core_snapshot_t desk_core_snapshot(void)
         .height_sim = false,
         .child_lock = s_control_policy.child_lock,
         .upward_blocked = false,
+        .raise_to_max_supported = false,
         .controller_reset_supported = false,
         .controller_reset_active =
             atomic_load(&s_controller_reset_active),
@@ -1087,6 +1119,11 @@ desk_core_snapshot_t desk_core_snapshot(void)
         return s;
     }
     s.driver = drv->name;
+    if (drv->get_caps) {
+        desk_caps_t caps = drv->get_caps();
+        s.raise_to_max_supported = caps.raise_to_max &&
+                                   drv->raise_to_max != NULL;
+    }
     s.controller_reset_supported = drv->reset_controller != NULL;
     if (drv->get_status) {
         s.status = drv->get_status();

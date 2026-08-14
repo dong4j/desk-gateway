@@ -6,7 +6,8 @@
 >
 > 本地后端基线：`xiaozhi-esp32-server v0.9.6`
 >
-> 当前状态：接入方案和操作步骤已确定；MCP 桥接尚未创建、部署和实机验收。
+> 当前状态：Desk Gateway 有界 REST 入口已实现并通过构建；MCP 桥接尚未创建，REST 真桌与
+> 完整语音链路尚未验收。
 
 本文记录如何让小智 AI 把“升降桌升高到最高”“切换到站立高度”“停止升降桌”等语音
 指令转换成受控的 MCP 工具调用，再由局域网桥接程序访问 Desk Gateway REST 接口。
@@ -69,7 +70,7 @@ flowchart LR
 | MCP 工具 | 用户表达示例 | Desk Gateway REST | 含义 |
 | --- | --- | --- | --- |
 | `desk.get_status` | “桌子现在多高” | `GET /api/v1/desk/status` | 查询当前高度、状态和安全配置 |
-| `desk.raise_to_max` | “升降桌升高到最高” | `POST /api/v1/desk/up` | 持续上升，由 ESP32 在最高安全高度停止 |
+| `desk.raise_to_max` | “升降桌升高到最高” | `POST /api/v1/desk/raise-to-max` | 设备侧有界上升，由 ESP32 在最高安全高度停止 |
 | `desk.goto_sit` | “切换到坐姿” | `POST /api/v1/desk/preset/1/goto` | 闭环前往档位 1，默认 `560 mm` |
 | `desk.goto_stand` | “切换到站姿” | `POST /api/v1/desk/preset/4/goto` | 闭环前往档位 4，默认 `870 mm` |
 | `desk.stop` | “停下桌子” | `POST /api/v1/desk/stop` | 立即停止当前运动 |
@@ -96,7 +97,7 @@ Desk Gateway 当前默认值为：
 - “降到最低”第一版也不提供独立工具；如果需要最低位置，使用已经配置并验收的
   `desk.goto_sit`。
 
-### 3.3 `raise_to_max` 为什么可以调用持续上升接口
+### 3.3 `raise_to_max` 为什么使用独立语义接口
 
 当前 Desk Gateway 默认启用 `CONFIG_DESK_TOF_ENABLE=y`，并在 ESP32 本地执行以下保护：
 
@@ -107,8 +108,10 @@ Desk Gateway 当前默认值为：
   阻止上升。
 - 默认最高安全高度是 `940 mm`，可配置范围是 `560..940 mm`。
 
-上升通用超时仍然是 `0`，这是有意设计：上升停止依赖本机传感器闭环，而不是 MCP、网络
-或 Server 延迟。只有在上述 ToF 配置已经烧录并完成真桌验收后，才允许暴露
+`POST /api/v1/desk/raise-to-max` 与 Web 长按使用的 `/api/v1/desk/up` 分开。前者只有在 Driver
+明确声明 `raise_to_max` 能力时才会执行，不支持的 Driver 会返回错误，不能退化成普通持续
+上升。上升通用超时仍然是 `0`，这是有意设计：上升停止依赖本机传感器闭环，而不是 MCP、
+网络或 Server 延迟。只有在上述 ToF 配置已经烧录并完成真桌验收后，才允许暴露
 `desk.raise_to_max`。其他 Driver、SIM 高度或未安装 ToF 的固件不能套用本文映射。
 
 REST 返回 `200` 只表示 ESP32 已接受动作，不表示桌子已经到达目标。桥接工具的返回文案必须
@@ -143,6 +146,7 @@ curl --fail --silent --show-error \
   "tof_height_known": true,
   "child_lock": false,
   "upward_blocked": false,
+  "raise_to_max_supported": true,
   "max_height_mm": 940,
   "preset1_height_mm": 560,
   "preset4_height_mm": 870,
@@ -158,6 +162,7 @@ curl --fail --silent --show-error \
 
 - `height_known` 或 `tof_height_known` 为 `false`；
 - `upward_blocked` 为 `true`；
+- `raise_to_max_supported` 不为 `true`；
 - `control_sources.rest` 为 `false`；
 - Driver 不是已经完成相同安全验收的实现；
 - 页面中的最高安全高度尚未通过真桌短行程测试。
@@ -331,6 +336,8 @@ def get_status() -> dict[str, Any]:
 def raise_to_max() -> dict[str, Any]:
     """仅在用户明确说升到最高或升到顶时调用；站立模式不要调用本工具。"""
     status = status_preflight()
+    if not status.get("raise_to_max_supported"):
+        raise RuntimeError("Desk Gateway does not support bounded raise-to-max")
     if status.get("status") != "idle":
         raise RuntimeError(f"Desk is not idle: {status.get('status')}")
     if not status.get("height_known") or not status.get("tof_height_known"):
@@ -348,7 +355,7 @@ def raise_to_max() -> dict[str, Any]:
             "max_height_mm": max_height_mm,
         }
 
-    desk_request("POST", "/api/v1/desk/up")
+    desk_request("POST", "/api/v1/desk/raise-to-max")
     return {
         "ok": True,
         "state": "started",
@@ -469,7 +476,7 @@ desk.stop
 3. MCP Endpoint 把 `tools/call` 转发给 `desk_mcp.py`。
 4. 桥接先读取 `/api/v1/desk/status`。
 5. 桥接确认 REST 已启用、童锁关闭、高度有效且上升未被阻止。
-6. 桥接向 `/api/v1/desk/up` 发送一次认证 POST。
+6. 桥接向 `/api/v1/desk/raise-to-max` 发送一次认证 POST。
 7. Desk Gateway 再次执行来源权限和本机传感器检查，然后开始上升。
 8. 桥接返回 `state=started`，小智回复“已经开始上升，将在安全上限自动停止”。
 9. ESP32 在运动过程中持续检查 TOF400C 和 TOF050C。

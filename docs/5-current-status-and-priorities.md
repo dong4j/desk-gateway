@@ -49,6 +49,8 @@
 - [x] 手机 App 已通过 TypeScript、36 项主机测试和通用 iOS 无签名构建门禁。
 - [x] Shell 脚本支持上升、下降、停止和档位命令。
 - [x] GoatRemote 与 Karabiner 可复用同一 Shell 脚本；档位真机验收仍以双 ToF 安全矩阵为准。
+- [x] 小智 AI / 自动化专用的 `raise-to-max` 有界 REST 入口、Driver 能力门禁和状态字段已完成；
+  不支持真实 ToF 闭环的 Driver 不会退化为普通持续上升。
 
 ## 3. 已实现但仍需验收
 
@@ -65,6 +67,7 @@
 | P0 | BLE 三客户端与 Bond 管理 | 固件、Web、手机和 Watch 代码及自动化已完成；实体 iPhone 可访问，Watch 当前不可达，Android/`adb` 不可用，两块 ESP32 尚未确认目标板 | 指定目标串口并在桌旁使用三台真机完成所有权、任意 STOP、断连、单删/全删、配对窗口和重启矩阵 |
 | P1 | Apple Watch 真机 | SwiftUI/CoreBluetooth App、Client Info、Busy 处理、14 项测试和通用构建已完成 | 真机扫描、配对、Notify、Crown 安全停止及三客户端并发通过 |
 | P1 | Karabiner 旋钮连续升降 | 每个刻度直接发送一次 jog REST 请求，ESP32 使用 700 ms 启动窗口和 500 ms 运动租约；真桌连续升降与停转距离已验收 | 连续旋转无意外中断，停转约 500 ms、反向和断网均可及时停止 |
+| P1 | 小智 AI 有界最高位控制 | Desk Gateway 固件和 REST 契约已完成；MCP 桥接、小智硬件接入和真桌语音链路尚未执行 | 先用 REST 验证支持字段、幂等触顶、传感器失效和 STOP，再接 MCP 与小智硬件 |
 | P1 | 移动端发布 | 当前为 Development Build | 完成 TestFlight、Android 内测、签名和发布说明 |
 
 ## 4. 尚未实现

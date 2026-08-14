@@ -398,13 +398,14 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/v1/desk/up` | REST 来源开始上升；受童锁和 REST 权限约束 |
+| POST | `/api/v1/desk/raise-to-max` | 使用设备侧真实高度闭环升到最高安全高度；不支持时拒绝，禁止退化为普通持续上升 |
 | POST | `/api/v1/desk/down` | REST 来源开始下降；受童锁和 REST 权限约束 |
 | POST | `/api/v1/desk/stop` | 立即停止；始终放行 |
 | POST | `/api/v1/desk/preset/{n}/goto` | 前往档位 n；受童锁和 REST 权限约束 |
 | POST | `/api/v1/desk/preset/{n}/save` | 保存档位 n（若支持） |
 | POST | `/api/v1/desk/child-lock` | 设置全局童锁 `{ "enabled": bool }` |
 | POST | `/api/v1/desk/access` | 设置来源权限 `{ "source": "rest|bluetooth|panel", "enabled": bool }` |
-| GET | `/api/v1/desk/status` | 高度、运动、童锁及 `control_sources` 等 |
+| GET | `/api/v1/desk/status` | 高度、运动、童锁、`raise_to_max_supported` 及 `control_sources` 等 |
 
 请求/响应 JSON 字段在接口设计文档中冻结。
 

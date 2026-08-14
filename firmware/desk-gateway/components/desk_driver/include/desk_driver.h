@@ -32,6 +32,8 @@ typedef enum {
 
 typedef struct {
     bool hold_up_down;
+    /** 由驱动在本地真实高度链路中停止，不能依赖调用方补发 STOP。 */
+    bool raise_to_max;
     bool preset_goto;
     bool preset_save;
     bool height;
@@ -46,6 +48,13 @@ typedef struct desk_driver {
     esp_err_t (*stop)(void);
     esp_err_t (*hold_up)(void);
     esp_err_t (*hold_down)(void);
+    /**
+     * 有界上升到已配置的最高安全高度。
+     *
+     * 支持该动作的驱动必须使用真实高度在设备侧持续判断并自动停止；
+     * 高度未知或安全链路不可用时返回错误，禁止退化成普通 hold_up。
+     */
+    esp_err_t (*raise_to_max)(void);
     /**
      * 可选的控制盒故障重置入口。
      *

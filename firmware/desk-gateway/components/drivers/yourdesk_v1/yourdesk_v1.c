@@ -992,6 +992,45 @@ static esp_err_t yd_hold_down(void)
 }
 
 /**
+ * 使用产品 ToF 高度链路启动有界上升。
+ *
+ * 这里不能复用无 ToF 固件的实验高度输入：产品承诺要求 tof_control_task
+ * 在命令返回后继续独立执行最高高度和右侧障碍保护。
+ */
+static esp_err_t yd_raise_to_max(void)
+{
+    if (panel_has_priority()) {
+        return ESP_ERR_INVALID_STATE;
+    }
+#if CONFIG_DESK_TOF_ENABLE
+    desk_tof_snapshot_t snapshot = desk_tof_snapshot();
+    int max_height_mm = atomic_load(&s_max_height_mm);
+    if (!snapshot.height_known) {
+        log_tof_upward_block("raise_to_max", snapshot);
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (snapshot.height_mm >= max_height_mm) {
+#if YOURDESK_CLOSED_LOOP_ENABLED
+        cancel_preset_motion();
+#endif
+        return set_dr(DR_IDLE);
+    }
+    if (tof_upward_blocked(snapshot)) {
+        log_tof_upward_block("raise_to_max", snapshot);
+        return ESP_ERR_INVALID_STATE;
+    }
+#if YOURDESK_CLOSED_LOOP_ENABLED
+    cancel_preset_motion();
+#endif
+    ESP_LOGI(TAG, "raise to max: current=%d mm max=%d mm",
+             snapshot.height_mm, max_height_mm);
+    return set_dr(DR_UP);
+#else
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+/**
  * 开始控制盒故障重置。
  *
  * 重置码来自 12 MHz 实机抓包；持续时间和最终空闲码由 desk_core 的
@@ -1176,6 +1215,7 @@ static desk_caps_t yd_get_caps(void)
     return (desk_caps_t){
         .hold_up_down = true,
 #if CONFIG_DESK_TOF_ENABLE
+        .raise_to_max = true,
         .preset_goto = true,
         .preset_save = false,
         .height = true,
@@ -1202,6 +1242,7 @@ const desk_driver_t yourdesk_v1_driver = {
     .stop = yd_stop,
     .hold_up = yd_hold_up,
     .hold_down = yd_hold_down,
+    .raise_to_max = yd_raise_to_max,
     .reset_controller = yd_reset_controller,
     .goto_preset = yd_goto_preset,
     .save_preset = yd_save_preset,
