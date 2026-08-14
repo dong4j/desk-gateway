@@ -21,18 +21,18 @@ Web UI + 手机 App（BLE/REST）+ UART + BLE 外设（OLED/旋钮）
 
 ## 当前状态
 
-> 截至 2026-08-14：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
+> 截至 2026-08-15：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
 > 不代表真机验收完成；硬件结论以 [`bringup-checklist.md`](../bringup-checklist.md) 为准。
 > 当前完成度和后续优先级统一记录在
 > [`5-current-status-and-priorities.md`](../5-current-status-and-priorities.md)。
 
 | 层 | 状态 |
 |---|---|
-| `yourdesk_v1`（硬件 I²C Slave `@0x24`） | 稳定返回升降键码；控制盒 digit 高度解析停用，TOF400C 作为独立显示高度源 |
+| `yourdesk_v1`（硬件 I²C Slave `@0x24`） | 稳定返回升降键码；控制盒 digit 高度解析停用，TOF400C 作为产品高度源 |
 | `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位、全局童锁和来源权限 |
-| WiFi + Web（局域网、密码、UI、升降动效） | 基础真机路径已完成；实时显示 TOF400C 高度和右侧 TOF050C 间距；ToF 暂不参与运动 |
+| WiFi + Web（局域网、密码、UI、升降动效） | 基础真机路径已完成；实时显示 TOF400C 高度和右侧 TOF050C 间距；ToF 已参与档位和上升保护 |
 | 手机 App 双通道 | iPhone BLE 真机控制已完成；Client Info、Desk Busy 和配对设备 REST 管理 UI 已实现；自动回退矩阵和 Android 待验收 |
-| 高度 | 控制盒 digit 解析已退出产品固件；TOF400C 已进入 Web/OLED/原厂面板显示链路，待校准和全行程验收 |
+| 高度 | TOF400C 处理后距离直接作为产品高度，进入显示、档位闭环和最高高度保护；完整真机安全矩阵待验收 |
 | BLE / Loctek / Jiecang | BLE 三连接、运动所有权、配对窗口和 Bond 管理已实现并通过自动化；三台真机并发待验收；Loctek / Jiecang 为 stub |
 | Apple Watch | SwiftUI/CoreBluetooth App、Client Info 与 Busy 处理已通过单测和通用构建；真机与三客户端并发待验收 |
 | 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | GPIO6/7 主动事务代理、仲裁和权限代码已实现；短行程、断线 STOP 和真屏蔽待真机验收 |
@@ -55,9 +55,9 @@ docs/superpowers/specs/     ← 设计定稿
 ## Web（本阶段）
 
 - **仅局域网**；简单 Bearer 密码登录  
-- 控制：升 / 降 / 停 / **童锁**；档位配置保留，但高度未知时不执行闭环档位  
+- 控制：升 / 降 / 停 / 坐姿 / 站姿 / **童锁**；高度有效且满足 ToF 上升策略时执行闭环档位  
 - UI：品牌 + 升降桌示意图；`moving_up/down` 时示意图实时升降；有高度则按 mm 映射，无高度则按命令做相对动效  
-- 状态：鉴权后的 `GET /api/v1/desk/status` 每 250ms 短轮询；当前 `height_mm=null`，并继续返回 `child_lock`、`control_sources` 和已保存的高度设置  
+- 状态：鉴权后的 `GET /api/v1/desk/status` 每 250ms 短轮询；返回 ToF 高度、右侧间距、`upward_blocked`、`child_lock`、`control_sources` 和已保存的高度设置  
 
 ## 手机 App 双通道
 
@@ -82,7 +82,7 @@ docs/superpowers/specs/     ← 设计定稿
 ## BLE 外设总线（摘要）
 
 - Gateway = **NimBLE GATT Server**；LightBlue、OLED + 无限旋钮等 = Client  
-- 加密 Write：续期升 / 续期降 / 停；档位命令仍保留协议值，但在没有高度源时返回不支持。Read + Notify 中高度当前为未知  
+- 加密 Write：续期升 / 续期降 / 停 / 档位；高度未知或上升安全条件不满足时由固件拒绝或停止。Read + Notify 返回 ToF 高度  
 - HOLD 使用 `750ms` 短租约；松手停止续期或连接断开都会自动停止  
 - 最多三个 Central 同时在线；单一 BLE 运动所有者，非所有者收到 Desk Busy `0x80`，任意 STOP 始终有效  
 - 与 Web 同走 `desk_core`；**板载**仍无旋钮无屏  

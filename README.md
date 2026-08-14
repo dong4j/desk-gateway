@@ -4,24 +4,26 @@
 
 Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protocols live behind pluggable **Desk Drivers**; Web / UART / BLE (and later Matter / Home Assistant) share one control plane (`desk_core`).
 
-> **Safety:** Keep a person nearby when moving the desk. Until the external TOF200C height source is integrated, motion stops only on release, explicit STOP, disconnect safety, or the existing timeout policy; the stored ceiling is not enforced. Use **LAN only** — do not expose the Web UI to the public Internet.
+> **Safety:** Keep a person nearby when moving the desk. TOF400C height and TOF050C right-side clearance now participate in upward safety decisions: upward motion is blocked when height is unknown, the ceiling is reached, or height is below 80 cm while right-side clearance is unknown or below 8 cm. DOWN and STOP remain available. The full hardware safety matrix is still open. Use **LAN only** — do not expose the Web UI to the public Internet.
 
 ## Features (current)
 
 - **Phase 1 — panel emulation:** ESP32-S3 hardware I²C Slave serves the key address `0x24`
 - **Pluggable drivers:** `yourdesk_v1` implemented; Loctek / Jiecang stubs
 - **desk_core:** hold up/down and stop; global child-lock and per-source REST/Bluetooth/panel permissions are persisted in NVS
-- **Height settings retained:** preset and ceiling values remain synchronized and persisted, but are not used for motion until TOF200C provides validated height
+- **Dual-ToF sensing:** TOF400C provides the product height directly; TOF050C measures right-side clearance; both paths include stabilization and stale-data detection
+- **Closed-loop height control:** seated, standing, and ceiling settings are synchronized and persisted; presets and upward limits use the unified safety policy
 - **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
-- **BLE Accessory Profile:** up to three connected Centrals, one motion owner, encrypted Client Info, explicit pairing windows, Bond management, hold leases, disconnect-stop, and status notifications; closed-loop presets wait for TOF200C
-- **Honest unknown height:** Web/REST/BLE keep the height fields but report unknown; SIM and control-box digit parsing are disabled
+- **BLE Accessory Profile:** up to three connected Centrals, one motion owner, encrypted Client Info, explicit pairing windows, Bond management, hold leases, disconnect-stop, preset commands, and status notifications
+- **Consistent height state:** Web/REST/BLE/OLED/original panel use the stabilized TOF400C distance; SIM and control-box digit parsing are disabled
 
 > The main firmware builds with ESP-IDF 6.0.2. On 2026-08-10, Web hold-to-move
 > UP/DOWN and release-to-stop passed on the real desk after restoring the panel's
 > two external pull-ups. Later multi-address software-I²C height work regressed
 > continuous movement, so the default firmware has returned to the hardware `0x24`
 > path validated by commit `3269faa`. LightBlue and the iPhone App have passed their
-> core control paths; closed-loop presets and height limiting now wait for TOF200C.
+> core control paths. Dual-ToF closed-loop presets and upward protection are now implemented;
+> the complete real-desk safety matrix remains open.
 > The consolidated abnormal-stop matrix, Android acceptance, and original-panel
 > pass-through / lockout remain open. The three-client firmware, Web/mobile Bond
 > management, and Watch/mobile Client Info code pass automated gates, but the
@@ -104,6 +106,7 @@ NOTICE                     Third-party attributions
 | [docs/0-requirements.md](./docs/0-requirements.md) | Requirements (Chinese) |
 | [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | Current status and prioritized backlog (Chinese) |
 | [docs/7-hardware-i2c-restoration-investigation.md](./docs/7-hardware-i2c-restoration-investigation.md) | Why the default firmware returned from software to hardware I²C (Chinese) |
+| [docs/4-tof-distance-sensor-plan.md](./docs/4-tof-distance-sensor-plan.md) | Dual-ToF wiring, filtering, presets, and upward safety policy (Chinese) |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | Architecture overview |
 | [docs/architecture/mqtt-home-assistant.md](./docs/architecture/mqtt-home-assistant.md) | MQTT / Home Assistant integration design (Chinese) |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUIDs, byte protocol, and LightBlue test flow |
@@ -120,10 +123,10 @@ NOTICE                     Third-party attributions
 - [x] Implement three-client BLE ownership, Client Info, pairing windows, and Web/mobile Bond management
 - [ ] Phase 2 dual‑RJ45 MITM + true panel blocking under child lock
 - [ ] Complete the abnormal-stop matrix and Android hardware acceptance
-- [ ] Integrate TOF200C height, then restore closed-loop presets and the safe ceiling
+- [x] Integrate TOF400C height and TOF050C right-side clearance, restoring closed-loop presets and the safe ceiling
 - [x] Implement the Apple Watch app and multi-client handshake (hardware acceptance remains open)
 - [ ] Complete the iPhone + Apple Watch + Android three-client hardware matrix
-- [ ] Implement and validate the dual-ToF height source
+- [ ] Complete the dual-ToF preset, ceiling, and right-side obstacle hardware safety matrix
 - [ ] Matter / Home Assistant integrations
 - [ ] Additional desk drivers (Loctek, Jiecang, …)
 

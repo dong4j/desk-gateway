@@ -3,14 +3,14 @@
 | 项 | 内容 |
 |---|---|
 | 文档 | DG-ARCH-BLE-ACC-001 |
-| 日期 | 2026-08-13 |
+| 日期 | 2026-08-15 |
 | 状态 | 三连接、Client Info、运动所有权与 Bond 管理已实现并通过自动化；三台真机并发待验收 |
 | 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
 | 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
 
-> **当前固件边界（2026-08-12）**：协议 UUID 和字节布局保持不变，但硬件 I²C 产品路径不再
-> 解析控制盒 digit 高度。State 中高度为未知，PRESET_1 / PRESET_4 在 TOF200C 接入前返回
-> 不支持；手动 HOLD、STOP、童锁和来源权限继续可用。
+> **当前固件边界（2026-08-15）**：协议 UUID 和字节布局保持不变，硬件 I²C 产品路径不解析
+> 控制盒 digit 高度。State 使用 TOF400C 高度，PRESET_1 / PRESET_4 已恢复闭环；高度未知或
+> 不满足双 ToF 上升安全条件时，固件拒绝或停止上升。手动 HOLD、STOP、童锁和来源权限继续可用。
 
 ## 1. 要解决什么
 
