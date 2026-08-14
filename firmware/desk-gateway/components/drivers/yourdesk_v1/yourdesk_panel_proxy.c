@@ -1,17 +1,21 @@
 /**
  * @file yourdesk_panel_proxy.c
- * @brief Transaction-level bridge from ESP32-S3 to the original TM1650 panel.
+ * @brief GPIO6/7 上的原厂 TM1650 面板事务代理。
  *
- * The panel is a slave, so transparent Phase 2 bridging requires ESP32 to be a
- * master on this isolated side. Key reads are cached asynchronously; the
- * timing-sensitive control-box slave ISR never waits for a second I2C bus.
+ * 控制盒侧继续使用稳定的 ESP32-S3 硬件 I2C Slave @0x24。面板侧使用
+ * 开漏 GPIO 软件 Master，避免占用双 ToF/OLED 所在的 I2C1。任务只缓存按键
+ * 并把 ToF 实测高度写回原厂数码管，任何 NACK 或总线超时都会立即发布空闲。
  */
 #include "yourdesk_panel_proxy.h"
 
-#include "yourdesk_soft_i2c_sm.h"
+#include "desk_tof.h"
+#include "yourdesk_panel_display.h"
 
+#include "driver/gpio.h"
 #include "esp_check.h"
 #include "esp_log.h"
+#include "esp_rom_sys.h"
+#include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
@@ -19,149 +23,272 @@
 
 #if CONFIG_DESK_YOURDESK_PANEL_PROXY
 
-#include "driver/i2c.h"
-#include "esp_rom_sys.h"
-
 static const char *TAG = "yourdesk_panel";
 
-#define PANEL_KEY_ADDR_7BIT   0x24u
-#define PANEL_DIGIT_ADDR_MIN  0x34u
-#define PANEL_DIGIT_ADDR_MAX  0x37u
-#define PANEL_IDLE_DR         0x2Eu
-#define PANEL_CONTROL_DW      0x01u
-#define PANEL_I2C_SPEED_HZ    9600u
-#define PANEL_XFER_TIMEOUT_MS 10
-#define PANEL_WRITE_READ_GAP_US 30u
-#define PANEL_POLL_GAP_US       95u
-#define PANEL_DIGIT_BURST_MAX 8
+#define PANEL_KEY_ADDR_7BIT       0x24u
+#define PANEL_DIG1_ADDR_7BIT      0x34u
+#define PANEL_DIG2_ADDR_7BIT      0x35u
+#define PANEL_DIG3_ADDR_7BIT      0x36u
+#define PANEL_DIG4_ADDR_7BIT      0x37u
+#define PANEL_IDLE_DR             0x2Eu
+#define PANEL_CONTROL_DW          0x01u
+#define PANEL_HALF_PERIOD_US      52u
+#define PANEL_WRITE_READ_GAP_US   30u
+#define PANEL_LINE_TIMEOUT_US     1000u
+#define PANEL_POLL_INTERVAL_MS    20u
+#define PANEL_DISPLAY_REFRESH_MS  100u
 
 typedef struct {
-    i2c_port_t port;
-    QueueHandle_t digit_queue;
     yourdesk_panel_key_callback_t key_callback;
     void *callback_ctx;
-    /* Reused by the single proxy task to avoid heap churn every 4 ms. */
-    uint8_t key_cmd_buffer[I2C_LINK_RECOMMENDED_SIZE(2)];
-    uint8_t digit_cmd_buffer[I2C_LINK_RECOMMENDED_SIZE(1)];
 } panel_proxy_ctx_t;
 
 static panel_proxy_ctx_t s_panel;
 
-/** Send one complete address+data+STOP transaction on the panel bus. */
-static esp_err_t write_panel_byte(uint8_t address, uint8_t data,
-                                  uint8_t *command_buffer,
-                                  size_t command_buffer_size)
+/** Open-drain 高电平表示释放线路，真正高电平由原厂面板上拉产生。 */
+static inline void release_line(gpio_num_t gpio)
 {
-    if (!command_buffer || command_buffer_size == 0) {
-        return ESP_ERR_INVALID_ARG;
-    }
+    (void)gpio_set_level(gpio, 1);
+}
 
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create_static(
-        command_buffer, command_buffer_size);
-    if (!cmd) {
-        return ESP_ERR_NO_MEM;
-    }
+/** 软件 Master 只主动拉低线路，绝不主动输出高电平。 */
+static inline void drive_line_low(gpio_num_t gpio)
+{
+    (void)gpio_set_level(gpio, 0);
+}
 
-    esp_err_t err = i2c_master_start(cmd);
-    if (err == ESP_OK) {
-        err = i2c_master_write_byte(
-            cmd, (uint8_t)((address << 1) | I2C_MASTER_WRITE), true);
+/** 等待释放后的线路变高，并为短路、断电或异常占线提供有界超时。 */
+static esp_err_t wait_line_high(gpio_num_t gpio)
+{
+    for (uint32_t waited_us = 0; waited_us < PANEL_LINE_TIMEOUT_US;
+         waited_us += 2u) {
+        if (gpio_get_level(gpio)) {
+            return ESP_OK;
+        }
+        esp_rom_delay_us(2);
     }
-    if (err == ESP_OK) {
-        err = i2c_master_write_byte(cmd, data, true);
+    return ESP_ERR_TIMEOUT;
+}
+
+/** 产生 START；进入事务前要求两根线路都已释放。 */
+static esp_err_t panel_start(void)
+{
+    esp_err_t err;
+    release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SDA_GPIO);
+    release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    err = wait_line_high((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    if (err != ESP_OK) {
+        return err;
     }
-    if (err == ESP_OK) {
-        err = i2c_master_stop(cmd);
+    err = wait_line_high((gpio_num_t)CONFIG_DESK_PANEL_I2C_SDA_GPIO);
+    if (err != ESP_OK) {
+        return err;
     }
-    if (err == ESP_OK) {
-        err = i2c_master_cmd_begin(
-            s_panel.port, cmd, pdMS_TO_TICKS(PANEL_XFER_TIMEOUT_MS));
-    }
-    i2c_cmd_link_delete_static(cmd);
+    esp_rom_delay_us(PANEL_HALF_PERIOD_US);
+    drive_line_low((gpio_num_t)CONFIG_DESK_PANEL_I2C_SDA_GPIO);
+    esp_rom_delay_us(PANEL_HALF_PERIOD_US);
+    drive_line_low((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    return ESP_OK;
+}
+
+/** 无论前序事务是否 NACK，都尽力释放总线并产生 STOP。 */
+static esp_err_t panel_stop(void)
+{
+    drive_line_low((gpio_num_t)CONFIG_DESK_PANEL_I2C_SDA_GPIO);
+    esp_rom_delay_us(PANEL_HALF_PERIOD_US);
+    release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    esp_err_t err =
+        wait_line_high((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    esp_rom_delay_us(PANEL_HALF_PERIOD_US);
+    release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SDA_GPIO);
+    esp_rom_delay_us(PANEL_HALF_PERIOD_US);
     return err;
 }
 
-/** Execute the two STOP-separated key transactions seen in the raw capture. */
+/** 在 SCL 低电平阶段设置一位，再按实测约 9.6 kHz 时钟发送。 */
+static esp_err_t panel_write_bit(bool high)
+{
+    if (high) {
+        release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SDA_GPIO);
+    } else {
+        drive_line_low((gpio_num_t)CONFIG_DESK_PANEL_I2C_SDA_GPIO);
+    }
+    esp_rom_delay_us(PANEL_HALF_PERIOD_US);
+    release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    esp_err_t err =
+        wait_line_high((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    if (err != ESP_OK) {
+        return err;
+    }
+    esp_rom_delay_us(PANEL_HALF_PERIOD_US);
+    drive_line_low((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    return ESP_OK;
+}
+
+/** 释放 SDA 后在 SCL 高电平中部采样一位。 */
+static esp_err_t panel_read_bit(bool *out_high)
+{
+    if (!out_high) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SDA_GPIO);
+    esp_rom_delay_us(PANEL_HALF_PERIOD_US);
+    release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    esp_err_t err =
+        wait_line_high((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    if (err != ESP_OK) {
+        return err;
+    }
+    esp_rom_delay_us(PANEL_HALF_PERIOD_US);
+    *out_high = gpio_get_level(CONFIG_DESK_PANEL_I2C_SDA_GPIO) != 0;
+    drive_line_low((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    return ESP_OK;
+}
+
+/** 发送一个字节并要求 TM1650 在第九个时钟返回 ACK。 */
+static esp_err_t panel_write_byte(uint8_t byte)
+{
+    for (uint8_t mask = 0x80u; mask != 0; mask >>= 1) {
+        esp_err_t err = panel_write_bit((byte & mask) != 0);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+    bool nack = true;
+    esp_err_t err = panel_read_bit(&nack);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return nack ? ESP_ERR_NOT_FOUND : ESP_OK;
+}
+
+/** 读取一个字节并按原始抓包发送 ACK，STOP 由调用方随后产生。 */
+static esp_err_t panel_read_byte(uint8_t *out_byte)
+{
+    if (!out_byte) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t byte = 0;
+    for (int bit = 0; bit < 8; ++bit) {
+        bool high = false;
+        esp_err_t err = panel_read_bit(&high);
+        if (err != ESP_OK) {
+            return err;
+        }
+        byte = (uint8_t)((byte << 1) | (high ? 1u : 0u));
+    }
+    esp_err_t err = panel_write_bit(false);
+    if (err != ESP_OK) {
+        return err;
+    }
+    *out_byte = byte;
+    return ESP_OK;
+}
+
+/** 发送一笔完整的 address+data+STOP 写事务。 */
+static esp_err_t write_panel_register(uint8_t address, uint8_t data)
+{
+    esp_err_t err = panel_start();
+    if (err == ESP_OK) {
+        err = panel_write_byte((uint8_t)(address << 1));
+    }
+    if (err == ESP_OK) {
+        err = panel_write_byte(data);
+    }
+    esp_err_t stop_err = panel_stop();
+    return err != ESP_OK ? err : stop_err;
+}
+
+/** 发送一笔完整的 address+read+ACK+STOP 读事务。 */
+static esp_err_t read_panel_register(uint8_t address, uint8_t *out_data)
+{
+    esp_err_t err = panel_start();
+    if (err == ESP_OK) {
+        err = panel_write_byte((uint8_t)((address << 1) | 1u));
+    }
+    if (err == ESP_OK) {
+        err = panel_read_byte(out_data);
+    }
+    esp_err_t stop_err = panel_stop();
+    return err != ESP_OK ? err : stop_err;
+}
+
+/** 执行抓包中确认的 STOP 分隔按键轮询。 */
 static esp_err_t poll_panel_key(uint8_t *dr)
 {
     if (!dr) {
         return ESP_ERR_INVALID_ARG;
     }
-
-    esp_err_t err = write_panel_byte(
-        PANEL_KEY_ADDR_7BIT, PANEL_CONTROL_DW, s_panel.key_cmd_buffer,
-        sizeof(s_panel.key_cmd_buffer));
+    esp_err_t err =
+        write_panel_register(PANEL_KEY_ADDR_7BIT, PANEL_CONTROL_DW);
     if (err != ESP_OK) {
         return err;
     }
-
-    /* idle_12mhz_full.sr measures about 29 us from write STOP to read START. */
     esp_rom_delay_us(PANEL_WRITE_READ_GAP_US);
-
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create_static(
-        s_panel.key_cmd_buffer, sizeof(s_panel.key_cmd_buffer));
-    if (!cmd) {
-        return ESP_ERR_NO_MEM;
-    }
-
-    err = i2c_master_start(cmd);
-    if (err == ESP_OK) {
-        err = i2c_master_write_byte(
-            cmd, (uint8_t)((PANEL_KEY_ADDR_7BIT << 1) | I2C_MASTER_READ),
-            true);
-    }
-    if (err == ESP_OK) {
-        /* The controller ACKs the only DR byte before issuing STOP. */
-        err = i2c_master_read_byte(cmd, dr, I2C_MASTER_ACK);
-    }
-    if (err == ESP_OK) {
-        err = i2c_master_stop(cmd);
-    }
-    if (err == ESP_OK) {
-        err = i2c_master_cmd_begin(
-            s_panel.port, cmd, pdMS_TO_TICKS(PANEL_XFER_TIMEOUT_MS));
-    }
-    i2c_cmd_link_delete_static(cmd);
-    return err;
+    return read_panel_register(PANEL_KEY_ADDR_7BIT, dr);
 }
 
-/** Forward one controller display write to its matching panel digit address. */
-static esp_err_t forward_digit(const yourdesk_soft_i2c_digit_event_t *event)
+/** 用 TOF400C 的实测高度维持原厂三位数码管显示。 */
+static esp_err_t refresh_panel_height(int previous_height_cm,
+                                      int *out_height_cm)
 {
-    if (!event || event->addr7 < PANEL_DIGIT_ADDR_MIN ||
-        event->addr7 > PANEL_DIGIT_ADDR_MAX) {
+    if (!out_height_cm) {
         return ESP_ERR_INVALID_ARG;
     }
+    desk_tof_snapshot_t tof = desk_tof_snapshot();
+    if (!tof.height_known) {
+        return ESP_ERR_INVALID_STATE;
+    }
 
-    return write_panel_byte(event->addr7, event->segment,
-                            s_panel.digit_cmd_buffer,
-                            sizeof(s_panel.digit_cmd_buffer));
+    yourdesk_panel_display_frame_t frame;
+    if (!yourdesk_panel_display_encode_height(tof.height_mm, &frame)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (frame.height_cm == previous_height_cm) {
+        *out_height_cm = frame.height_cm;
+        return ESP_OK;
+    }
+
+    /* 原厂控制盒的干净刷新顺序为 DIG3 -> DIG2 -> DIG1 -> DIG4。 */
+    esp_err_t err =
+        write_panel_register(PANEL_DIG3_ADDR_7BIT, frame.digits[2]);
+    if (err == ESP_OK) {
+        err = write_panel_register(PANEL_DIG2_ADDR_7BIT, frame.digits[1]);
+    }
+    if (err == ESP_OK) {
+        err = write_panel_register(PANEL_DIG1_ADDR_7BIT, frame.digits[0]);
+    }
+    if (err == ESP_OK) {
+        err = write_panel_register(PANEL_DIG4_ADDR_7BIT, frame.digits[3]);
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    *out_height_cm = frame.height_cm;
+    return ESP_OK;
 }
 
 /**
- * Poll keys and drain display writes without coupling either operation to the
- * control-box ISR. A failed key transaction is immediately published as idle.
+ * 周期轮询面板按键；断线和 NACK 在一个轮询周期内退回空闲。
+ *
+ * 20 ms 周期把最坏停止延迟保持在人体按键可感知范围内，同时避免 9.6 kHz
+ * 软件时钟持续占满 CPU。数码管只在厘米值变化或面板重连后刷新。
  */
 static void panel_proxy_task(void *arg)
 {
     (void)arg;
     bool connected = false;
     uint8_t published_dr = PANEL_IDLE_DR;
-    yourdesk_soft_i2c_digit_event_t event;
+    int displayed_height_cm = -1;
+    TickType_t last_display_tick = 0;
+    TickType_t last_wake = xTaskGetTickCount();
 
     for (;;) {
-        for (int i = 0; i < PANEL_DIGIT_BURST_MAX; ++i) {
-            if (xQueueReceive(s_panel.digit_queue, &event, 0) != pdTRUE) {
-                break;
-            }
-            (void)forward_digit(&event);
-        }
-
         uint8_t dr = PANEL_IDLE_DR;
         esp_err_t err = poll_panel_key(&dr);
         bool next_connected = err == ESP_OK;
         if (!next_connected) {
-            dr = PANEL_IDLE_DR; /* NACK/timeout must never leave motion latched. */
+            dr = PANEL_IDLE_DR;
         }
 
         bool connection_changed = next_connected != connected;
@@ -171,6 +298,7 @@ static void panel_proxy_task(void *arg)
                 if (next_connected) {
                     ESP_LOGI(TAG, "original panel connected raw DR=0x%02X",
                              dr);
+                    displayed_height_cm = -1;
                 } else {
                     ESP_LOGI(TAG, "original panel disconnected");
                 }
@@ -182,17 +310,33 @@ static void panel_proxy_task(void *arg)
             s_panel.key_callback(connected, published_dr,
                                  s_panel.callback_ctx);
         }
-        /* Original idle capture measures about 95 us before the next write. */
-        esp_rom_delay_us(PANEL_POLL_GAP_US);
+
+        TickType_t now = xTaskGetTickCount();
+        if (connected &&
+            (last_display_tick == 0 ||
+             now - last_display_tick >=
+                 pdMS_TO_TICKS(PANEL_DISPLAY_REFRESH_MS))) {
+            int height_cm = -1;
+            esp_err_t display_err =
+                refresh_panel_height(displayed_height_cm, &height_cm);
+            if (display_err == ESP_OK) {
+                if (height_cm != displayed_height_cm) {
+                    ESP_LOGD(TAG, "panel height=%d cm", height_cm);
+                }
+                displayed_height_cm = height_cm;
+            }
+            last_display_tick = now;
+        }
+
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(PANEL_POLL_INTERVAL_MS));
     }
 }
 
-esp_err_t yourdesk_panel_proxy_init(QueueHandle_t digit_queue,
-                                    yourdesk_panel_key_callback_t key_callback,
-                                    void *callback_ctx)
+esp_err_t yourdesk_panel_proxy_init(
+    yourdesk_panel_key_callback_t key_callback, void *callback_ctx)
 {
-    ESP_RETURN_ON_FALSE(digit_queue && key_callback, ESP_ERR_INVALID_ARG, TAG,
-                        "digit queue and key callback are required");
+    ESP_RETURN_ON_FALSE(key_callback, ESP_ERR_INVALID_ARG, TAG,
+                        "key callback is required");
     ESP_RETURN_ON_FALSE(CONFIG_DESK_PANEL_I2C_SCL_GPIO !=
                             CONFIG_DESK_PANEL_I2C_SDA_GPIO,
                         ESP_ERR_INVALID_ARG, TAG,
@@ -207,34 +351,43 @@ esp_err_t yourdesk_panel_proxy_init(QueueHandle_t digit_queue,
                                 CONFIG_DESK_I2C_SDA_GPIO,
                         ESP_ERR_INVALID_ARG, TAG,
                         "panel and control-box buses must be isolated");
+#if CONFIG_DESK_TOF_ENABLE
+    ESP_RETURN_ON_FALSE(CONFIG_DESK_PANEL_I2C_SCL_GPIO !=
+                                CONFIG_DESK_TOF_I2C_SCL_GPIO &&
+                            CONFIG_DESK_PANEL_I2C_SCL_GPIO !=
+                                CONFIG_DESK_TOF_I2C_SDA_GPIO &&
+                            CONFIG_DESK_PANEL_I2C_SDA_GPIO !=
+                                CONFIG_DESK_TOF_I2C_SCL_GPIO &&
+                            CONFIG_DESK_PANEL_I2C_SDA_GPIO !=
+                                CONFIG_DESK_TOF_I2C_SDA_GPIO,
+                        ESP_ERR_INVALID_ARG, TAG,
+                        "panel and ToF/OLED GPIO must differ");
+#endif
+
+    gpio_config_t bus_config = {
+        .pin_bit_mask =
+            (1ULL << CONFIG_DESK_PANEL_I2C_SCL_GPIO) |
+            (1ULL << CONFIG_DESK_PANEL_I2C_SDA_GPIO),
+        .mode = GPIO_MODE_INPUT_OUTPUT_OD,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    ESP_RETURN_ON_ERROR(gpio_config(&bus_config), TAG,
+                        "configure software panel bus");
+    release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SCL_GPIO);
+    release_line((gpio_num_t)CONFIG_DESK_PANEL_I2C_SDA_GPIO);
 
     s_panel = (panel_proxy_ctx_t){
-        .port = (i2c_port_t)CONFIG_DESK_PANEL_I2C_PORT,
-        .digit_queue = digit_queue,
         .key_callback = key_callback,
         .callback_ctx = callback_ctx,
     };
-    i2c_config_t bus_config = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = CONFIG_DESK_PANEL_I2C_SDA_GPIO,
-        .scl_io_num = CONFIG_DESK_PANEL_I2C_SCL_GPIO,
-        .sda_pullup_en = false,
-        .scl_pullup_en = false,
-        .master.clk_speed = PANEL_I2C_SPEED_HZ,
-        .clk_flags = 0,
-    };
-    ESP_RETURN_ON_ERROR(i2c_param_config(s_panel.port, &bus_config), TAG,
-                        "configure panel I2C master");
-    ESP_RETURN_ON_ERROR(
-        i2c_driver_install(s_panel.port, I2C_MODE_MASTER, 0, 0, 0), TAG,
-        "install panel I2C master");
-
     if (xTaskCreatePinnedToCore(panel_proxy_task, "yd_panel", 4096, NULL,
                                 configMAX_PRIORITIES - 5, NULL, 1) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     ESP_LOGI(TAG,
-             "panel proxy SCL=%d SDA=%d 9.6kHz split-STOP ACK+STOP",
+             "software panel proxy SCL=%d SDA=%d 9.6kHz split-STOP ACK+STOP",
              CONFIG_DESK_PANEL_I2C_SCL_GPIO,
              CONFIG_DESK_PANEL_I2C_SDA_GPIO);
     return ESP_OK;
@@ -242,11 +395,9 @@ esp_err_t yourdesk_panel_proxy_init(QueueHandle_t digit_queue,
 
 #else
 
-esp_err_t yourdesk_panel_proxy_init(QueueHandle_t digit_queue,
-                                    yourdesk_panel_key_callback_t key_callback,
-                                    void *callback_ctx)
+esp_err_t yourdesk_panel_proxy_init(
+    yourdesk_panel_key_callback_t key_callback, void *callback_ctx)
 {
-    (void)digit_queue;
     (void)key_callback;
     (void)callback_ctx;
     return ESP_ERR_NOT_SUPPORTED;

@@ -21,21 +21,21 @@ Web UI + 手机 App（BLE/REST）+ UART + BLE 外设（OLED/旋钮）
 
 ## 当前状态
 
-> 截至 2026-08-13：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
+> 截至 2026-08-14：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
 > 不代表真机验收完成；硬件结论以 [`bringup-checklist.md`](../bringup-checklist.md) 为准。
 > 当前完成度和后续优先级统一记录在
 > [`5-current-status-and-priorities.md`](../5-current-status-and-priorities.md)。
 
 | 层 | 状态 |
 |---|---|
-| `yourdesk_v1`（硬件 I²C Slave `@0x24`） | 只负责稳定返回升降键码；控制盒 digit 高度解析已停用，等待 TOF200C 独立高度源 |
+| `yourdesk_v1`（硬件 I²C Slave `@0x24`） | 稳定返回升降键码；控制盒 digit 高度解析停用，TOF400C 作为独立显示高度源 |
 | `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位、全局童锁和来源权限 |
-| WiFi + Web（局域网、密码、UI、升降动效） | 基础真机路径已完成；手动升、降、停止和设置读写保留；高度显示为未知，档位闭环等待 TOF200C |
+| WiFi + Web（局域网、密码、UI、升降动效） | 基础真机路径已完成；实时显示 TOF400C 高度和右侧 TOF050C 间距；ToF 暂不参与运动 |
 | 手机 App 双通道 | iPhone BLE 真机控制已完成；Client Info、Desk Busy 和配对设备 REST 管理 UI 已实现；自动回退矩阵和 Android 待验收 |
-| 高度 | 控制盒 digit 解析已退出产品固件；当前统一返回未知，等待 TOF200C 成为独立高度源 |
+| 高度 | 控制盒 digit 解析已退出产品固件；TOF400C 已进入 Web/OLED/原厂面板显示链路，待校准和全行程验收 |
 | BLE / Loctek / Jiecang | BLE 三连接、运动所有权、配对窗口和 Bond 管理已实现并通过自动化；三台真机并发待验收；Loctek / Jiecang 为 stub |
 | Apple Watch | SwiftUI/CoreBluetooth App、Client Info 与 Busy 处理已通过单测和通用构建；真机与三客户端并发待验收 |
-| 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | 仲裁与权限代码已实现；原厂面板透传/真屏蔽仍待面包板抓包和真机验收 |
+| 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | GPIO6/7 主动事务代理、仲裁和权限代码已实现；短行程、断线 STOP 和真屏蔽待真机验收 |
 | HA / Matter / Siri / OTA | Phase 3+；[MQTT / Home Assistant 方案](./mqtt-home-assistant.md)已确认、尚未实现，其余未实现 |
 | 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](./ecosystem-xiaomi-huawei.md) |
 

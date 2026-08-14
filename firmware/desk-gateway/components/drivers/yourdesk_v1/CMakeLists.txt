@@ -1,4 +1,6 @@
 set(yourdesk_v1_sources "yourdesk_v1.c")
+set(yourdesk_v1_requires
+    desk_driver esp_driver_i2c esp_driver_gpio driver freertos)
 
 # 产品固件只编译硬件 I²C @0x24 控制路径。以下源文件属于显式开启的
 # 协议实验，避免默认构建即使不初始化也把软件 I²C 状态机带入固件。
@@ -18,13 +20,15 @@ endif()
 if(CONFIG_DESK_YOURDESK_PANEL_PROXY)
     list(APPEND yourdesk_v1_sources
          "yourdesk_panel_arbiter.c"
+         "yourdesk_panel_display.c"
          "yourdesk_panel_proxy.c")
 endif()
 
 idf_component_register(
     SRCS ${yourdesk_v1_sources}
     INCLUDE_DIRS "include"
-    REQUIRES desk_driver esp_driver_i2c esp_driver_gpio driver freertos
+    REQUIRES ${yourdesk_v1_requires}
+    PRIV_REQUIRES desk_tof
 )
 
 # ISR-reachable switch statements must not emit Flash-resident jump tables.

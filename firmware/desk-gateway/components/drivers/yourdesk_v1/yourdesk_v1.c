@@ -93,9 +93,6 @@ typedef struct {
 #if YOURDESK_HEIGHT_INPUT_ENABLED
     QueueHandle_t digit_q;
 #endif
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
-    QueueHandle_t panel_digit_q;
-#endif
 } slave_ctx_t;
 
 #if CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
@@ -168,76 +165,6 @@ static void begin_height_resync(void)
 {
     atomic_fetch_add(&s_motion_epoch, 1);
 }
-
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
-/**
- * Merge a panel key into the controller-facing DR byte.
- *
- * This callback runs in the panel master task, never in either bus ISR. A new
- * physical key permanently cancels any gateway preset/hold, and every movement
- * direction starts a fresh height baseline just like a Web command.
- */
-static void panel_key_update(bool connected, uint8_t dr, void *ctx)
-{
-    (void)ctx;
-    yourdesk_panel_arbiter_result_t result;
-    portENTER_CRITICAL(&s_panel_arbiter_mux);
-    yourdesk_panel_arbiter_panel_update(&s_panel_arbiter, connected, dr,
-                                        &result);
-    atomic_store(&s_panel_active, s_panel_arbiter.panel_active);
-    atomic_store(&s_panel_connected, connected);
-    portEXIT_CRITICAL(&s_panel_arbiter_mux);
-
-    if (result.panel_started) {
-        cancel_preset_motion();
-        /* The controller may resume digit writes from a distant old height. */
-        begin_height_resync();
-        ESP_LOGI(TAG, "original panel took control DR=0x%02X", dr);
-    } else if (result.panel_released) {
-        ESP_LOGI(TAG, "original panel released");
-    }
-    if (!result.panel_started && result.output_changed &&
-        (result.output_dr == DR_UP || result.output_dr == DR_DOWN)) {
-        begin_height_resync();
-    }
-    if (result.output_changed) {
-        publish_controller_dr(result.output_dr);
-    }
-}
-
-/** Return true while a physical panel key owns the command path. */
-static bool panel_has_priority(void)
-{
-    return atomic_load(&s_panel_active);
-}
-
-/** Apply the core's effective panel permission through the tested arbiter. */
-static esp_err_t yd_set_panel_enabled(bool enabled)
-{
-    yourdesk_panel_arbiter_result_t result;
-    portENTER_CRITICAL(&s_panel_arbiter_mux);
-    yourdesk_panel_arbiter_set_enabled(&s_panel_arbiter, enabled, &result);
-    atomic_store(&s_panel_active, s_panel_arbiter.panel_active);
-    portEXIT_CRITICAL(&s_panel_arbiter_mux);
-    if (result.output_changed) {
-        publish_controller_dr(result.output_dr);
-    }
-    ESP_LOGI(TAG, "original panel input %s", enabled ? "enabled" : "disabled");
-    return ESP_OK;
-}
-#else
-static bool panel_has_priority(void)
-{
-    return false;
-}
-
-
-static esp_err_t yd_set_panel_enabled(bool enabled)
-{
-    (void)enabled;
-    return ESP_ERR_NOT_SUPPORTED;
-}
-#endif
 
 #if CONFIG_DESK_MOTION_DIAGNOSTICS && \
     CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
@@ -646,11 +573,65 @@ static void height_decode_task(void *arg)
 }
 #endif
 
-#if !YOURDESK_HEIGHT_INPUT_ENABLED
-/*
- * 面板代理依赖软件多地址模式，因此硬件 I²C 产品路径没有面板仲裁器。
- * 保留明确的空实现，让 desk_core 能统一查询入口权限而不引入代理任务。
+#if CONFIG_DESK_YOURDESK_PANEL_PROXY
+/**
+ * Merge a panel key into the controller-facing DR byte.
+ *
+ * This callback runs in the panel software-master task, never in either bus
+ * ISR. A new physical key permanently cancels any gateway command; when the
+ * legacy controller-height experiment is enabled it also resets that baseline.
  */
+static void panel_key_update(bool connected, uint8_t dr, void *ctx)
+{
+    (void)ctx;
+    yourdesk_panel_arbiter_result_t result;
+    portENTER_CRITICAL(&s_panel_arbiter_mux);
+    yourdesk_panel_arbiter_panel_update(&s_panel_arbiter, connected, dr,
+                                        &result);
+    atomic_store(&s_panel_active, s_panel_arbiter.panel_active);
+    atomic_store(&s_panel_connected, connected);
+    portEXIT_CRITICAL(&s_panel_arbiter_mux);
+
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    if (result.panel_started) {
+        cancel_preset_motion();
+        begin_height_resync();
+    } else if (result.output_changed &&
+               (result.output_dr == DR_UP || result.output_dr == DR_DOWN)) {
+        begin_height_resync();
+    }
+#endif
+    if (result.panel_started) {
+        ESP_LOGI(TAG, "original panel took control DR=0x%02X", dr);
+    } else if (result.panel_released) {
+        ESP_LOGI(TAG, "original panel released");
+    }
+    if (result.output_changed) {
+        publish_controller_dr(result.output_dr);
+    }
+}
+
+/** Return true while a physical panel key owns the command path. */
+static bool panel_has_priority(void)
+{
+    return atomic_load(&s_panel_active);
+}
+
+/** Apply the core's effective panel permission through the tested arbiter. */
+static esp_err_t yd_set_panel_enabled(bool enabled)
+{
+    yourdesk_panel_arbiter_result_t result;
+    portENTER_CRITICAL(&s_panel_arbiter_mux);
+    yourdesk_panel_arbiter_set_enabled(&s_panel_arbiter, enabled, &result);
+    atomic_store(&s_panel_active, s_panel_arbiter.panel_active);
+    portEXIT_CRITICAL(&s_panel_arbiter_mux);
+    if (result.output_changed) {
+        publish_controller_dr(result.output_dr);
+    }
+    ESP_LOGI(TAG, "original panel input %s", enabled ? "enabled" : "disabled");
+    return ESP_OK;
+}
+#else
 static bool panel_has_priority(void)
 {
     return false;
@@ -765,13 +746,6 @@ static esp_err_t yd_init(void)
         return ESP_ERR_NO_MEM;
     }
 #endif
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
-    s_ctx.panel_digit_q =
-        xQueueCreate(32, sizeof(yourdesk_soft_i2c_digit_event_t));
-    if (!s_ctx.panel_digit_q) {
-        return ESP_ERR_NO_MEM;
-    }
-#endif
 
 #if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
     i2c_slave_config_t cfg = {
@@ -806,13 +780,7 @@ static esp_err_t yd_init(void)
 #endif
 #if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
     esp_err_t err = yourdesk_soft_i2c_esp_init(
-        s_ctx.digit_q,
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
-        s_ctx.panel_digit_q,
-#else
-        NULL,
-#endif
-        DR_IDLE);
+        s_ctx.digit_q, NULL, DR_IDLE);
     if (err != ESP_OK) {
         return err; /* This adapter owns both motion and height in this mode. */
     }
@@ -827,7 +795,7 @@ static esp_err_t yd_init(void)
              "control-box height input disabled; waiting for external TOF source");
 #endif
 #if CONFIG_DESK_YOURDESK_PANEL_PROXY
-    err = yourdesk_panel_proxy_init(s_ctx.panel_digit_q, panel_key_update, NULL);
+    err = yourdesk_panel_proxy_init(panel_key_update, NULL);
     if (err != ESP_OK) {
         return err; /* An enabled active bridge must fail closed, not half-start. */
     }

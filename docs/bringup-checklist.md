@@ -148,7 +148,7 @@ I (...) yourdesk_v1: control-box height input disabled; waiting for external TOF
 [`7-hardware-i2c-restoration-investigation.md`](./7-hardware-i2c-restoration-investigation.md)。
 
 当前可以验收 Web/REST/串口的全局童锁和 NVS 持久化；原厂面板入口的代码已经接入同一权限，
-但“童锁 ON 后原厂面板不能控桌”仍需等面包板抓包、透传恢复后做真机验收。
+但“童锁 ON 后原厂面板不能控桌”仍需按 B.4 做真机验收。
 
 ### B.4 Phase 2 双口 RJ45 透传接线
 
@@ -176,10 +176,10 @@ I (...) yourdesk_v1: control-box height input disabled; waiting for external TOF
 #### B.4.2 首次通电与短行程验收
 
 - [ ] 通电后右口红↔绿约 `3.3V`
-- [ ] 启动见 `yourdesk_panel: panel proxy SCL=6 SDA=7 9.6kHz split-STOP ACK+STOP`
+- [ ] 启动见 `yourdesk_panel: software panel proxy SCL=6 SDA=7 9.6kHz split-STOP ACK+STOP`
 - [ ] 原厂面板接入后见 `yourdesk_panel: original panel connected raw DR=0x2E`
 - [ ] 按键时见 `yourdesk_panel: panel raw DR=0x47/0x4F`，松开恢复 `0x2E`
-- [ ] 原厂面板数码管能显示控制盒发送的高度
+- [ ] TOF400C 数据有效时，原厂面板数码管显示与 Web 一致的厘米高度
 - [ ] 只短按原厂面板下降并松开：桌子下降，松开立即停止
 - [ ] 只短按原厂面板上升并松开：桌子上升，松开立即停止
 - [ ] 按住运动时拔掉右口面板网线，桌子进入空闲并停止

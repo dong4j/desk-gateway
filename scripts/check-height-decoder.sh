@@ -60,6 +60,13 @@ cc -std=c11 -Wall -Wextra -Werror \
 "${TEST_DIR}/panel-arbiter-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
+    -I "${DRIVER_DIR}" \
+    "${DRIVER_DIR}/yourdesk_panel_display.c" \
+    "${DRIVER_DIR}/test/yourdesk_panel_display_test.c" \
+    -o "${TEST_DIR}/panel-display-test"
+"${TEST_DIR}/panel-display-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
     -I "${CORE_DIR}/include" \
     "${CORE_DIR}/desk_control_policy.c" \
     "${CORE_DIR}/test/desk_control_policy_test.c" \

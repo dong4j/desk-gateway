@@ -55,8 +55,8 @@ Acceptance checklist: [docs/bringup-checklist.md](../../docs/bringup-checklist.m
 ## Wiring (yourdesk_v1, Phase 2 original-panel proxy)
 
 The two RJ45 sockets on the breakout are independent. Keep controller CLK/DAT
-on the existing software-slave bus, and connect the original panel CLK/DAT to a
-second ESP32 hardware-master bus:
+on the stable ESP32-S3 hardware-slave bus, and connect the original panel
+CLK/DAT to the isolated GPIO software-master bus:
 
 | Signal | Left socket / controller side | Right socket / original panel side |
 |--------|-------------------------------|------------------------------------|
@@ -72,26 +72,25 @@ the panel side; the original panel already measured approximately `1.99 kΩ` fro
 the original panel and must still not connect to ESP32 `3V3`.
 
 With `CONFIG_DESK_YOURDESK_PANEL_PROXY=y`, the controller side remains the
-multi-address slave on GPIO4/5. GPIO6/7 poll the original panel as an I2C master,
-forward controller digit writes to its display, and cache panel key responses
-for the next controller poll. A physical panel key takes priority over Web
-movement; a panel timeout/disconnect is published as idle so motion cannot stay
-latched. Child-lock filtering is not part of this first proxy version.
+hardware I2C Slave `@0x24` on GPIO4/5. GPIO6/7 reproduce the captured TM1650
+transactions as a 9.6 kHz open-drain software Master, publish original-panel
+keys into the existing arbiter, and display the calibrated TOF400C height on the
+original panel. A physical panel key takes priority over Web movement; Panel
+permission and child lock use the same `desk_core` policy. A panel timeout or
+disconnect is immediately published as idle so motion cannot stay latched.
 
 The original `idle_12mhz_full.sr` capture uses two STOP-separated transactions
 at about `9.6 kHz`: write `0x48/0x01`, wait about `29 us`, then read `0x49/DR`
 and finish with controller `ACK + STOP`; the next write begins about `95 us`
-later. The ESP-IDF 6 new Master API instead combines write/read and enforces
-standard `NACK + STOP`. The panel-side proxy therefore uses the isolated legacy
-command-link API to reproduce the confirmed waveform exactly. This is an
-intentional ESP-IDF 6 compatibility constraint; migration to ESP-IDF 7 requires
-a new panel-specific Master implementation rather than silently changing the
-transaction boundaries or ACK.
+later. The ESP-IDF 6 Master API combines write/read and enforces standard
+`NACK + STOP`, so it cannot reproduce that sequence. The panel-side proxy uses
+an isolated open-drain GPIO implementation and always attempts STOP on NACK or
+timeout. GPIO6/7 must not be shared with another peripheral.
 
 The original panel preset keys are intentionally **not accepted as safe-height
 validated yet**. Until their complete key/hold sequence has been captured on the
 new topology, first hardware acceptance is limited to short UP, DOWN, release,
-display mirroring, and disconnect-stop tests.
+TOF400C height display, and disconnect-stop tests.
 
 ## Height status
 
@@ -108,12 +107,14 @@ I (...) yourdesk_v1: control-box height input disabled; waiting for external TOF
 I (...) yourdesk_v1: I2C slave @0x24 SCL=4 SDA=5
 ```
 
-`height_mm` remains unknown and SIM is disabled. The historical decoder and
-software-I²C implementation stay available only behind explicit experimental
-Kconfig switches; they are not compiled into the default component source list.
-See `docs/7-hardware-i2c-restoration-investigation.md` for evidence and the
-rollback decision. Validated height will later come from a separate TOF400C on
-another hardware I²C controller.
+The historical controller-digit decoder and software-I²C Slave stay available
+only behind explicit experimental Kconfig switches; they are not compiled into
+the default component source list. The separate TOF400C on GPIO10/11 now feeds
+the Web/OLED/original-panel display path. It remains isolated from motion,
+presets, and maximum-height enforcement until calibration and full-travel
+hardware acceptance are complete. See
+`docs/7-hardware-i2c-restoration-investigation.md` for the controller-side
+rollback evidence.
 
 ## Maximum safe height
 

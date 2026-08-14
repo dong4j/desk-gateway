@@ -33,12 +33,14 @@ menu "Desk Gateway"
 
     config DESK_YOURDESK_PANEL_PROXY
         bool "Enable active proxy to the original TM1650 panel"
-        depends on DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
-        default n
+        depends on !DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+        default y
         help
-            双 RJ45 Phase 2 原型：控制盒侧继续使用 GPIO4/5 软件 Slave，原厂
-            面板侧使用独立硬件 I2C Master。两侧 CLK/DAT 必须物理隔离，仅桥接
-            RJ45 pin1 3.3V 与 pin3 GND。
+            双 RJ45 主动代理：控制盒侧继续使用稳定的 GPIO4/5 硬件 I2C
+            Slave @0x24，原厂面板侧使用 GPIO6/7 开漏软件 Master。两侧
+            CLK/DAT 必须物理隔离，仅桥接 RJ45 pin1 3.3V 与 pin3 GND。
+            原厂数码管显示来自 TOF400C 实测高度，避免不稳定的软件多地址
+            Slave 重新进入控制链。
 
     config DESK_PANEL_I2C_SCL_GPIO
         int "Original panel CLK GPIO"
@@ -50,20 +52,12 @@ menu "Desk Gateway"
         depends on DESK_YOURDESK_PANEL_PROXY
         default 7
 
-    config DESK_PANEL_I2C_PORT
-        int "Original panel I2C master port"
-        depends on DESK_YOURDESK_PANEL_PROXY
-        range 0 1
-        default 1
-
     config DESK_TOF_ENABLE
         bool "Enable TOF050C + TOF400C real-time telemetry"
-        depends on !DESK_YOURDESK_PANEL_PROXY
         default y
         help
             使用独立硬件 I2C 总线采集桌面高度与右侧墙面间距。当前数据只用于
-            Web 展示，不参与升降、档位或防碰撞控制。面板代理占用同一 I2C
-            控制器时，本功能不可同时启用。
+            Web、OLED 和原厂面板显示，不参与升降、档位或防碰撞控制。
 
     config DESK_TOF_I2C_SCL_GPIO
         int "ToF I2C SCL GPIO"
