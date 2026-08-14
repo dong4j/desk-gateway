@@ -108,6 +108,15 @@ menu "Desk Gateway"
             桌面上表面到传感器光学中心的固定距离，加入向下测得的地面距离。
             首轮真机校准前保持 0。
 
+    config DESK_OLED_ENABLE
+        bool "Enable 0.91-inch SSD1306 status display"
+        depends on DESK_TOF_ENABLE
+        default y
+        help
+            在共享 GPIO10/11 I2C 总线上自动探测 0x3C/0x3D，显示高度、
+            右侧间距、运动状态、传感器状态、Wi-Fi 与 BLE 摘要。
+            OLED 缺失或初始化失败不会阻断其他功能。
+
     config DESK_MOTION_TIMEOUT_MS
         int "Max continuous up/down hold (ms)"
         range 1000 60000

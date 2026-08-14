@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include "driver/i2c_master.h"
 #include "esp_err.h"
 
 #include <stdbool.h>
@@ -23,7 +24,7 @@ typedef struct {
 } desk_tof_snapshot_t;
 
 /** 启动后台初始化与采样任务；传感器离线不会阻止其他网关功能启动。 */
-esp_err_t desk_tof_start(void);
+esp_err_t desk_tof_start(i2c_master_bus_handle_t bus);
 
 /** 返回最近一组未过期的测距结果；未知值统一为 -1。 */
 desk_tof_snapshot_t desk_tof_snapshot(void);

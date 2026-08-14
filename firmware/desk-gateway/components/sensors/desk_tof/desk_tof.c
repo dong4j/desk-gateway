@@ -54,6 +54,7 @@ static atomic_bool s_height_known = ATOMIC_VAR_INIT(false);
 static atomic_int s_right_gap_mm = ATOMIC_VAR_INIT(-1);
 static atomic_bool s_right_gap_known = ATOMIC_VAR_INIT(false);
 static bool s_started;
+static i2c_master_bus_handle_t s_bus;
 
 typedef struct {
     i2c_master_bus_handle_t bus;
@@ -326,7 +327,7 @@ static bool sample_stale(TickType_t now, TickType_t last_valid)
 static void desk_tof_task(void *argument)
 {
     (void)argument;
-    desk_tof_context_t ctx = {0};
+    desk_tof_context_t ctx = {.bus = s_bus};
 
     const gpio_config_t shut_config = {
         .pin_bit_mask = (1ULL << CONFIG_DESK_TOF_RIGHT_SHUT_GPIO) |
@@ -341,22 +342,7 @@ static void desk_tof_task(void *argument)
     gpio_set_level(CONFIG_DESK_TOF_HEIGHT_SHUT_GPIO, 0);
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    const i2c_master_bus_config_t bus_config = {
-        .i2c_port = CONFIG_DESK_TOF_I2C_PORT,
-        .sda_io_num = CONFIG_DESK_TOF_I2C_SDA_GPIO,
-        .scl_io_num = CONFIG_DESK_TOF_I2C_SCL_GPIO,
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
-    };
-    esp_err_t err = i2c_new_master_bus(&bus_config, &ctx.bus);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "create I2C bus failed: %s", esp_err_to_name(err));
-        vTaskDelete(NULL);
-        return;
-    }
-
-    err = init_wall_sensor(&ctx);
+    esp_err_t err = init_wall_sensor(&ctx);
     if (err != ESP_OK) {
         /* Keep a failed 0x29 device shut down so TOF400C can still start. */
         gpio_set_level(CONFIG_DESK_TOF_RIGHT_SHUT_GPIO, 0);
@@ -395,11 +381,15 @@ static void desk_tof_task(void *argument)
     vTaskDelete(NULL);
 }
 
-esp_err_t desk_tof_start(void)
+esp_err_t desk_tof_start(i2c_master_bus_handle_t bus)
 {
+    if (!bus) {
+        return ESP_ERR_INVALID_ARG;
+    }
     if (s_started) {
         return ESP_ERR_INVALID_STATE;
     }
+    s_bus = bus;
     BaseType_t created = xTaskCreate(desk_tof_task, "desk_tof", 6144, NULL, 5,
                                      NULL);
     if (created != pdPASS) {
