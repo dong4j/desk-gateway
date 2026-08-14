@@ -20,6 +20,9 @@ const char *desk_web_ble_delete_state_name(uint8_t state);
 /** 只接受 `/api/v1/bluetooth/bonds/bond_<12位小写十六进制>`。 */
 bool desk_web_ble_extract_bond_id(const char *uri, char *out_id,
                                   size_t out_size);
+/** 只接受 `/api/v1/bluetooth/bonds/bond_<id>/alias`。 */
+bool desk_web_ble_extract_alias_bond_id(const char *uri, char *out_id,
+                                        size_t out_size);
 
 #ifdef __cplusplus
 }

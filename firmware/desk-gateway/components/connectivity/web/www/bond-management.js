@@ -29,5 +29,17 @@
       device.delete_state === 'pending' || device.delete_state === 'failed');
   }
 
-  return { statusText, shouldPollFrequently, hasDeleteConflict };
+  function normalizeAlias(value) {
+    const alias = String(value ?? '').trim();
+    if (/[\u0000-\u001f\u007f]/.test(alias)) {
+      throw new Error('别名不能包含控制字符');
+    }
+    if (new TextEncoder().encode(alias).length > 48) {
+      throw new Error('别名最多 48 个 UTF-8 字节');
+    }
+    return alias;
+  }
+
+  return { statusText, shouldPollFrequently, hasDeleteConflict,
+    normalizeAlias };
 }));

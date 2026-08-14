@@ -619,6 +619,18 @@ body.is-moving .height { color: #5c4a28; }
   font-size: 0.78rem;
 }
 .bond-error { color: var(--danger); }
+.bond-row-actions {
+  display: flex;
+  flex: none;
+  gap: 0.45rem;
+}
+.bond-rename-button {
+  flex: none;
+  padding: 0.5rem 0.8rem !important;
+  background: transparent !important;
+  border: 1px solid var(--line-strong) !important;
+  color: var(--ink) !important;
+}
 .bond-delete-button {
   flex: none;
   padding: 0.5rem 0.8rem !important;

@@ -17,6 +17,8 @@ int desk_web_ble_result_status(desk_ble_management_result_t result)
         return 404;
     case DESK_BLE_MANAGEMENT_CONFLICT:
         return 409;
+    case DESK_BLE_MANAGEMENT_INVALID_ARGUMENT:
+        return 400;
     case DESK_BLE_MANAGEMENT_INTERNAL_ERROR:
     default:
         return 500;
@@ -59,4 +61,27 @@ bool desk_web_ble_extract_bond_id(const char *uri, char *out_id,
     }
     memcpy(out_id, id, DESK_BLE_MANAGEMENT_ID_LENGTH);
     return true;
+}
+
+bool desk_web_ble_extract_alias_bond_id(const char *uri, char *out_id,
+                                        size_t out_size)
+{
+    static const char suffix[] = "/alias";
+    if (!uri) {
+        return false;
+    }
+    size_t length = strlen(uri);
+    if (length <= sizeof(suffix) - 1 ||
+        strcmp(uri + length - (sizeof(suffix) - 1), suffix) != 0) {
+        return false;
+    }
+    char bond_uri[sizeof("/api/v1/bluetooth/bonds/") +
+                  DESK_BLE_MANAGEMENT_ID_LENGTH];
+    size_t bond_uri_length = length - (sizeof(suffix) - 1);
+    if (bond_uri_length >= sizeof(bond_uri)) {
+        return false;
+    }
+    memcpy(bond_uri, uri, bond_uri_length);
+    bond_uri[bond_uri_length] = '\0';
+    return desk_web_ble_extract_bond_id(bond_uri, out_id, out_size);
 }

@@ -52,8 +52,34 @@ export function bondErrorMessage(error: unknown): string {
   if (detail.includes('bond_not_found')) {
     return '设备已被删除，列表已刷新';
   }
+  if (detail.includes('invalid_alias')) {
+    return '设备别名无效，请修改后重试';
+  }
   if (detail.includes('unauthorized')) {
     return 'REST 认证失效，请重新保存局域网管理密码';
   }
   return `操作失败：${detail}`;
+}
+
+/** 固件按 UTF-8 字节持久化别名；这里提前给出与设备一致的错误。 */
+export function normalizeBondAlias(value: string): string {
+  const alias = value.trim();
+  if (/[\u0000-\u001f\u007f]/.test(alias)) {
+    throw new Error('别名不能包含控制字符');
+  }
+  let bytes = 0;
+  for (const character of alias) {
+    const codePoint = character.codePointAt(0)!;
+    bytes += codePoint <= 0x7f
+      ? 1
+      : codePoint <= 0x7ff
+        ? 2
+        : codePoint <= 0xffff
+          ? 3
+          : 4;
+  }
+  if (bytes > 48) {
+    throw new Error('别名最多 48 个 UTF-8 字节');
+  }
+  return alias;
 }

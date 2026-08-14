@@ -151,6 +151,10 @@ export class DeskConnectionManager implements DeskClient {
     return this.restClient.deleteAllBluetoothBonds();
   }
 
+  renameBluetoothBond(id: string, alias: string): Promise<void> {
+    return this.restClient.renameBluetoothBond(id, alias);
+  }
+
   async disconnect(): Promise<void> {
     this.manualDisconnect = true;
     await this.detachActive(true);

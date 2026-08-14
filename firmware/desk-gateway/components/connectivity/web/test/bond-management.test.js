@@ -28,5 +28,9 @@ assert.equal(policy.shouldPollFrequently({
 assert.equal(policy.hasDeleteConflict({
   devices: [{ delete_state: 'failed' }],
 }), true);
+assert.equal(policy.normalizeAlias('  书房 iPhone  '), '书房 iPhone');
+assert.equal(policy.normalizeAlias('   '), '');
+assert.throws(() => policy.normalizeAlias('a'.repeat(49)), /48/);
+assert.throws(() => policy.normalizeAlias('坏\n名称'), /控制字符/);
 
 console.log('web bond management vectors: OK');

@@ -68,6 +68,15 @@ static void test_reconcile_collision_and_orphan_cleanup(void)
     assert(desk_ble_bond_registry_find_id(&registry, bond_id) == first);
     assert(desk_ble_bond_format_label(first, label, sizeof(label)));
     assert(strcmp(label, "Apple Watch · A1B2") == 0);
+    assert(desk_ble_bond_set_alias(first, "书房手表"));
+    assert(desk_ble_bond_format_label(first, label, sizeof(label)));
+    assert(strcmp(label, "书房手表") == 0);
+    assert(!desk_ble_bond_set_alias(
+        first, "1234567890123456789012345678901234567890123456789"));
+    assert(!desk_ble_bond_set_alias(first, "   "));
+    assert(desk_ble_bond_set_alias(first, ""));
+    assert(desk_ble_bond_format_label(first, label, sizeof(label)));
+    assert(strcmp(label, "Apple Watch · A1B2") == 0);
 
     desk_ble_peer_identity_t second_set[] = {identity(20), identity(30)};
     assert(desk_ble_bond_registry_reconcile(

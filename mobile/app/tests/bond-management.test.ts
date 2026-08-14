@@ -10,6 +10,7 @@ import {
   hasBondDeleteConflict,
   isBondManagementConfigured,
   isBondPairingCapacityBlocked,
+  normalizeBondAlias,
 } from '../src/desk/BondManagement';
 import type { DeskBondSnapshot } from '../src/desk/DeskRestClient';
 
@@ -18,6 +19,7 @@ const snapshot: DeskBondSnapshot = {
     id: 'bond_73c98f21a1b2',
     kind: 'watchos',
     label: 'Apple Watch · A1B2',
+    alias: '',
     connected: true,
     controlling: true,
     delete_state: 'idle',
@@ -91,4 +93,11 @@ test('requires both a gateway address and REST password', () => {
   assert.equal(isBondManagementConfigured('desk-gateway.local', 'secret'), true);
   assert.equal(isBondManagementConfigured('  ', 'secret'), false);
   assert.equal(isBondManagementConfigured('desk-gateway.local', ''), false);
+});
+
+test('normalizes aliases with the firmware UTF-8 byte limit', () => {
+  assert.equal(normalizeBondAlias('  书房手表  '), '书房手表');
+  assert.equal(normalizeBondAlias('   '), '');
+  assert.throws(() => normalizeBondAlias('a'.repeat(49)), /48/);
+  assert.throws(() => normalizeBondAlias('坏\n名称'), /控制字符/);
 });

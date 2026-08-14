@@ -9,7 +9,8 @@
 #include <string.h>
 
 #define DESK_BLE_BOND_STORAGE_MAGIC UINT32_C(0x424d4554)
-#define DESK_BLE_BOND_STORAGE_VERSION 1
+#define DESK_BLE_BOND_STORAGE_VERSION 2
+#define DESK_BLE_BOND_STORAGE_LEGACY_VERSION 1
 
 static const char *NVS_NAMESPACE = "ble_meta";
 static const char *NVS_KEY = "bonds";
@@ -21,14 +22,31 @@ typedef struct {
     uint8_t opaque_id[DESK_BLE_BOND_OPAQUE_ID_LENGTH];
     uint8_t client_kind;
     uint8_t reserved;
-} persisted_record_t;
+} persisted_record_v1_t;
 
 typedef struct {
     uint32_t magic;
     uint8_t version;
     uint8_t reserved[3];
-    persisted_record_t records[DESK_BLE_BOND_CAPACITY];
-} persisted_registry_t;
+    persisted_record_v1_t records[DESK_BLE_BOND_CAPACITY];
+} persisted_registry_v1_t;
+
+typedef struct {
+    uint8_t in_use;
+    uint8_t identity_type;
+    uint8_t identity_value[DESK_BLE_PEER_ADDRESS_LENGTH];
+    uint8_t opaque_id[DESK_BLE_BOND_OPAQUE_ID_LENGTH];
+    uint8_t client_kind;
+    uint8_t reserved;
+    char alias[DESK_BLE_BOND_ALIAS_BUFFER_LENGTH];
+} persisted_record_v2_t;
+
+typedef struct {
+    uint32_t magic;
+    uint8_t version;
+    uint8_t reserved[3];
+    persisted_record_v2_t records[DESK_BLE_BOND_CAPACITY];
+} persisted_registry_v2_t;
 
 static bool registry_is_valid(const desk_ble_bond_registry_t *registry)
 {
@@ -38,6 +56,9 @@ static bool registry_is_valid(const desk_ble_bond_registry_t *registry)
             continue;
         }
         if (left->client_kind > DESK_BLE_CLIENT_ANDROID) {
+            return false;
+        }
+        if (!desk_ble_bond_alias_valid(left->alias)) {
             return false;
         }
         for (size_t j = i + 1; j < DESK_BLE_BOND_CAPACITY; ++j) {
@@ -71,39 +92,84 @@ esp_err_t desk_ble_bond_storage_load(desk_ble_bond_registry_t *registry)
         return err;
     }
 
-    persisted_registry_t persisted = {0};
-    size_t length = sizeof(persisted);
-    err = nvs_get_blob(handle, NVS_KEY, &persisted, &length);
-    nvs_close(handle);
+    size_t length = 0;
+    err = nvs_get_blob(handle, NVS_KEY, NULL, &length);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
+        nvs_close(handle);
         return ESP_OK;
     }
     if (err != ESP_OK) {
+        nvs_close(handle);
         return err;
     }
-    if (length != sizeof(persisted) ||
-        persisted.magic != DESK_BLE_BOND_STORAGE_MAGIC ||
-        persisted.version != DESK_BLE_BOND_STORAGE_VERSION) {
+
+    bool legacy = length == sizeof(persisted_registry_v1_t);
+    if (length != sizeof(persisted_registry_v2_t) && !legacy) {
+        nvs_close(handle);
         return ESP_ERR_INVALID_VERSION;
     }
-
-    for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
-        const persisted_record_t *source = &persisted.records[i];
-        if (source->in_use > 1) {
-            desk_ble_bond_registry_init(registry);
-            return ESP_ERR_INVALID_STATE;
+    if (legacy) {
+        persisted_registry_v1_t persisted = {0};
+        err = nvs_get_blob(handle, NVS_KEY, &persisted, &length);
+        nvs_close(handle);
+        if (err != ESP_OK) {
+            return err;
         }
-        if (!source->in_use) {
-            continue;
+        if (persisted.magic != DESK_BLE_BOND_STORAGE_MAGIC ||
+            persisted.version != DESK_BLE_BOND_STORAGE_LEGACY_VERSION) {
+            return ESP_ERR_INVALID_VERSION;
         }
-        desk_ble_bond_record_t *target = &registry->records[i];
-        target->in_use = true;
-        target->identity.type = source->identity_type;
-        memcpy(target->identity.value, source->identity_value,
-               sizeof(target->identity.value));
-        memcpy(target->opaque_id, source->opaque_id,
-               sizeof(target->opaque_id));
-        target->client_kind = (desk_ble_client_kind_t)source->client_kind;
+        for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+            const persisted_record_v1_t *source = &persisted.records[i];
+            if (source->in_use > 1) {
+                desk_ble_bond_registry_init(registry);
+                return ESP_ERR_INVALID_STATE;
+            }
+            if (!source->in_use) {
+                continue;
+            }
+            desk_ble_bond_record_t *target = &registry->records[i];
+            target->in_use = true;
+            target->identity.type = source->identity_type;
+            memcpy(target->identity.value, source->identity_value,
+                   sizeof(target->identity.value));
+            memcpy(target->opaque_id, source->opaque_id,
+                   sizeof(target->opaque_id));
+            target->client_kind =
+                (desk_ble_client_kind_t)source->client_kind;
+        }
+    } else {
+        persisted_registry_v2_t persisted = {0};
+        err = nvs_get_blob(handle, NVS_KEY, &persisted, &length);
+        nvs_close(handle);
+        if (err != ESP_OK) {
+            return err;
+        }
+        if (persisted.magic != DESK_BLE_BOND_STORAGE_MAGIC ||
+            persisted.version != DESK_BLE_BOND_STORAGE_VERSION) {
+            return ESP_ERR_INVALID_VERSION;
+        }
+        for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
+            const persisted_record_v2_t *source = &persisted.records[i];
+            if (source->in_use > 1) {
+                desk_ble_bond_registry_init(registry);
+                return ESP_ERR_INVALID_STATE;
+            }
+            if (!source->in_use) {
+                continue;
+            }
+            desk_ble_bond_record_t *target = &registry->records[i];
+            target->in_use = true;
+            target->identity.type = source->identity_type;
+            memcpy(target->identity.value, source->identity_value,
+                   sizeof(target->identity.value));
+            memcpy(target->opaque_id, source->opaque_id,
+                   sizeof(target->opaque_id));
+            target->client_kind =
+                (desk_ble_client_kind_t)source->client_kind;
+            memcpy(target->alias, source->alias, sizeof(target->alias));
+            target->alias[sizeof(target->alias) - 1] = '\0';
+        }
     }
     if (!registry_is_valid(registry)) {
         desk_ble_bond_registry_init(registry);
@@ -118,13 +184,13 @@ esp_err_t desk_ble_bond_storage_save(
     if (!registry || !registry_is_valid(registry)) {
         return ESP_ERR_INVALID_ARG;
     }
-    persisted_registry_t persisted = {
+    persisted_registry_v2_t persisted = {
         .magic = DESK_BLE_BOND_STORAGE_MAGIC,
         .version = DESK_BLE_BOND_STORAGE_VERSION,
     };
     for (size_t i = 0; i < DESK_BLE_BOND_CAPACITY; ++i) {
         const desk_ble_bond_record_t *source = &registry->records[i];
-        persisted_record_t *target = &persisted.records[i];
+        persisted_record_v2_t *target = &persisted.records[i];
         target->in_use = source->in_use ? 1 : 0;
         if (!source->in_use) {
             continue;
@@ -135,6 +201,7 @@ esp_err_t desk_ble_bond_storage_save(
         memcpy(target->opaque_id, source->opaque_id,
                sizeof(target->opaque_id));
         target->client_kind = (uint8_t)source->client_kind;
+        memcpy(target->alias, source->alias, sizeof(target->alias));
     }
 
     nvs_handle_t handle;

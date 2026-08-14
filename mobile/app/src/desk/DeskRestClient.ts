@@ -51,6 +51,7 @@ export interface DeskBondDevice {
   id: string;
   kind: DeskBondKind;
   label: string;
+  alias: string;
   connected: boolean;
   controlling: boolean;
   delete_state: DeskBondDeleteState;
@@ -214,6 +215,20 @@ export class DeskRestClient implements DeskClient {
   async deleteAllBluetoothBonds(): Promise<void> {
     this.ensureConfigured();
     await this.request('/api/v1/bluetooth/bonds', { method: 'DELETE' });
+  }
+
+  async renameBluetoothBond(id: string, alias: string): Promise<void> {
+    this.ensureConfigured();
+    if (!/^bond_[0-9a-f]{12}$/.test(id)) {
+      throw new Error('无效的蓝牙配对设备 ID');
+    }
+    await this.request(
+      `/api/v1/bluetooth/bonds/${encodeURIComponent(id)}/alias`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ alias }),
+      },
+    );
   }
 
   async disconnect(): Promise<void> {

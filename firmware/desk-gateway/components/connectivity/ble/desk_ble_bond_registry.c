@@ -326,6 +326,10 @@ bool desk_ble_bond_format_label(const desk_ble_bond_record_t *record,
     if (!record || !record->in_use || !out || out_size == 0) {
         return false;
     }
+    if (record->alias[0]) {
+        int alias_length = snprintf(out, out_size, "%s", record->alias);
+        return alias_length > 0 && (size_t)alias_length < out_size;
+    }
     const char *prefix;
     switch (record->client_kind) {
     case DESK_BLE_CLIENT_WATCHOS:
@@ -345,4 +349,39 @@ bool desk_ble_bond_format_label(const desk_ble_bond_record_t *record,
     int length = snprintf(out, out_size, "%s · %02X%02X", prefix,
                           record->opaque_id[4], record->opaque_id[5]);
     return length > 0 && (size_t)length < out_size;
+}
+
+bool desk_ble_bond_alias_valid(const char *alias)
+{
+    if (!alias) {
+        return false;
+    }
+    size_t length = strlen(alias);
+    if (length > DESK_BLE_BOND_ALIAS_MAX_BYTES) {
+        return false;
+    }
+    if (length == 0) {
+        return true;
+    }
+    bool has_visible_byte = false;
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char byte = (unsigned char)alias[i];
+        if (byte < 0x20 || byte == 0x7f) {
+            return false;
+        }
+        if (byte > 0x20) {
+            has_visible_byte = true;
+        }
+    }
+    return has_visible_byte;
+}
+
+bool desk_ble_bond_set_alias(desk_ble_bond_record_t *record,
+                             const char *alias)
+{
+    if (!record || !record->in_use || !desk_ble_bond_alias_valid(alias)) {
+        return false;
+    }
+    memcpy(record->alias, alias, strlen(alias) + 1);
+    return true;
 }

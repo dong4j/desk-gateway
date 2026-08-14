@@ -57,6 +57,7 @@ typedef enum {
     MANAGEMENT_COMMAND_CLOSE_PAIRING,
     MANAGEMENT_COMMAND_DELETE_ONE,
     MANAGEMENT_COMMAND_DELETE_ALL,
+    MANAGEMENT_COMMAND_SET_ALIAS,
 } management_command_kind_t;
 
 typedef enum {
@@ -71,6 +72,7 @@ typedef struct {
     bool waiter_abandoned;
     management_command_kind_t command;
     char bond_id[DESK_BLE_BOND_ID_TEXT_LENGTH];
+    char alias[DESK_BLE_BOND_ALIAS_BUFFER_LENGTH];
     desk_ble_management_result_t result;
     StaticSemaphore_t completion_storage;
     SemaphoreHandle_t completion;
@@ -299,6 +301,8 @@ static void publish_management_snapshot(void)
                        desk_ble_client_kind_name(record->client_kind));
         (void)desk_ble_bond_format_label(record, view->label,
                                          sizeof(view->label));
+        (void)snprintf(view->alias, sizeof(view->alias), "%s",
+                       record->alias);
         desk_ble_connection_slot_t *slot =
             find_slot_by_identity(&record->identity);
         view->connected = slot != NULL;
@@ -605,7 +609,8 @@ static desk_ble_management_result_t execute_delete_all(void)
 }
 
 static desk_ble_management_result_t execute_management_command(
-    management_command_kind_t command, const char *bond_id)
+    management_command_kind_t command, const char *bond_id,
+    const char *alias)
 {
     if (!s_stack_synced) {
         return DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
@@ -628,6 +633,29 @@ static desk_ble_management_result_t execute_management_command(
         return execute_delete_one(bond_id);
     case MANAGEMENT_COMMAND_DELETE_ALL:
         return execute_delete_all();
+    case MANAGEMENT_COMMAND_SET_ALIAS: {
+        desk_ble_bond_record_t *record =
+            desk_ble_bond_registry_find_id(&s_bond_registry, bond_id);
+        if (!record) {
+            return DESK_BLE_MANAGEMENT_NOT_FOUND;
+        }
+        if (record->delete_state != DESK_BLE_DELETE_IDLE) {
+            return DESK_BLE_MANAGEMENT_CONFLICT;
+        }
+        desk_ble_bond_registry_t candidate = s_bond_registry;
+        desk_ble_bond_record_t *candidate_record =
+            desk_ble_bond_registry_find_id(&candidate, bond_id);
+        if (!desk_ble_bond_set_alias(candidate_record, alias)) {
+            return DESK_BLE_MANAGEMENT_INVALID_ARGUMENT;
+        }
+        esp_err_t err = desk_ble_bond_storage_save(&candidate);
+        if (err != ESP_OK) {
+            return DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+        }
+        s_bond_registry = candidate;
+        publish_management_snapshot();
+        return DESK_BLE_MANAGEMENT_OK;
+    }
     default:
         return DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
     }
@@ -640,6 +668,7 @@ static void management_event_cb(struct ble_npl_event *event)
         size_t index = DESK_BLE_MANAGEMENT_QUEUE_CAPACITY;
         management_command_kind_t command = MANAGEMENT_COMMAND_OPEN_PAIRING;
         char bond_id[DESK_BLE_BOND_ID_TEXT_LENGTH] = {0};
+        char alias[DESK_BLE_BOND_ALIAS_BUFFER_LENGTH] = {0};
         portENTER_CRITICAL(&s_management_queue_lock);
         for (size_t i = 0; i < DESK_BLE_MANAGEMENT_QUEUE_CAPACITY; ++i) {
             if (s_management_queue[i].state == MANAGEMENT_SLOT_QUEUED) {
@@ -648,6 +677,7 @@ static void management_event_cb(struct ble_npl_event *event)
                 command = s_management_queue[i].command;
                 memcpy(bond_id, s_management_queue[i].bond_id,
                        sizeof(bond_id));
+                memcpy(alias, s_management_queue[i].alias, sizeof(alias));
                 break;
             }
         }
@@ -657,7 +687,7 @@ static void management_event_cb(struct ble_npl_event *event)
         }
 
         desk_ble_management_result_t result =
-            execute_management_command(command, bond_id);
+            execute_management_command(command, bond_id, alias);
         bool notify_waiter = false;
         portENTER_CRITICAL(&s_management_queue_lock);
         management_command_slot_t *slot = &s_management_queue[index];
@@ -1563,14 +1593,20 @@ static void init_management_queue(void)
 }
 
 static desk_ble_management_result_t submit_management_command(
-    management_command_kind_t command, const char *bond_id)
+    management_command_kind_t command, const char *bond_id,
+    const char *alias)
 {
-    if (!s_management_ready ||
-        (command == MANAGEMENT_COMMAND_DELETE_ONE &&
-         (!bond_id || strlen(bond_id) >= DESK_BLE_BOND_ID_TEXT_LENGTH))) {
-        return command == MANAGEMENT_COMMAND_DELETE_ONE
-                   ? DESK_BLE_MANAGEMENT_NOT_FOUND
-                   : DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    if (!s_management_ready) {
+        return DESK_BLE_MANAGEMENT_INTERNAL_ERROR;
+    }
+    if (command == MANAGEMENT_COMMAND_SET_ALIAS &&
+        !desk_ble_bond_alias_valid(alias)) {
+        return DESK_BLE_MANAGEMENT_INVALID_ARGUMENT;
+    }
+    if ((command == MANAGEMENT_COMMAND_DELETE_ONE ||
+         command == MANAGEMENT_COMMAND_SET_ALIAS) &&
+        (!bond_id || strlen(bond_id) >= DESK_BLE_BOND_ID_TEXT_LENGTH)) {
+        return DESK_BLE_MANAGEMENT_NOT_FOUND;
     }
 
     size_t index = DESK_BLE_MANAGEMENT_QUEUE_CAPACITY;
@@ -1583,8 +1619,12 @@ static desk_ble_management_result_t submit_management_command(
             slot->waiter_abandoned = false;
             slot->command = command;
             slot->bond_id[0] = '\0';
+            slot->alias[0] = '\0';
             if (bond_id) {
                 memcpy(slot->bond_id, bond_id, strlen(bond_id) + 1);
+            }
+            if (alias) {
+                memcpy(slot->alias, alias, strlen(alias) + 1);
             }
             break;
         }
@@ -1654,22 +1694,36 @@ bool desk_ble_get_management_snapshot(
 
 desk_ble_management_result_t desk_ble_open_pairing_window(void)
 {
-    return submit_management_command(MANAGEMENT_COMMAND_OPEN_PAIRING, NULL);
+    return submit_management_command(MANAGEMENT_COMMAND_OPEN_PAIRING, NULL,
+                                     NULL);
 }
 
 desk_ble_management_result_t desk_ble_close_pairing_window(void)
 {
-    return submit_management_command(MANAGEMENT_COMMAND_CLOSE_PAIRING, NULL);
+    return submit_management_command(MANAGEMENT_COMMAND_CLOSE_PAIRING, NULL,
+                                     NULL);
 }
 
 desk_ble_management_result_t desk_ble_delete_bond(const char *bond_id)
 {
-    return submit_management_command(MANAGEMENT_COMMAND_DELETE_ONE, bond_id);
+    return submit_management_command(MANAGEMENT_COMMAND_DELETE_ONE, bond_id,
+                                     NULL);
 }
 
 desk_ble_management_result_t desk_ble_delete_all_bonds(void)
 {
-    return submit_management_command(MANAGEMENT_COMMAND_DELETE_ALL, NULL);
+    return submit_management_command(MANAGEMENT_COMMAND_DELETE_ALL, NULL,
+                                     NULL);
+}
+
+desk_ble_management_result_t desk_ble_set_bond_alias(const char *bond_id,
+                                                     const char *alias)
+{
+    if (!desk_ble_bond_alias_valid(alias)) {
+        return DESK_BLE_MANAGEMENT_INVALID_ARGUMENT;
+    }
+    return submit_management_command(MANAGEMENT_COMMAND_SET_ALIAS, bond_id,
+                                     alias);
 }
 
 esp_err_t desk_ble_start(void)

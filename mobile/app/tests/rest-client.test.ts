@@ -105,6 +105,7 @@ test('queries and manages Bluetooth bonds through authenticated REST endpoints',
       id: 'bond_73c98f21a1b2',
       kind: 'ios',
       label: 'iPhone · A1B2',
+      alias: '',
       connected: true,
       controlling: false,
       delete_state: 'idle',
@@ -126,6 +127,7 @@ test('queries and manages Bluetooth bonds through authenticated REST endpoints',
   await client.setBluetoothPairingWindow(false);
   await client.deleteBluetoothBond('bond_73c98f21a1b2');
   await client.deleteAllBluetoothBonds();
+  await client.renameBluetoothBond('bond_73c98f21a1b2', '书房 iPhone');
 
   assert.equal(snapshot.devices[0].label, 'iPhone · A1B2');
   assert.deepEqual(
@@ -139,11 +141,16 @@ test('queries and manages Bluetooth bonds through authenticated REST endpoints',
       ['/api/v1/bluetooth/pairing-window', 'DELETE'],
       ['/api/v1/bluetooth/bonds/bond_73c98f21a1b2', 'DELETE'],
       ['/api/v1/bluetooth/bonds', 'DELETE'],
+      ['/api/v1/bluetooth/bonds/bond_73c98f21a1b2/alias', 'POST'],
     ],
   );
   assert.equal(
-    (requests[4].init?.headers as Record<string, string>)['X-Desk-Key'],
+    (requests[5].init?.headers as Record<string, string>)['X-Desk-Key'],
     'secret',
+  );
+  assert.equal(
+    requests[5].init?.body,
+    JSON.stringify({ alias: '书房 iPhone' }),
   );
   client.dispose();
 });

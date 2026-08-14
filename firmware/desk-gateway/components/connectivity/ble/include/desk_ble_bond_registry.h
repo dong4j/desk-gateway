@@ -20,7 +20,9 @@ extern "C" {
 #define DESK_BLE_BOND_CAPACITY 3
 #define DESK_BLE_BOND_OPAQUE_ID_LENGTH 6
 #define DESK_BLE_BOND_ID_TEXT_LENGTH 18
-#define DESK_BLE_BOND_LABEL_MAX_LENGTH 32
+#define DESK_BLE_BOND_ALIAS_MAX_BYTES 48
+#define DESK_BLE_BOND_ALIAS_BUFFER_LENGTH 49
+#define DESK_BLE_BOND_LABEL_MAX_LENGTH 64
 #define DESK_BLE_BOND_RANDOM_ATTEMPTS 8
 
 typedef bool (*desk_ble_bond_random_fn)(
@@ -31,6 +33,8 @@ typedef struct {
     desk_ble_peer_identity_t identity;
     uint8_t opaque_id[DESK_BLE_BOND_OPAQUE_ID_LENGTH];
     desk_ble_client_kind_t client_kind;
+    /** 用户别名按 UTF-8 原样保存；空字符串表示使用系统生成名称。 */
+    char alias[DESK_BLE_BOND_ALIAS_BUFFER_LENGTH];
     /* 删除状态是运行期诊断信息，不写入 NVS，重启后从 idle 开始。 */
     desk_ble_delete_state_t delete_state;
     char delete_error[DESK_BLE_DELETE_ERROR_MAX_LENGTH];
@@ -96,6 +100,10 @@ bool desk_ble_bond_format_id(const desk_ble_bond_record_t *record,
 const char *desk_ble_client_kind_name(desk_ble_client_kind_t kind);
 bool desk_ble_bond_format_label(const desk_ble_bond_record_t *record,
                                 char *out, size_t out_size);
+/** 空字符串清除别名；控制字符、纯空白或超过 48 UTF-8 字节会被拒绝。 */
+bool desk_ble_bond_set_alias(desk_ble_bond_record_t *record,
+                             const char *alias);
+bool desk_ble_bond_alias_valid(const char *alias);
 
 #ifdef __cplusplus
 }

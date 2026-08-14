@@ -169,6 +169,7 @@ static cJSON *ble_management_snapshot_json(
         cJSON_AddStringToObject(device, "id", view->id);
         cJSON_AddStringToObject(device, "kind", view->kind);
         cJSON_AddStringToObject(device, "label", view->label);
+        cJSON_AddStringToObject(device, "alias", view->alias);
         cJSON_AddBoolToObject(device, "connected", view->connected);
         cJSON_AddBoolToObject(device, "controlling", view->controlling);
         cJSON_AddStringToObject(
@@ -200,6 +201,8 @@ static esp_err_t send_ble_management_result(
         cJSON_AddStringToObject(body, "error", "bond_not_found");
     } else if (status == 409) {
         cJSON_AddStringToObject(body, "error", "delete_conflict");
+    } else if (status == 400) {
+        cJSON_AddStringToObject(body, "error", "invalid_alias");
     } else if (status == 500) {
         cJSON_AddStringToObject(body, "error", "internal_error");
     }
@@ -475,6 +478,33 @@ static esp_err_t handler_bluetooth_delete(httpd_req_t *req)
             result = desk_ble_delete_bond(bond_id);
         }
     }
+    return send_ble_management_result(req, result);
+}
+
+static esp_err_t handler_bluetooth_alias(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        return send_unauthorized(req);
+    }
+    char bond_id[DESK_BLE_MANAGEMENT_ID_LENGTH];
+    if (!desk_web_ble_extract_alias_bond_id(req->uri, bond_id,
+                                            sizeof(bond_id))) {
+        return send_ble_management_result(
+            req, DESK_BLE_MANAGEMENT_NOT_FOUND);
+    }
+
+    char body[160];
+    if (read_body(req, body, sizeof(body)) != ESP_OK) {
+        return send_ble_management_result(
+            req, DESK_BLE_MANAGEMENT_INVALID_ARGUMENT);
+    }
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *alias = root ? cJSON_GetObjectItem(root, "alias") : NULL;
+    desk_ble_management_result_t result =
+        cJSON_IsString(alias)
+            ? desk_ble_set_bond_alias(bond_id, alias->valuestring)
+            : DESK_BLE_MANAGEMENT_INVALID_ARGUMENT;
+    cJSON_Delete(root);
     return send_ble_management_result(req, result);
 }
 
@@ -925,6 +955,7 @@ esp_err_t desk_web_start(void)
         {.uri = "/api/v1/bluetooth/pairing-window", .method = HTTP_DELETE, .handler = handler_bluetooth_pairing_window},
         {.uri = "/api/v1/bluetooth/bonds", .method = HTTP_DELETE, .handler = handler_bluetooth_delete},
         {.uri = "/api/v1/bluetooth/bonds/*", .method = HTTP_DELETE, .handler = handler_bluetooth_delete},
+        {.uri = "/api/v1/bluetooth/bonds/*", .method = HTTP_POST, .handler = handler_bluetooth_alias},
         {.uri = "/api/v1/system/restart", .method = HTTP_POST, .handler = handler_restart},
         {.uri = "/api/v1/reminder/action", .method = HTTP_POST, .handler = handler_reminder_action},
         {.uri = "/api/v1/reminder/config", .method = HTTP_POST, .handler = handler_reminder_config},

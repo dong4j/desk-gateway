@@ -159,6 +159,37 @@
         main.appendChild(error);
       }
 
+      const actions = document.createElement('div');
+      actions.className = 'bond-row-actions';
+      const rename = document.createElement('button');
+      rename.type = 'button';
+      rename.className = 'bond-rename-button';
+      rename.textContent = '重命名';
+      rename.disabled = device.delete_state !== 'idle';
+      rename.onclick = async () => {
+        const draft = window.prompt(
+          '输入设备别名；留空可恢复默认名称。', device.alias || '');
+        if (draft === null) return;
+        let alias;
+        try {
+          alias = DeskBondManagement.normalizeAlias(draft);
+        } catch (error) {
+          bondMsg.textContent = error.message;
+          return;
+        }
+        rename.disabled = true;
+        bondMsg.textContent = '正在保存设备别名…';
+        try {
+          await api(
+            `/api/v1/bluetooth/bonds/${encodeURIComponent(device.id)}/alias`,
+            'POST', { alias });
+          bondMsg.textContent = alias ? '设备别名已更新' : '已恢复默认名称';
+        } catch (_) {
+          bondMsg.textContent = '设备别名保存失败';
+        }
+        await refreshBondDevices(true);
+      };
+
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'bond-delete-button';
@@ -182,7 +213,8 @@
         }
         await refreshBondDevices(true);
       };
-      row.append(main, remove);
+      actions.append(rename, remove);
+      row.append(main, actions);
       bondList.appendChild(row);
     });
   }

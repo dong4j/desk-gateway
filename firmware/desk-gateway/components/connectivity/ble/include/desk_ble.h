@@ -24,6 +24,9 @@ desk_ble_management_result_t desk_ble_open_pairing_window(void);
 desk_ble_management_result_t desk_ble_close_pairing_window(void);
 desk_ble_management_result_t desk_ble_delete_bond(const char *bond_id);
 desk_ble_management_result_t desk_ble_delete_all_bonds(void);
+/** 设置用户别名；空字符串恢复系统生成名称。 */
+desk_ble_management_result_t desk_ble_set_bond_alias(const char *bond_id,
+                                                     const char *alias);
 
 #ifdef __cplusplus
 }

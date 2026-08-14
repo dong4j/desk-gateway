@@ -31,6 +31,7 @@ import {
   hasBondDeleteConflict,
   isBondManagementConfigured,
   isBondPairingCapacityBlocked,
+  normalizeBondAlias,
 } from '../desk/BondManagement';
 import type {
   DeskBondDevice,
@@ -73,6 +74,7 @@ interface SettingsScreenProps {
   onSetBluetoothPairingWindow: (open: boolean) => Promise<void>;
   onDeleteBluetoothBond: (id: string) => Promise<void>;
   onDeleteAllBluetoothBonds: () => Promise<void>;
+  onRenameBluetoothBond: (id: string, alias: string) => Promise<void>;
   onSetChildLock: (enabled: boolean) => void;
   onSetSourceEnabled: (
     source: 'rest' | 'bluetooth' | 'panel',
@@ -105,6 +107,7 @@ export function SettingsScreen({
   onSetBluetoothPairingWindow,
   onDeleteBluetoothBond,
   onDeleteAllBluetoothBonds,
+  onRenameBluetoothBond,
   onSetChildLock,
   onSetSourceEnabled,
   onSetMaxHeightMm,
@@ -133,6 +136,8 @@ export function SettingsScreen({
   const [bondLoading, setBondLoading] = useState(false);
   const [bondBusy, setBondBusy] = useState<string | null>(null);
   const [bondMessage, setBondMessage] = useState<string | null>(null);
+  const [editingBondId, setEditingBondId] = useState<string | null>(null);
+  const [bondAliasDraft, setBondAliasDraft] = useState('');
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
   const bondManagementAvailable = isBondManagementConfigured(restHost, restKey);
   const bondPairingDisabled = !bondManagementAvailable || bondBusy !== null ||
@@ -266,6 +271,22 @@ export function SettingsScreen({
           ),
         },
       ],
+    );
+  };
+
+  const commitBondAlias = (device: DeskBondDevice) => {
+    let alias: string;
+    try {
+      alias = normalizeBondAlias(bondAliasDraft);
+    } catch (error) {
+      setBondMessage(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    setEditingBondId(null);
+    void runBondOperation(
+      `rename-${device.id}`,
+      () => onRenameBluetoothBond(device.id, alias),
+      alias ? '设备别名已更新' : '已恢复默认名称',
     );
   };
 
@@ -464,7 +485,20 @@ export function SettingsScreen({
           {bondSnapshot?.devices.map((device) => (
             <View key={device.id} style={styles.bondDeviceRow}>
               <View style={styles.bondDeviceCopy}>
-                <Text style={styles.bondDeviceLabel}>{device.label}</Text>
+                {editingBondId === device.id ? (
+                  <TextInput
+                    accessibilityLabel="蓝牙设备别名"
+                    autoFocus
+                    maxLength={48}
+                    onChangeText={setBondAliasDraft}
+                    onSubmitEditing={() => commitBondAlias(device)}
+                    placeholder="留空恢复默认名称"
+                    value={bondAliasDraft}
+                    style={styles.bondAliasInput}
+                  />
+                ) : (
+                  <Text style={styles.bondDeviceLabel}>{device.label}</Text>
+                )}
                 <Text style={[
                   styles.bondDeviceStatus,
                   device.delete_state === 'failed' && styles.bondDeviceError,
@@ -473,21 +507,53 @@ export function SettingsScreen({
                   {device.delete_error ? ` · ${device.delete_error}` : ''}
                 </Text>
               </View>
-              <Pressable
-                accessibilityRole="button"
-                disabled={device.delete_state === 'pending' || bondBusy !== null}
-                onPress={() => confirmDeleteBond(device)}
-                style={({ pressed }) => [
-                  styles.bondDeleteButton,
-                  (device.delete_state === 'pending' || bondBusy !== null) &&
-                    styles.disabled,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.bondDeleteText}>
-                  {device.delete_state === 'failed' ? '重试' : '删除'}
-                </Text>
-              </Pressable>
+              <View style={styles.bondDeviceActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={device.delete_state !== 'idle' || bondBusy !== null}
+                  onPress={() => {
+                    if (editingBondId === device.id) {
+                      commitBondAlias(device);
+                    } else {
+                      setEditingBondId(device.id);
+                      setBondAliasDraft(device.alias);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.bondRenameButton,
+                    (device.delete_state !== 'idle' || bondBusy !== null) &&
+                      styles.disabled,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.bondRenameText}>
+                    {editingBondId === device.id ? '保存' : '重命名'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={device.delete_state === 'pending' || bondBusy !== null}
+                  onPress={() => {
+                    if (editingBondId === device.id) {
+                      setEditingBondId(null);
+                    } else {
+                      confirmDeleteBond(device);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.bondDeleteButton,
+                    (device.delete_state === 'pending' || bondBusy !== null) &&
+                      styles.disabled,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.bondDeleteText}>
+                    {editingBondId === device.id
+                      ? '取消'
+                      : device.delete_state === 'failed' ? '重试' : '删除'}
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           ))}
           {bondManagementAvailable && !bondLoading &&
@@ -991,8 +1057,12 @@ const styles = StyleSheet.create({
   bondDeviceRow: { minHeight: 64, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: palette.line },
   bondDeviceCopy: { flex: 1, paddingRight: 12 },
   bondDeviceLabel: { color: palette.ink, fontSize: 16, fontWeight: '500' },
+  bondAliasInput: { minHeight: 36, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, color: palette.ink, backgroundColor: palette.surface },
   bondDeviceStatus: { marginTop: 3, color: palette.inkMuted, fontSize: 12 },
   bondDeviceError: { color: palette.danger },
+  bondDeviceActions: { flexDirection: 'row', gap: 6 },
+  bondRenameButton: { minWidth: 58, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.ink, borderRadius: radii.pill },
+  bondRenameText: { color: palette.ink, fontSize: 13, fontWeight: '600' },
   bondDeleteButton: { minWidth: 58, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.danger, borderRadius: radii.pill },
   bondDeleteText: { color: palette.danger, fontSize: 13, fontWeight: '600' },
   bondEmpty: { paddingHorizontal: 18, paddingVertical: 18, borderTopWidth: 1, borderTopColor: palette.line, color: palette.inkMuted, fontSize: 13, textAlign: 'center' },

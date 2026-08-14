@@ -267,6 +267,11 @@ export default function App() {
     () => clientRef.current!.deleteAllBluetoothBonds(),
     [],
   );
+  const renameBluetoothBond = useCallback(
+    (id: string, alias: string) =>
+      clientRef.current!.renameBluetoothBond(id, alias),
+    [],
+  );
 
   return (
     <SafeAreaProvider>
@@ -351,6 +356,7 @@ export default function App() {
           onSetBluetoothPairingWindow={setBluetoothPairingWindow}
           onDeleteBluetoothBond={deleteBluetoothBond}
           onDeleteAllBluetoothBonds={deleteAllBluetoothBonds}
+          onRenameBluetoothBond={renameBluetoothBond}
           onSetChildLock={(enabled) =>
             runCommand(clientRef.current!.setChildLock(enabled))
           }
