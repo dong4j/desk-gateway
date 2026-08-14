@@ -61,6 +61,7 @@ static const char *TAG = "yourdesk_v1";
 #define DR_IDLE        0x2Eu
 #define DR_UP          0x47u
 #define DR_DOWN        0x4Fu
+#define DR_RESET       0x7Fu
 #define DR_P1_GOTO     0x17u
 #define DR_P1_SAVE     0x57u
 #define DR_P4_GOTO     0x2Fu
@@ -860,6 +861,23 @@ static esp_err_t yd_hold_down(void)
     return yd_hold_direction(DR_DOWN);
 }
 
+/**
+ * 开始控制盒故障重置。
+ *
+ * 重置码来自 12 MHz 实机抓包；持续时间和最终空闲码由 desk_core 的
+ * 单次定时器负责，确保浏览器断线也不会让 0x7F 永久保持。
+ */
+static esp_err_t yd_reset_controller(void)
+{
+    if (panel_has_priority()) {
+        return ESP_ERR_INVALID_STATE;
+    }
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+    cancel_preset_motion();
+#endif
+    return set_dr(DR_RESET);
+}
+
 static esp_err_t yd_goto_preset(uint8_t n)
 {
     if (panel_has_priority()) {
@@ -1036,6 +1054,7 @@ const desk_driver_t yourdesk_v1_driver = {
     .stop = yd_stop,
     .hold_up = yd_hold_up,
     .hold_down = yd_hold_down,
+    .reset_controller = yd_reset_controller,
     .goto_preset = yd_goto_preset,
     .save_preset = yd_save_preset,
     .get_height_mm = yd_get_height_mm,

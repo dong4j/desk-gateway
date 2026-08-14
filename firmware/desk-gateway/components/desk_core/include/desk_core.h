@@ -25,6 +25,8 @@ typedef struct {
     bool height_sim; /* true = 本地模拟，非嗅探真值 */
     bool child_lock;
     bool upward_blocked;
+    bool controller_reset_supported;
+    bool controller_reset_active;
     int max_height_mm;
     int preset1_height_mm;
     int preset4_height_mm;
@@ -59,6 +61,10 @@ void desk_core_set_event_listener(desk_core_event_listener_t listener,
 esp_err_t desk_core_stop(void);
 esp_err_t desk_core_hold_up(desk_control_source_t source);
 esp_err_t desk_core_hold_down(desk_control_source_t source);
+/**
+ * 启动厂商控制盒故障重置；固件负责定时结束，STOP 可随时中断。
+ */
+esp_err_t desk_core_reset_controller(desk_control_source_t source);
 /** Submit an upward rotary event; continuous events start and maintain motion. */
 esp_err_t desk_core_jog_up(desk_control_source_t source);
 /** Submit a downward rotary event; continuous events start and maintain motion. */

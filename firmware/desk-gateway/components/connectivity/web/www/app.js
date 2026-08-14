@@ -32,6 +32,8 @@
   const allowRest = document.getElementById('allowRest');
   const allowBluetooth = document.getElementById('allowBluetooth');
   const allowPanel = document.getElementById('allowPanel');
+  const controllerResetButton = document.getElementById('controllerResetButton');
+  const controllerResetMsg = document.getElementById('controllerResetMsg');
   const restartButton = document.getElementById('restartButton');
   const bondCount = document.getElementById('bondCount');
   const bondList = document.getElementById('bondList');
@@ -41,6 +43,8 @@
   const deleteAllBondsButton = document.getElementById('deleteAllBondsButton');
   let failStreak = 0;
   let lastStatus = {};
+  let controllerResetPending = false;
+  let controllerResetSeenActive = false;
   let restarting = false;
   let lastBondSnapshot = null;
   let lastBondRefreshAt = 0;
@@ -51,6 +55,7 @@
     moving_up: '正在上升…',
     moving_down: '正在下降…',
     goto_preset: '前往档位…',
+    controller_resetting: '控制盒重置中，请等待约 8 秒。',
     error: '状态异常',
   };
 
@@ -193,6 +198,9 @@
       return 'REST 接口操作已关闭，请先在设置中开启';
     }
     if (error?.code !== 'ESP_ERR_INVALID_STATE') return fallback;
+    if (lastStatus.controller_reset_active) {
+      return '控制盒正在重置，请等待完成或点击“停”中断';
+    }
     if (!lastStatus.height_known) {
       return '高度未知，请先短按下降或点击档位 1 获取高度';
     }
@@ -203,8 +211,10 @@
     failStreak = 0;
     showBanner('');
     lastStatus = s;
-    const st = s.status || 'idle';
-    const moving = st === 'moving_up' || st === 'moving_down' || st === 'goto_preset';
+    const resetting = !!s.controller_reset_active;
+    const st = resetting ? 'controller_resetting' : (s.status || 'idle');
+    const moving = st === 'moving_up' || st === 'moving_down' ||
+      st === 'goto_preset' || resetting;
     document.body.classList.toggle('is-moving', moving);
     stateChip.textContent = st;
     const heightUnknown = !s.height_known;
@@ -214,7 +224,7 @@
     const displayHeightMm = tofHeightKnown ? s.tof_height_mm : s.height_mm;
     const sources = s.control_sources || {};
     const restEnabled = sources.rest !== false;
-    const motionBlocked = !!s.child_lock || !restEnabled;
+    const motionBlocked = !!s.child_lock || !restEnabled || resetting;
     // Manual UP must remain available after boot so it can trigger the
     // controller's first height display frame. Firmware still owns all limit
     // checks and rejects unsafe upward travel. Permission is the only extra
@@ -223,10 +233,24 @@
     downButton.disabled = motionBlocked;
     p1Button.disabled = motionBlocked;
     p4Button.disabled = motionBlocked || heightUnknown;
+    controllerResetButton.disabled = !s.controller_reset_supported ||
+      motionBlocked || st !== 'idle';
+    if (!s.controller_reset_supported) {
+      controllerResetMsg.textContent = '当前桌型不支持控制盒重置';
+    } else if (resetting) {
+      controllerResetSeenActive = true;
+      controllerResetMsg.textContent = '正在输出重置码，请勿操作升降键…';
+    } else if (controllerResetPending && controllerResetSeenActive) {
+      controllerResetPending = false;
+      controllerResetSeenActive = false;
+      controllerResetMsg.textContent = '重置序列已结束，请检查控制盒错误码';
+    }
     if (s.child_lock) {
       stateHint.textContent = '童锁已开启；解除童锁后才能操作桌子。';
     } else if (!restEnabled) {
       stateHint.textContent = 'REST 接口操作已关闭；可在设置中重新开启。';
+    } else if (resetting) {
+      stateHint.textContent = STATE_HINT.controller_resetting;
     } else if (heightUnknown && tofHeightKnown) {
       stateHint.textContent = 'ToF 高度仅用于显示；档位控制仍等待控制高度源。';
     } else if (heightUnknown) {
@@ -304,6 +328,25 @@
   p4Button.onclick = () =>
     api('/api/v1/desk/preset/4/goto', 'POST')
       .catch((error) => showBanner(motionError(error, '档位失败')));
+  controllerResetButton.onclick = async () => {
+    if (!window.confirm(
+      '仅在控制盒显示 B12 等故障时执行。确定模拟同时按住升降键约 8 秒吗？')) {
+      return;
+    }
+    controllerResetButton.disabled = true;
+    controllerResetMsg.textContent = '正在启动控制盒重置…';
+    controllerResetPending = true;
+    controllerResetSeenActive = false;
+    try {
+      await api('/api/v1/desk/controller/reset', 'POST');
+      await tick();
+    } catch (error) {
+      controllerResetPending = false;
+      controllerResetButton.disabled = false;
+      controllerResetMsg.textContent = motionError(
+        error, '无法启动控制盒重置，请确认桌子已停止');
+    }
+  };
   lock.onchange = async () => {
     try {
       await api('/api/v1/desk/child-lock', 'POST', { enabled: lock.checked });

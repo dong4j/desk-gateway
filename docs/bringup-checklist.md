@@ -187,6 +187,18 @@ I (...) yourdesk_v1: control-box height input disabled; waiting for external TOF
 - [ ] 童锁开启时，面板/Web/串口均不能启动运动，STOP 始终有效
 - [ ] 关闭 Panel 权限后面板按键无效；重新开启时一直按住按键不会立即恢复，松开再按才生效
 
+#### B.4.3 控制盒 B12 重置验收
+
+仅在控制盒确实显示 B12 等需要重置的故障时执行；正常状态不反复触发。
+
+- [ ] 桌子空闲、童锁关闭且 REST 权限开启时，Web“控制盒故障重置”按钮可用
+- [ ] 确认后日志出现 `controller reset source=rest hold=8000 ms` 和 `DR=0x7F`
+- [ ] 重置期间状态接口返回 `controller_reset_active=true`，Web 禁用升降和档位操作
+- [ ] 重复重置和 Web 升降请求被拒绝，不会覆盖当前重置序列
+- [ ] 点击“停”可提前中断，并立即恢复 `DR=0x2E`
+- [ ] 不手动中断时，约 8 秒后日志出现 `reason=controller_reset_complete` 并恢复 `DR=0x2E`
+- [ ] 控制盒 B12 错误清除，随后原厂面板和 Web 均可正常升降
+
 首轮不要按原厂面板档位 1/4。先完成基础透传，再按上述短行程步骤验证童锁和 Panel 权限；
 原厂档位键的完整序列和安全高度约束仍是后续真机阶段。
 

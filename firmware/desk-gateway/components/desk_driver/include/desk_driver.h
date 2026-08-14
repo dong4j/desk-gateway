@@ -45,6 +45,13 @@ typedef struct desk_driver {
     esp_err_t (*stop)(void);
     esp_err_t (*hold_up)(void);
     esp_err_t (*hold_down)(void);
+    /**
+     * 可选的控制盒故障重置入口。
+     *
+     * 驱动只负责开始输出已验证的厂商协议码；持续时间和最终 STOP 由
+     * desk_core 统一管理，避免 HTTP 连接中断后重置码永久保持。
+     */
+    esp_err_t (*reset_controller)(void);
     /** 1-based preset index */
     esp_err_t (*goto_preset)(uint8_t n);
     esp_err_t (*save_preset)(uint8_t n);

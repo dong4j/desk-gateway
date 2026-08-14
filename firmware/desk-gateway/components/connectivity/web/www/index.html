@@ -160,6 +160,18 @@
           <p id="pwMsg" class="hint"></p>
 
           <div class="settings-form settings-divider">
+            <label>控制盒维护</label>
+            <div class="settings-row">
+              <button type="button" id="controllerResetButton"
+                      class="settings-danger-button">重置控制盒</button>
+            </div>
+            <p class="settings-note">
+              仅在控制盒显示 B12 等故障时使用。网关将模拟同时按住升降键约 8 秒，期间可点击“停”立即中断。
+            </p>
+          </div>
+          <p id="controllerResetMsg" class="hint"></p>
+
+          <div class="settings-form settings-divider">
             <label>设备维护</label>
             <div class="settings-row">
               <button type="button" id="restartButton" class="settings-danger-button">重启 ESP32</button>

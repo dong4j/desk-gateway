@@ -17,6 +17,8 @@
 #include "nvs_flash.h"
 #include "sdkconfig.h"
 
+#include <stdatomic.h>
+
 static const char *TAG = "desk_core";
 static const char *NVS_NS = "desk_core";
 static const char *NVS_KEY_LOCK = "child_lock";
@@ -49,6 +51,12 @@ static const char *NVS_KEY_PRESET4_HEIGHT = "preset4_mm";
 #define DESK_JOG_START_WINDOW_MS 700U
 #define DESK_JOG_LEASE_MS 500U
 
+/*
+ * captures/重置.sr 中 DR=0x7F 连续约 7.52 秒并成功清除 B12。
+ * 使用 8 秒覆盖人工按键误差；无论页面是否在线，定时器到期都会 STOP。
+ */
+#define DESK_CONTROLLER_RESET_HOLD_MS 8000U
+
 typedef enum {
     DESK_JOG_NONE = 0,
     DESK_JOG_UP,
@@ -65,6 +73,7 @@ static int s_preset1_height_mm = DESK_PRESET1_HEIGHT_MM_DEFAULT;
 static int s_preset4_height_mm = DESK_PRESET4_HEIGHT_MM_DEFAULT;
 static desk_jog_direction_t s_jog_pending_direction;
 static uint32_t s_jog_last_event_ms;
+static atomic_bool s_controller_reset_active;
 static desk_core_event_listener_t s_event_listener;
 static void *s_event_listener_context;
 
@@ -197,13 +206,23 @@ static void cancel_hold_timer(void)
 static void hold_timer_cb(void *arg)
 {
     (void)arg;
+    bool was_controller_reset = atomic_load(&s_controller_reset_active);
     bool was_jog = s_jog_pending_direction != DESK_JOG_NONE;
     s_jog_pending_direction = DESK_JOG_NONE;
     const desk_driver_t *drv = desk_driver_get_active();
+    esp_err_t stop_err = ESP_ERR_INVALID_STATE;
     if (drv && drv->stop) {
-        (void)drv->stop();
+        stop_err = drv->stop();
+    }
+    if (was_controller_reset && stop_err == ESP_OK) {
+        /* 先确认 STOP 已写入总线，再允许新的运动请求进入。 */
+        atomic_store(&s_controller_reset_active, false);
+    } else if (was_controller_reset) {
+        ESP_LOGE(TAG, "controller reset STOP failed: %s",
+                 esp_err_to_name(stop_err));
     }
     ESP_LOGW(TAG, "motion stop source=core reason=%s",
+             was_controller_reset ? "controller_reset_complete" :
              was_jog ? "jog_event_gap" : "hold_timeout");
 }
 
@@ -471,6 +490,7 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
         .name = "desk_hold",
     };
     ESP_ERROR_CHECK(esp_timer_create(&args, &s_hold_timer));
+    atomic_store(&s_controller_reset_active, false);
     (void)load_child_lock();
     (void)load_control_sources();
     (void)load_max_height();
@@ -533,6 +553,8 @@ esp_err_t desk_core_stop(void)
 #endif
     esp_err_t err = drv->stop();
     if (err == ESP_OK) {
+        /* 保持重置占用状态，直到 STOP 确实已经写入驱动总线。 */
+        atomic_store(&s_controller_reset_active, false);
         /* STOP 没有来源限制；观察者只需知道任意入口已经安全停机。 */
         notify_event(DESK_CORE_EVENT_STOP_ACCEPTED,
                      DESK_CONTROL_SOURCE_CONSOLE);
@@ -553,6 +575,11 @@ static esp_err_t authorize_source(desk_control_source_t source)
                  (int)desk_control_policy_source_enabled(&s_control_policy,
                                                          source));
         return ESP_ERR_NOT_ALLOWED;
+    }
+    if (atomic_load(&s_controller_reset_active)) {
+        ESP_LOGW(TAG, "reject source=%s while controller reset is active",
+                 desk_control_source_name(source));
+        return ESP_ERR_INVALID_STATE;
     }
     return ESP_OK;
 }
@@ -645,6 +672,41 @@ esp_err_t desk_core_hold_down(desk_control_source_t source)
         notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
     }
     return err;
+}
+
+esp_err_t desk_core_reset_controller(desk_control_source_t source)
+{
+    esp_err_t err = authorize_source(source);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    const desk_driver_t *drv = desk_driver_get_active();
+    if (!drv || !drv->reset_controller) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    if (drv->get_status && drv->get_status() != DESK_STATUS_IDLE) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    bool expected = false;
+    if (!atomic_compare_exchange_strong(&s_controller_reset_active,
+                                        &expected, true)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    cancel_hold_timer();
+    s_jog_pending_direction = DESK_JOG_NONE;
+    err = drv->reset_controller();
+    if (err != ESP_OK) {
+        atomic_store(&s_controller_reset_active, false);
+        return err;
+    }
+    arm_hold_ms(DESK_CONTROLLER_RESET_HOLD_MS);
+    ESP_LOGW(TAG, "controller reset source=%s hold=%u ms",
+             desk_control_source_name(source),
+             (unsigned)DESK_CONTROLLER_RESET_HOLD_MS);
+    return ESP_OK;
 }
 
 /**
@@ -986,6 +1048,9 @@ desk_core_snapshot_t desk_core_snapshot(void)
         .height_sim = false,
         .child_lock = s_control_policy.child_lock,
         .upward_blocked = false,
+        .controller_reset_supported = false,
+        .controller_reset_active =
+            atomic_load(&s_controller_reset_active),
         .max_height_mm = s_max_height_mm,
         .preset1_height_mm = s_preset1_height_mm,
         .preset4_height_mm = s_preset4_height_mm,
@@ -997,6 +1062,7 @@ desk_core_snapshot_t desk_core_snapshot(void)
         return s;
     }
     s.driver = drv->name;
+    s.controller_reset_supported = drv->reset_controller != NULL;
     if (drv->get_status) {
         s.status = drv->get_status();
     }

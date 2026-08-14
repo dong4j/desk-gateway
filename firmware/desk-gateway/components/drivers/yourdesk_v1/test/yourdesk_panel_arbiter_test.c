@@ -10,6 +10,7 @@
 #define DR_IDLE 0x2Eu
 #define DR_UP   0x47u
 #define DR_DOWN 0x4Fu
+#define DR_RESET 0x7Fu
 #define DR_UNKNOWN_RELEASE 0x00u
 
 /** Enable a newly initialized fail-closed panel and provide the required idle. */
@@ -149,6 +150,26 @@ static void test_disabled_panel_requires_release_before_resume(void)
     assert(arbiter.panel_active);
 }
 
+/** Reset uses the captured combined-key code and remains interruptible by STOP. */
+static void test_gateway_reset_obeys_panel_and_stop_safety(void)
+{
+    yourdesk_panel_arbiter_t arbiter;
+    yourdesk_panel_arbiter_result_t result;
+    yourdesk_panel_arbiter_init(&arbiter, DR_IDLE);
+    enable_panel(&arbiter, &result);
+
+    assert(yourdesk_panel_arbiter_gateway_request(&arbiter, DR_RESET,
+                                                  &result));
+    assert(result.output_dr == DR_RESET);
+    assert(yourdesk_panel_arbiter_gateway_request(&arbiter, DR_IDLE, &result));
+    assert(result.output_dr == DR_IDLE);
+
+    yourdesk_panel_arbiter_panel_update(&arbiter, true, DR_UP, &result);
+    assert(result.output_dr == DR_UP);
+    assert(!yourdesk_panel_arbiter_gateway_request(&arbiter, DR_RESET,
+                                                   &result));
+}
+
 int main(void)
 {
     test_idle_panel_preserves_gateway();
@@ -158,6 +179,7 @@ int main(void)
     test_stop_suppresses_held_panel();
     test_disconnect_fails_idle();
     test_disabled_panel_requires_release_before_resume();
+    test_gateway_reset_obeys_panel_and_stop_safety();
     puts("yourdesk panel arbiter vectors: OK");
     return 0;
 }
