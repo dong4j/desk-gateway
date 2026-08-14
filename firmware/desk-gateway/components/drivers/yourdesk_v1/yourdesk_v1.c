@@ -4,7 +4,7 @@
  *
  * 超时/童锁在 desk_core；本文件维护当前 DR、应答主机轮询。产品默认路径只用
  * ESP32-S3 硬件 I²C Slave 响应 0x24。软件多地址和 GPIO 高度嗅探仅保留为
- * 协议实验，不得进入正常控桌固件；真实高度后续由独立 TOF200C 提供。
+ * 协议实验，不得进入正常控桌固件；真实高度后续由独立 TOF400C 提供。
  * 键码契约见 docs/3-protocol-reverse-notes.md §18。
  */
 #include "yourdesk_v1.h"
@@ -969,7 +969,7 @@ static esp_err_t yd_set_preset_heights_mm(int preset1_height_mm,
     atomic_store(&s_preset1_height_mm, preset1_height_mm);
     atomic_store(&s_preset4_height_mm, preset4_height_mm);
 #else
-    /* 配置继续由 desk_core 保存，TOF200C 接入前不执行高度闭环档位。 */
+    /* 配置继续由 desk_core 保存，TOF400C 验收前不执行高度闭环档位。 */
     (void)preset1_height_mm;
     (void)preset4_height_mm;
 #endif

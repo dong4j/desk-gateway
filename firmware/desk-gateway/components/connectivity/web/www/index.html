@@ -24,7 +24,7 @@
 
     <div class="layout">
       <!-- 左：与真实高度同步的桌体结构图 -->
-      <section class="viz-card" aria-hidden="true">
+      <section class="viz-card" aria-label="实时桌面距离数据">
         <div class="viz-heading">
           <span>Desk profile</span>
           <span class="viz-live"><i></i>Live position</span>
@@ -42,6 +42,19 @@
               <div id="railFill" class="rail-fill"></div>
             </div>
             <span class="rail-label">Min</span>
+          </div>
+        </div>
+
+        <div class="sensor-strip" aria-live="polite">
+          <div id="tofHeightReadout" class="sensor-readout">
+            <span class="sensor-name">桌面高度</span>
+            <span class="sensor-value"><strong id="tofHeight">—</strong><small>cm</small></span>
+            <span class="sensor-direction">TOF400C · 向下测地面</span>
+          </div>
+          <div id="rightGapReadout" class="sensor-readout sensor-readout-right">
+            <span class="sensor-name">右侧间距</span>
+            <span class="sensor-value"><strong id="rightGap">—</strong><small>cm</small></span>
+            <span class="sensor-direction">桌面右侧 → 墙面 · TOF050C</span>
           </div>
         </div>
       </section>

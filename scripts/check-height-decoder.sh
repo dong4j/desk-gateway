@@ -9,6 +9,7 @@ DRIVER_DIR="${REPO_ROOT}/firmware/desk-gateway/components/drivers/yourdesk_v1"
 CORE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_core"
 BLE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/ble"
 WEB_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/web"
+TOF_DIR="${REPO_ROOT}/firmware/desk-gateway/components/sensors/desk_tof"
 TEST_DIR="$(mktemp -d /tmp/desk-gateway-height-tests.XXXXXX)"
 
 cleanup() {
@@ -92,6 +93,13 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${WEB_DIR}/test/desk_web_ble_api_test.c" \
     -o "${TEST_DIR}/web-ble-api-test"
 "${TEST_DIR}/web-ble-api-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${TOF_DIR}/include" \
+    "${TOF_DIR}/desk_tof_filter.c" \
+    "${TOF_DIR}/test/desk_tof_filter_test.c" \
+    -o "${TEST_DIR}/tof-filter-test"
+"${TEST_DIR}/tof-filter-test"
 
 node --check "${WEB_DIR}/www/app.js"
 node --check "${WEB_DIR}/www/bond-management.js"

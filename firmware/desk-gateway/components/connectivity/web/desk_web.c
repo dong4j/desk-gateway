@@ -11,6 +11,7 @@
 
 #include "desk_ble.h"
 #include "desk_core.h"
+#include "desk_tof.h"
 #include "desk_web_ble_api.h"
 #include "desk_wifi.h"
 
@@ -220,6 +221,7 @@ static const char *status_str(desk_status_t st)
 static cJSON *snapshot_json(void)
 {
     desk_core_snapshot_t s = desk_core_snapshot();
+    desk_tof_snapshot_t tof = desk_tof_snapshot();
     const esp_app_desc_t *app = esp_app_get_description();
     char build_id[9] = {0};
     if (app) {
@@ -237,6 +239,18 @@ static cJSON *snapshot_json(void)
     }
     cJSON_AddBoolToObject(o, "height_known", s.height_known);
     cJSON_AddBoolToObject(o, "height_sim", s.height_sim);
+    if (tof.height_known) {
+        cJSON_AddNumberToObject(o, "tof_height_mm", tof.height_mm);
+    } else {
+        cJSON_AddNullToObject(o, "tof_height_mm");
+    }
+    cJSON_AddBoolToObject(o, "tof_height_known", tof.height_known);
+    if (tof.right_gap_known) {
+        cJSON_AddNumberToObject(o, "right_gap_mm", tof.right_gap_mm);
+    } else {
+        cJSON_AddNullToObject(o, "right_gap_mm");
+    }
+    cJSON_AddBoolToObject(o, "right_gap_known", tof.right_gap_known);
     cJSON_AddBoolToObject(o, "child_lock", s.child_lock);
     cJSON_AddBoolToObject(o, "upward_blocked", s.upward_blocked);
     cJSON_AddNumberToObject(o, "max_height_mm", s.max_height_mm);

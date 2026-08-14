@@ -10,6 +10,10 @@
   };
   const railFill = document.getElementById('railFill');
   const heightEl = document.getElementById('height');
+  const tofHeightEl = document.getElementById('tofHeight');
+  const rightGapEl = document.getElementById('rightGap');
+  const tofHeightReadout = document.getElementById('tofHeightReadout');
+  const rightGapReadout = document.getElementById('rightGapReadout');
   const meta = document.getElementById('meta');
   const lock = document.getElementById('lock');
   const banner = document.getElementById('banner');
@@ -204,6 +208,10 @@
     document.body.classList.toggle('is-moving', moving);
     stateChip.textContent = st;
     const heightUnknown = !s.height_known;
+    const tofHeightKnown = !!s.tof_height_known && typeof s.tof_height_mm === 'number';
+    const displayHeightKnown = tofHeightKnown ||
+      (!!s.height_known && typeof s.height_mm === 'number');
+    const displayHeightMm = tofHeightKnown ? s.tof_height_mm : s.height_mm;
     const sources = s.control_sources || {};
     const restEnabled = sources.rest !== false;
     const motionBlocked = !!s.child_lock || !restEnabled;
@@ -219,6 +227,8 @@
       stateHint.textContent = '童锁已开启；解除童锁后才能操作桌子。';
     } else if (!restEnabled) {
       stateHint.textContent = 'REST 接口操作已关闭；可在设置中重新开启。';
+    } else if (heightUnknown && tofHeightKnown) {
+      stateHint.textContent = 'ToF 高度仅用于显示；档位控制仍等待控制高度源。';
     } else if (heightUnknown) {
       stateHint.textContent = moving
         ? '正在等待控制盒高度帧。'
@@ -227,14 +237,19 @@
       stateHint.textContent = STATE_HINT[st] || st;
     }
 
-    if (s.height_known && typeof s.height_mm === 'number') {
-      const t = Math.min(1, Math.max(0, (s.height_mm - 700) / 500));
+    if (displayHeightKnown) {
+      const t = Math.min(1, Math.max(0, (displayHeightMm - 700) / 500));
       railFill.style.height = (12 + t * 76).toFixed(1) + '%';
-      heightEl.textContent = (s.height_mm / 10).toFixed(1);
+      heightEl.textContent = (displayHeightMm / 10).toFixed(1);
     } else {
       heightEl.textContent = '—';
       railFill.style.height = '12%';
     }
+    tofHeightEl.textContent = tofHeightKnown ? (s.tof_height_mm / 10).toFixed(1) : '—';
+    tofHeightReadout.classList.toggle('is-valid', tofHeightKnown);
+    const rightGapKnown = !!s.right_gap_known && typeof s.right_gap_mm === 'number';
+    rightGapEl.textContent = rightGapKnown ? (s.right_gap_mm / 10).toFixed(1) : '—';
+    rightGapReadout.classList.toggle('is-valid', rightGapKnown);
     simBadge.hidden = !s.height_sim;
     meta.textContent = s.driver || '';
     const buildDate = typeof s.build_date === 'string' ? s.build_date.trim() : '';

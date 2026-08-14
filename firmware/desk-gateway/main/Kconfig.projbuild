@@ -56,6 +56,58 @@ menu "Desk Gateway"
         range 0 1
         default 1
 
+    config DESK_TOF_ENABLE
+        bool "Enable TOF050C + TOF400C real-time telemetry"
+        depends on !DESK_YOURDESK_PANEL_PROXY
+        default y
+        help
+            使用独立硬件 I2C 总线采集桌面高度与右侧墙面间距。当前数据只用于
+            Web 展示，不参与升降、档位或防碰撞控制。面板代理占用同一 I2C
+            控制器时，本功能不可同时启用。
+
+    config DESK_TOF_I2C_SCL_GPIO
+        int "ToF I2C SCL GPIO"
+        depends on DESK_TOF_ENABLE
+        default 10
+
+    config DESK_TOF_I2C_SDA_GPIO
+        int "ToF I2C SDA GPIO"
+        depends on DESK_TOF_ENABLE
+        default 11
+
+    config DESK_TOF_I2C_PORT
+        int "ToF I2C port number"
+        depends on DESK_TOF_ENABLE
+        range 0 1
+        default 1
+
+    config DESK_TOF_RIGHT_SHUT_GPIO
+        int "TOF050C SHUT GPIO"
+        depends on DESK_TOF_ENABLE
+        default 12
+
+    config DESK_TOF_HEIGHT_SHUT_GPIO
+        int "TOF400C SHUT GPIO"
+        depends on DESK_TOF_ENABLE
+        default 13
+
+    config DESK_TOF_RIGHT_OFFSET_MM
+        int "TOF050C installation offset (mm)"
+        depends on DESK_TOF_ENABLE
+        range -200 200
+        default 0
+        help
+            加到 TOF050C 原始读数上的固定安装偏移。首轮真机校准前保持 0。
+
+    config DESK_TOF_HEIGHT_OFFSET_MM
+        int "TOF400C desktop height offset (mm)"
+        depends on DESK_TOF_ENABLE
+        range -200 200
+        default 0
+        help
+            桌面上表面到传感器光学中心的固定距离，加入向下测得的地面距离。
+            首轮真机校准前保持 0。
+
     config DESK_MOTION_TIMEOUT_MS
         int "Max continuous up/down hold (ms)"
         range 1000 60000

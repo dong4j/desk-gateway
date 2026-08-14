@@ -236,6 +236,75 @@ body.is-moving .rail-fill::before {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--oak) 30%, transparent);
 }
 
+.sensor-strip {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+}
+.sensor-readout {
+  position: relative;
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 1.1rem;
+  background: color-mix(in srgb, white 34%, transparent);
+}
+.sensor-readout::before {
+  content: "";
+  position: absolute;
+  width: 0.42rem;
+  height: 0.42rem;
+  top: 0.9rem;
+  right: 0.9rem;
+  border-radius: 50%;
+  background: var(--line);
+}
+.sensor-readout.is-valid::before {
+  background: #6f8563;
+  box-shadow: 0 0 0 4px color-mix(in srgb, #6f8563 13%, transparent);
+}
+.sensor-name {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.sensor-value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.sensor-value strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 5vw, 2.35rem);
+  line-height: 1;
+}
+.sensor-value small {
+  color: var(--soft);
+  font-size: 0.72rem;
+}
+.sensor-direction {
+  overflow: hidden;
+  color: var(--soft);
+  font-size: 0.64rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sensor-readout-right {
+  border-color: color-mix(in srgb, var(--oak) 38%, var(--line));
+}
+
+@media (max-width: 430px) {
+  .sensor-strip { grid-template-columns: 1fr; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rail-fill { transition: none; }
   body.is-moving .viz-live i { animation: none; }

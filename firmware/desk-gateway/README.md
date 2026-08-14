@@ -112,7 +112,7 @@ I (...) yourdesk_v1: I2C slave @0x24 SCL=4 SDA=5
 software-I²C implementation stay available only behind explicit experimental
 Kconfig switches; they are not compiled into the default component source list.
 See `docs/7-hardware-i2c-restoration-investigation.md` for evidence and the
-rollback decision. Validated height will later come from a separate TOF200C on
+rollback decision. Validated height will later come from a separate TOF400C on
 another hardware I²C controller.
 
 ## Maximum safe height
@@ -123,7 +123,7 @@ persisted and synchronized across Web, BLE, and the mobile App, but it is not a
 motion safety input while height is unknown. Closed-loop presets 1/4 are also
 unavailable in this state.
 
-After TOF200C integration, its validated and calibrated height will feed the
+After TOF400C integration, its validated and calibrated height will feed the
 existing driver/core contract. Only then may the configured ceiling and preset
 targets be re-enabled. Until that hardware acceptance is complete, do not rely
 on the stored value to prevent a collision.
