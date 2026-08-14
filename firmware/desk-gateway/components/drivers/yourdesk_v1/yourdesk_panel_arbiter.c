@@ -6,6 +6,29 @@
 
 #include <stddef.h>
 
+/* Confirmed original-panel values from the archived 12 MHz captures. */
+#define PANEL_DR_UP       0x47u
+#define PANEL_DR_DOWN     0x4Fu
+#define PANEL_DR_P1_GOTO  0x17u
+#define PANEL_DR_P1_SAVE  0x57u
+#define PANEL_DR_P4_GOTO  0x2Fu
+#define PANEL_DR_P4_SAVE  0x6Fu
+
+uint8_t yourdesk_panel_arbiter_normalize_dr(uint8_t dr, uint8_t idle_dr)
+{
+    switch (dr) {
+    case PANEL_DR_UP:
+    case PANEL_DR_DOWN:
+    case PANEL_DR_P1_GOTO:
+    case PANEL_DR_P1_SAVE:
+    case PANEL_DR_P4_GOTO:
+    case PANEL_DR_P4_SAVE:
+        return dr;
+    default:
+        return idle_dr;
+    }
+}
+
 /** Publish a result without exposing mutable arbiter state to callers. */
 static void finish_result(const yourdesk_panel_arbiter_t *arbiter,
                           uint8_t previous_output,
@@ -91,8 +114,10 @@ void yourdesk_panel_arbiter_panel_update(
     if (!arbiter) {
         return;
     }
+    uint8_t normalized_dr =
+        yourdesk_panel_arbiter_normalize_dr(dr, arbiter->idle_dr);
     uint8_t previous_output = arbiter->output_dr;
-    bool next_active = connected && dr != arbiter->idle_dr;
+    bool next_active = connected && normalized_dr != arbiter->idle_dr;
     bool panel_started = next_active && !arbiter->panel_active;
     bool panel_released = !next_active && arbiter->panel_active;
 
@@ -137,7 +162,7 @@ void yourdesk_panel_arbiter_panel_update(
     arbiter->panel_active = next_active;
     if (next_active) {
         if (!arbiter->panel_suppressed) {
-            arbiter->output_dr = dr;
+            arbiter->output_dr = normalized_dr;
         }
     } else if (panel_released) {
         arbiter->panel_suppressed = false;

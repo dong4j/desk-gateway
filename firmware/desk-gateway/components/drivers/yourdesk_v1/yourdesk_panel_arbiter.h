@@ -31,6 +31,15 @@ typedef struct {
     bool panel_released;
 } yourdesk_panel_arbiter_result_t;
 
+/**
+ * Normalize a raw TM1650 panel value before it enters motion arbitration.
+ *
+ * Only captured UP/DOWN and P1/P4 values are actionable. An idle, malformed,
+ * or not-yet-reversed value becomes idle so it cannot hold wireless control
+ * indefinitely after a physical key is released.
+ */
+uint8_t yourdesk_panel_arbiter_normalize_dr(uint8_t dr, uint8_t idle_dr);
+
 /** Initialize both sources and the controller-facing output to idle. */
 void yourdesk_panel_arbiter_init(yourdesk_panel_arbiter_t *arbiter,
                                  uint8_t idle_dr);
@@ -60,9 +69,9 @@ bool yourdesk_panel_arbiter_gateway_request(
 /**
  * Apply the latest cached panel key.
  *
- * A disconnected panel is treated as idle. The first non-idle key cancels any
- * gateway motion permanently; releasing the panel therefore returns idle
- * rather than resuming a stale wireless command.
+ * A disconnected panel and every unknown raw value are treated as idle. The
+ * first supported action key cancels any gateway motion permanently; releasing
+ * the panel therefore returns idle rather than resuming a stale command.
  */
 void yourdesk_panel_arbiter_panel_update(
     yourdesk_panel_arbiter_t *arbiter, bool connected, uint8_t dr,

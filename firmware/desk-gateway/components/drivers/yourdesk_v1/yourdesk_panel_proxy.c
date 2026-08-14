@@ -9,6 +9,7 @@
 #include "yourdesk_panel_proxy.h"
 
 #include "desk_tof.h"
+#include "yourdesk_panel_arbiter.h"
 #include "yourdesk_panel_display.h"
 
 #include "driver/gpio.h"
@@ -37,6 +38,7 @@ static const char *TAG = "yourdesk_panel";
 #define PANEL_LINE_TIMEOUT_US     1000u
 #define PANEL_POLL_INTERVAL_MS    20u
 #define PANEL_DISPLAY_REFRESH_MS  100u
+#define PANEL_UNKNOWN_LOG_MS      2000u
 
 typedef struct {
     yourdesk_panel_key_callback_t key_callback;
@@ -281,6 +283,7 @@ static void panel_proxy_task(void *arg)
     uint8_t published_dr = PANEL_IDLE_DR;
     int displayed_height_cm = -1;
     TickType_t last_display_tick = 0;
+    TickType_t last_unknown_log_tick = 0;
     TickType_t last_wake = xTaskGetTickCount();
 
     for (;;) {
@@ -291,6 +294,10 @@ static void panel_proxy_task(void *arg)
             dr = PANEL_IDLE_DR;
         }
 
+        TickType_t now = xTaskGetTickCount();
+        uint8_t normalized_dr = yourdesk_panel_arbiter_normalize_dr(
+            dr, PANEL_IDLE_DR);
+        bool unknown_dr = next_connected && dr != normalized_dr;
         bool connection_changed = next_connected != connected;
         bool dr_changed = dr != published_dr;
         if (connection_changed || dr_changed) {
@@ -302,8 +309,17 @@ static void panel_proxy_task(void *arg)
                 } else {
                     ESP_LOGI(TAG, "original panel disconnected");
                 }
-            } else if (next_connected) {
+            } else if (next_connected && !unknown_dr) {
                 ESP_LOGI(TAG, "panel raw DR=0x%02X", dr);
+            }
+            if (unknown_dr &&
+                (last_unknown_log_tick == 0 ||
+                 now - last_unknown_log_tick >=
+                     pdMS_TO_TICKS(PANEL_UNKNOWN_LOG_MS))) {
+                ESP_LOGW(TAG,
+                         "ignore unknown panel DR=0x%02X and release priority",
+                         dr);
+                last_unknown_log_tick = now;
             }
             connected = next_connected;
             published_dr = dr;
@@ -311,7 +327,6 @@ static void panel_proxy_task(void *arg)
                                  s_panel.callback_ctx);
         }
 
-        TickType_t now = xTaskGetTickCount();
         if (connected &&
             (last_display_tick == 0 ||
              now - last_display_tick >=
