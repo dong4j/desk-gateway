@@ -64,8 +64,8 @@ typedef struct {
     bool height_ready;
     TickType_t wall_last_valid;
     TickType_t height_last_valid;
-    desk_tof_filter_t wall_filter;
-    desk_tof_height_filter_t height_filter;
+    desk_tof_stable_filter_t wall_filter;
+    desk_tof_stable_filter_t height_filter;
 } desk_tof_context_t;
 
 typedef struct {
@@ -298,7 +298,7 @@ static bool read_wall_mm(desk_tof_context_t *ctx, int *out_mm)
 
 static void publish_wall(desk_tof_context_t *ctx, int raw_mm)
 {
-    int filtered = desk_tof_filter_push(&ctx->wall_filter, raw_mm);
+    int filtered = desk_tof_stable_filter_push(&ctx->wall_filter, raw_mm);
     atomic_store(&s_right_gap_mm, filtered);
     atomic_store(&s_right_gap_known, true);
     ctx->wall_last_valid = xTaskGetTickCount();
@@ -310,7 +310,7 @@ static void publish_height(desk_tof_context_t *ctx, int raw_mm)
     if (corrected < 0) {
         return;
     }
-    int filtered = desk_tof_height_filter_push(&ctx->height_filter, corrected);
+    int filtered = desk_tof_stable_filter_push(&ctx->height_filter, corrected);
     atomic_store(&s_height_mm, filtered);
     atomic_store(&s_height_known, true);
     ctx->height_last_valid = xTaskGetTickCount();
