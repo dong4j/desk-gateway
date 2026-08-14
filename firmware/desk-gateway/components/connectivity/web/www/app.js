@@ -364,17 +364,19 @@
   function bindSourceToggle(input, source) {
     input.onchange = async () => {
       const msg = document.getElementById('accessMsg');
+      /* 状态轮询可能在请求完成前改写 checkbox，必须冻结本次用户选择。 */
+      const enabled = input.checked;
       input.disabled = true;
       try {
         await api('/api/v1/desk/access', 'POST', {
           source,
-          enabled: input.checked,
+          enabled,
         });
         msg.textContent = source === 'panel'
-          ? (input.checked
+          ? (enabled
               ? '原厂面板操作已开启'
               : '原厂面板已锁定，仅显示高度')
-          : `${input.nextElementSibling.textContent}已${input.checked ? '开启' : '关闭'}`;
+          : `${input.nextElementSibling.textContent}已${enabled ? '开启' : '关闭'}`;
         await tick();
       } catch (_) {
         msg.textContent = '入口权限保存失败，请检查设备状态或网络';
