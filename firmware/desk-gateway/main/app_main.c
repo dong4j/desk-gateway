@@ -1,6 +1,6 @@
 /**
  * @file app_main.c
- * @brief Desk Gateway 入口：core + 双 ToF + OLED + BLE + Wi-Fi + Web + console
+ * @brief Desk Gateway 入口：core + 本地语音提醒 + 外设 + 联网入口
  *
  * HTTP 等 WiFi ready（SoftAP 就绪或 STA 拿到 IP）后再启动，
  * 避免「已 got ip 但 80 端口打不开」。
@@ -8,9 +8,11 @@
 #include "console_cmd.h"
 
 #include "desk_ble.h"
+#include "desk_audio.h"
 #include "desk_core.h"
 #include "desk_oled.h"
 #include "desk_peripheral_i2c.h"
+#include "desk_reminder.h"
 #include "desk_tof.h"
 #include "desk_web.h"
 #include "desk_wifi.h"
@@ -41,6 +43,21 @@ void app_main(void)
     }
 
     ESP_ERROR_CHECK(desk_core_init(&yourdesk_v1_driver));
+#if CONFIG_DESK_AUDIO_ENABLED
+    esp_err_t audio_err = desk_audio_init();
+    if (audio_err != ESP_OK) {
+        /* 扬声器是辅助能力，缺失时桌控和所有安全入口仍必须启动。 */
+        ESP_LOGW(TAG, "desk_audio_init: %s", esp_err_to_name(audio_err));
+    }
+#endif
+#if CONFIG_DESK_REMINDER_ENABLED
+    esp_err_t reminder_err = desk_reminder_init();
+    if (reminder_err != ESP_OK) {
+        /* 提醒失败不能改变 desk_core 的运动行为或启动顺序。 */
+        ESP_LOGW(TAG, "desk_reminder_init: %s",
+                 esp_err_to_name(reminder_err));
+    }
+#endif
 #if CONFIG_DESK_TOF_ENABLE
     i2c_master_bus_handle_t peripheral_bus = NULL;
     esp_err_t bus_err = desk_peripheral_i2c_start(&peripheral_bus);

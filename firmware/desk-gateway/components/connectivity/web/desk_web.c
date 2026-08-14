@@ -10,7 +10,9 @@
 #include "desk_web.h"
 
 #include "desk_ble.h"
+#include "desk_audio.h"
 #include "desk_core.h"
+#include "desk_reminder.h"
 #include "desk_tof.h"
 #include "desk_web_ble_api.h"
 #include "desk_wifi.h"
@@ -49,6 +51,8 @@ extern const uint8_t www_hold_control_js_start[] asm("_binary_hold_control_js_st
 extern const uint8_t www_hold_control_js_end[] asm("_binary_hold_control_js_end");
 extern const uint8_t www_bond_management_js_start[] asm("_binary_bond_management_js_start");
 extern const uint8_t www_bond_management_js_end[] asm("_binary_bond_management_js_end");
+extern const uint8_t www_reminder_control_js_start[] asm("_binary_reminder_control_js_start");
+extern const uint8_t www_reminder_control_js_end[] asm("_binary_reminder_control_js_end");
 extern const uint8_t www_app_js_start[] asm("_binary_app_js_start");
 extern const uint8_t www_app_js_end[] asm("_binary_app_js_end");
 extern const uint8_t www_style_css_start[] asm("_binary_style_css_start");
@@ -281,6 +285,53 @@ static cJSON *snapshot_json(void)
     /* ESP-IDF 从 Git 生成 app version，用于确认当前烧录对应的提交。 */
     cJSON_AddStringToObject(o, "git_version", app ? app->version : "");
     cJSON_AddNumberToObject(o, "ts_ms", (double)esp_log_timestamp());
+
+    desk_reminder_snapshot_t reminder = desk_reminder_snapshot();
+    cJSON *reminder_json = cJSON_AddObjectToObject(o, "reminder");
+    cJSON_AddBoolToObject(reminder_json, "available", reminder.available);
+    cJSON_AddStringToObject(reminder_json, "state",
+                            desk_reminder_state_name(reminder.state));
+    cJSON_AddStringToObject(reminder_json, "phase",
+                            desk_reminder_phase_name(reminder.phase));
+    cJSON_AddStringToObject(reminder_json, "alarm_reason",
+                            desk_reminder_alarm_name(reminder.alarm_reason));
+    cJSON_AddNumberToObject(reminder_json, "remaining_sec",
+                            reminder.remaining_sec);
+    cJSON_AddNumberToObject(reminder_json, "completed_focus_count",
+                            reminder.completed_focus_count);
+    cJSON_AddNumberToObject(reminder_json, "focus_minutes",
+                            reminder.config.focus_minutes);
+    cJSON_AddNumberToObject(reminder_json, "short_break_minutes",
+                            reminder.config.short_break_minutes);
+    cJSON_AddNumberToObject(reminder_json, "long_break_minutes",
+                            reminder.config.long_break_minutes);
+    cJSON_AddNumberToObject(reminder_json, "focuses_per_long_break",
+                            reminder.config.focuses_per_long_break);
+    if (reminder.last_error) {
+        cJSON_AddStringToObject(reminder_json, "last_error", reminder.last_error);
+    } else {
+        cJSON_AddNullToObject(reminder_json, "last_error");
+    }
+
+    desk_audio_snapshot_t audio = desk_audio_snapshot();
+    cJSON *audio_json = cJSON_AddObjectToObject(o, "audio");
+    cJSON_AddBoolToObject(audio_json, "available", audio.available);
+    cJSON_AddBoolToObject(audio_json, "enabled", audio.enabled);
+    cJSON_AddBoolToObject(audio_json, "playing", audio.playing);
+    cJSON_AddNumberToObject(audio_json, "volume_percent",
+                            audio.volume_percent);
+    cJSON_AddStringToObject(audio_json, "voice_pack", audio.voice_pack);
+    if (audio.current_prompt) {
+        cJSON_AddStringToObject(audio_json, "current_prompt",
+                                audio.current_prompt);
+    } else {
+        cJSON_AddNullToObject(audio_json, "current_prompt");
+    }
+    if (audio.last_error) {
+        cJSON_AddStringToObject(audio_json, "last_error", audio.last_error);
+    } else {
+        cJSON_AddNullToObject(audio_json, "last_error");
+    }
     return o;
 }
 
@@ -571,6 +622,169 @@ static esp_err_t handler_cmd(httpd_req_t *req)
                            err == ESP_ERR_NOT_ALLOWED ? 403 : 400, o);
 }
 
+static bool json_integer_in_range(const cJSON *item, int minimum, int maximum,
+                                  int *out_value)
+{
+    if (!cJSON_IsNumber(item) || item->valuedouble != (double)item->valueint ||
+        item->valueint < minimum || item->valueint > maximum) {
+        return false;
+    }
+    *out_value = item->valueint;
+    return true;
+}
+
+/** 鉴权后的提醒动作入口；非法状态用 409 明确反馈，不静默改动作。 */
+static esp_err_t handler_reminder_action(httpd_req_t *req)
+{
+    if (!authed(req)) return send_unauthorized(req);
+    char body[96];
+    esp_err_t err = ESP_ERR_INVALID_ARG;
+    if (read_body(req, body, sizeof(body)) == ESP_OK) {
+        cJSON *root = cJSON_Parse(body);
+        const cJSON *action = root ? cJSON_GetObjectItem(root, "action") : NULL;
+        desk_reminder_action_t parsed;
+        if (cJSON_IsString(action) &&
+            desk_reminder_action_from_name(action->valuestring, &parsed)) {
+            err = desk_reminder_perform(parsed);
+        }
+        cJSON_Delete(root);
+    }
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddBoolToObject(response, "ok", err == ESP_OK);
+    cJSON_AddStringToObject(response, "err", esp_err_to_name(err));
+    return send_cjson(req, err == ESP_OK ? 200 :
+                           err == ESP_ERR_INVALID_STATE ? 409 : 400, response);
+}
+
+/** 试听只接受登记资源 ID，永远不把客户端字符串解释为文件路径。 */
+static esp_err_t handler_audio_action(httpd_req_t *req)
+{
+    if (!authed(req)) return send_unauthorized(req);
+    char body[128];
+    esp_err_t err = ESP_ERR_INVALID_ARG;
+    if (read_body(req, body, sizeof(body)) == ESP_OK) {
+        cJSON *root = cJSON_Parse(body);
+        const cJSON *action = root ? cJSON_GetObjectItem(root, "action") : NULL;
+        if (cJSON_IsString(action) &&
+            strcmp(action->valuestring, "stop_audio") == 0) {
+            err = desk_audio_stop();
+        } else if (cJSON_IsString(action) &&
+                   strcmp(action->valuestring, "test_audio") == 0) {
+            const cJSON *prompt = cJSON_GetObjectItem(root, "prompt_id");
+            desk_audio_prompt_t parsed;
+            if (cJSON_IsString(prompt) &&
+                desk_audio_prompt_from_name(prompt->valuestring, &parsed)) {
+                err = desk_audio_play(parsed, DESK_AUDIO_PRIORITY_PREVIEW);
+            }
+        }
+        cJSON_Delete(root);
+    }
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddBoolToObject(response, "ok", err == ESP_OK);
+    cJSON_AddStringToObject(response, "err", esp_err_to_name(err));
+    return send_cjson(req, err == ESP_OK ? 200 :
+                           err == ESP_ERR_INVALID_STATE ? 409 : 400, response);
+}
+
+static esp_err_t handler_reminder_config(httpd_req_t *req)
+{
+    if (!authed(req)) return send_unauthorized(req);
+    char body[320];
+    if (read_body(req, body, sizeof(body)) != ESP_OK) {
+        cJSON *response = cJSON_CreateObject();
+        cJSON_AddStringToObject(response, "error", "invalid_config");
+        return send_cjson(req, 400, response);
+    }
+    cJSON *root = cJSON_Parse(body);
+    if (!root) {
+        cJSON *response = cJSON_CreateObject();
+        cJSON_AddStringToObject(response, "error", "invalid_config");
+        return send_cjson(req, 400, response);
+    }
+
+    desk_reminder_config_patch_t patch = {0};
+    bool timing_changed = false;
+    bool audio_changed = false;
+    bool valid = true;
+    int parsed = 0;
+#define PARSE_CONFIG_INT(json_name, has_field, target_field, minimum, maximum) \
+    do { \
+        const cJSON *item = cJSON_GetObjectItem(root, json_name); \
+        if (item) { \
+            if (!json_integer_in_range(item, minimum, maximum, &parsed)) { \
+                valid = false; \
+            } else { \
+                patch.has_field = true; \
+                patch.target_field = parsed; \
+                timing_changed = true; \
+            } \
+        } \
+    } while (0)
+    PARSE_CONFIG_INT("focus_minutes", has_focus_minutes, focus_minutes, 1, 180);
+    PARSE_CONFIG_INT("short_break_minutes", has_short_break_minutes,
+                     short_break_minutes, 1, 60);
+    PARSE_CONFIG_INT("long_break_minutes", has_long_break_minutes,
+                     long_break_minutes, 1, 120);
+    PARSE_CONFIG_INT("focuses_per_long_break", has_focuses_per_long_break,
+                     focuses_per_long_break, 1, 12);
+#undef PARSE_CONFIG_INT
+
+    desk_audio_snapshot_t old_audio = desk_audio_snapshot();
+    bool audio_enabled = old_audio.enabled;
+    uint8_t volume = old_audio.volume_percent;
+    const cJSON *enabled_item = cJSON_GetObjectItem(root, "audio_enabled");
+    if (enabled_item) {
+        valid = valid && cJSON_IsBool(enabled_item);
+        if (cJSON_IsBool(enabled_item)) audio_enabled = cJSON_IsTrue(enabled_item);
+        audio_changed = true;
+    }
+    const cJSON *volume_item = cJSON_GetObjectItem(root, "volume_percent");
+    if (volume_item) {
+        if (!json_integer_in_range(volume_item, 0, 100, &parsed)) {
+            valid = false;
+        } else {
+            volume = (uint8_t)parsed;
+        }
+        audio_changed = true;
+    }
+    const cJSON *voice_pack = cJSON_GetObjectItem(root, "voice_pack");
+    if (voice_pack && (!cJSON_IsString(voice_pack) ||
+                       strcmp(voice_pack->valuestring,
+                              DESK_AUDIO_VOICE_PACK) != 0)) {
+        valid = false;
+    }
+    valid = valid && (timing_changed || audio_changed || voice_pack);
+
+    desk_reminder_snapshot_t old_reminder = desk_reminder_snapshot();
+    esp_err_t err = valid ? ESP_OK : ESP_ERR_INVALID_ARG;
+    if (err == ESP_OK && timing_changed) {
+        err = desk_reminder_update_config(&patch);
+    }
+    if (err == ESP_OK && audio_changed) {
+        err = desk_audio_set_config(audio_enabled, volume);
+        if (err != ESP_OK && timing_changed) {
+            /* 跨组件写入失败时尽力恢复旧时长，避免返回失败却留下半份配置。 */
+            desk_reminder_config_patch_t rollback = {
+                .has_focus_minutes = true,
+                .has_short_break_minutes = true,
+                .has_long_break_minutes = true,
+                .has_focuses_per_long_break = true,
+                .focus_minutes = old_reminder.config.focus_minutes,
+                .short_break_minutes = old_reminder.config.short_break_minutes,
+                .long_break_minutes = old_reminder.config.long_break_minutes,
+                .focuses_per_long_break =
+                    old_reminder.config.focuses_per_long_break,
+            };
+            (void)desk_reminder_update_config(&rollback);
+        }
+    }
+    cJSON_Delete(root);
+    cJSON *response = cJSON_CreateObject();
+    cJSON_AddBoolToObject(response, "ok", err == ESP_OK);
+    cJSON_AddStringToObject(response, "err", esp_err_to_name(err));
+    return send_cjson(req, err == ESP_OK ? 200 : 400, response);
+}
+
 static esp_err_t send_embed(httpd_req_t *req, const char *type,
                             const uint8_t *start, const uint8_t *end)
 {
@@ -608,6 +822,12 @@ static esp_err_t handler_bond_management_js(httpd_req_t *req)
     return send_embed(req, "application/javascript",
                       www_bond_management_js_start,
                       www_bond_management_js_end);
+}
+static esp_err_t handler_reminder_control_js(httpd_req_t *req)
+{
+    return send_embed(req, "application/javascript",
+                      www_reminder_control_js_start,
+                      www_reminder_control_js_end);
 }
 static esp_err_t handler_css(httpd_req_t *req)
 {
@@ -667,7 +887,7 @@ esp_err_t desk_web_start(void)
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.server_port = 80;
     cfg.uri_match_fn = httpd_uri_match_wildcard;
-    cfg.max_uri_handlers = 20;
+    cfg.max_uri_handlers = 24;
     cfg.max_open_sockets = 7;
     cfg.lru_purge_enable = true;
     cfg.stack_size = 8192;
@@ -685,6 +905,7 @@ esp_err_t desk_web_start(void)
         {.uri = "/login.html", .method = HTTP_GET, .handler = handler_login_page},
         {.uri = "/hold-control.js", .method = HTTP_GET, .handler = handler_hold_control_js},
         {.uri = "/bond-management.js", .method = HTTP_GET, .handler = handler_bond_management_js},
+        {.uri = "/reminder-control.js", .method = HTTP_GET, .handler = handler_reminder_control_js},
         {.uri = "/app.js", .method = HTTP_GET, .handler = handler_app_js},
         {.uri = "/style.css", .method = HTTP_GET, .handler = handler_css},
         {.uri = "/favicon.png", .method = HTTP_GET, .handler = handler_favicon},
@@ -699,6 +920,9 @@ esp_err_t desk_web_start(void)
         {.uri = "/api/v1/bluetooth/bonds", .method = HTTP_DELETE, .handler = handler_bluetooth_delete},
         {.uri = "/api/v1/bluetooth/bonds/*", .method = HTTP_DELETE, .handler = handler_bluetooth_delete},
         {.uri = "/api/v1/system/restart", .method = HTTP_POST, .handler = handler_restart},
+        {.uri = "/api/v1/reminder/action", .method = HTTP_POST, .handler = handler_reminder_action},
+        {.uri = "/api/v1/reminder/config", .method = HTTP_POST, .handler = handler_reminder_config},
+        {.uri = "/api/v1/audio/action", .method = HTTP_POST, .handler = handler_audio_action},
         {.uri = "/api/v1/desk/*", .method = HTTP_POST, .handler = handler_cmd},
     };
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {

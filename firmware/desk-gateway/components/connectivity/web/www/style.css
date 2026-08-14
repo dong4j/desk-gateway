@@ -424,6 +424,89 @@ body.is-moving .height { color: #5c4a28; }
 }
 .lock input { accent-color: var(--fg); }
 
+.reminder-card {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1.75rem;
+  max-width: 28rem;
+  padding: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--oak) 42%, var(--line));
+  border-radius: 1.35rem;
+  background: color-mix(in srgb, var(--card) 68%, white);
+}
+.reminder-card.is-unavailable { opacity: 0.72; }
+.reminder-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.reminder-heading h2 {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+.reminder-time {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.7rem, 8vw, 4rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.reminder-actions,
+.audio-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.reminder-actions .btn {
+  flex: 1;
+  min-width: 5.5rem;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+}
+.reminder-audio,
+.reminder-config {
+  margin-top: 0.35rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+}
+.reminder-audio {
+  display: grid;
+  gap: 0.65rem;
+}
+.volume-field {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.volume-field input { width: 100%; accent-color: var(--fg); }
+.audio-preview-actions button,
+.reminder-config summary {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.audio-preview-actions button:disabled { cursor: not-allowed; opacity: 0.45; }
+.reminder-config summary { width: fit-content; }
+.reminder-config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+.reminder-config .compact-field {
+  display: grid;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .settings {
   margin-top: 2rem;
   padding-top: 1rem;

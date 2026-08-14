@@ -81,6 +81,59 @@
           </label>
         </div>
 
+        <section id="reminderCard" class="reminder-card" aria-labelledby="reminderTitle">
+          <div class="reminder-heading">
+            <div>
+              <p class="label">Pomodoro</p>
+              <h2 id="reminderTitle">番茄时钟</h2>
+            </div>
+            <span id="reminderPhase" class="pill">专注</span>
+          </div>
+          <p id="reminderTime" class="reminder-time">00:00</p>
+          <p id="reminderStatus" class="settings-note">还没有开始</p>
+          <p id="reminderCycle" class="settings-note">本轮已完成 0 / 4 次专注</p>
+          <div class="reminder-actions">
+            <button type="button" id="reminderPrimary" class="btn btn-fill">开始专注</button>
+            <button type="button" id="reminderPause" class="btn btn-outline" hidden>暂停</button>
+            <button type="button" id="reminderSkip" class="btn btn-ghost" disabled>跳过</button>
+            <button type="button" id="reminderSnooze" class="btn btn-ghost" hidden>延后 5 分钟</button>
+            <button type="button" id="reminderStop" class="btn btn-ghost" disabled>停止</button>
+          </div>
+
+          <div class="reminder-audio">
+            <label class="lock">
+              <input type="checkbox" id="audioEnabled" />
+              语音提醒
+            </label>
+            <label class="volume-field" for="audioVolume">
+              <span>音量 <strong id="audioVolumeLabel">60%</strong></span>
+              <input id="audioVolume" type="range" min="0" max="100" step="5" value="60" />
+            </label>
+            <div class="audio-preview-actions">
+              <button type="button" data-prompt="focus_done">试听专注结束</button>
+              <button type="button" data-prompt="break_done">试听休息结束</button>
+              <button type="button" data-prompt="attention_chime">试听提示音</button>
+              <button type="button" id="audioStop">停止声音</button>
+            </div>
+            <p id="audioStatus" class="settings-note">等待设备音频状态</p>
+          </div>
+
+          <details class="reminder-config">
+            <summary>时长设置</summary>
+            <form id="reminderConfigForm" class="settings-form">
+              <div class="reminder-config-grid">
+                <label class="compact-field">专注（分钟）<input id="focusMinutes" type="number" min="1" max="180" required /></label>
+                <label class="compact-field">短休息（分钟）<input id="shortBreakMinutes" type="number" min="1" max="60" required /></label>
+                <label class="compact-field">长休息（分钟）<input id="longBreakMinutes" type="number" min="1" max="120" required /></label>
+                <label class="compact-field">几次后长休息<input id="focusesPerLongBreak" type="number" min="1" max="12" required /></label>
+              </div>
+              <button type="submit">保存提醒设置</button>
+              <p class="settings-note">新时长从下一阶段生效，不会重置当前倒计时。</p>
+            </form>
+          </details>
+          <p id="reminderMsg" class="hint"></p>
+        </section>
+
         <details class="settings">
           <summary>设置</summary>
           <form id="maxHeightForm" class="settings-form">
@@ -186,6 +239,7 @@
 
   <script src="/hold-control.js"></script>
   <script src="/bond-management.js"></script>
+  <script src="/reminder-control.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

@@ -11,6 +11,8 @@ BLE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/ble"
 WEB_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/web"
 TOF_DIR="${REPO_ROOT}/firmware/desk-gateway/components/sensors/desk_tof"
 OLED_DIR="${REPO_ROOT}/firmware/desk-gateway/components/display/desk_oled"
+AUDIO_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_audio"
+REMINDER_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_reminder"
 TEST_DIR="$(mktemp -d /tmp/desk-gateway-height-tests.XXXXXX)"
 
 cleanup() {
@@ -116,8 +118,30 @@ cc -std=c11 -Wall -Wextra -Werror \
     -o "${TEST_DIR}/oled-pages-test"
 "${TEST_DIR}/oled-pages-test"
 
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${AUDIO_DIR}/include" \
+    "${AUDIO_DIR}/desk_audio_wav.c" \
+    "${AUDIO_DIR}/test/desk_audio_wav_test.c" \
+    -o "${TEST_DIR}/audio-wav-test"
+"${TEST_DIR}/audio-wav-test" \
+    "${AUDIO_DIR}/../../audio_assets/zh-CN-default/focus_done.wav" \
+    "${AUDIO_DIR}/../../audio_assets/zh-CN-default/break_done.wav" \
+    "${AUDIO_DIR}/../../audio_assets/zh-CN-default/snooze_done.wav" \
+    "${AUDIO_DIR}/../../audio_assets/zh-CN-default/attention_chime.wav"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${REMINDER_DIR}/include" \
+    "${REMINDER_DIR}/desk_reminder_logic.c" \
+    "${REMINDER_DIR}/test/desk_reminder_logic_test.c" \
+    -o "${TEST_DIR}/reminder-logic-test"
+"${TEST_DIR}/reminder-logic-test"
+
+"${SCRIPT_DIR}/check-audio-assets.sh"
+
 node --check "${WEB_DIR}/www/app.js"
 node --check "${WEB_DIR}/www/bond-management.js"
+node --check "${WEB_DIR}/www/reminder-control.js"
 node "${WEB_DIR}/test/hold-control.test.js"
 node "${WEB_DIR}/test/bond-management.test.js"
 node "${WEB_DIR}/test/source-toggle.test.js"
+node "${WEB_DIR}/test/reminder-control.test.js"

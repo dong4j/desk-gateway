@@ -84,6 +84,44 @@
 
 本节完成前，双 ToF 保持**代码已接入、完整真机安全矩阵待验收**。
 
+### A.4 番茄时钟与 MAX98357A 语音提醒
+
+自动化门禁（2026-08-15）：
+
+- [x] ESP-IDF v6.0.2 隔离构建通过，3 MiB Factory App 剩余 57%
+- [x] 4 MiB `audio` SPIFFS 镜像随完整 `idf.py flash` 进入烧录参数
+- [x] 三段中文语音和提示音均通过 16 kHz / 16-bit / Mono PCM WAV 校验
+- [x] 番茄状态机、WAV 解析、PCM 音量与 Web 展示规则 Host tests 通过
+- [x] REST/Web 支持开始、暂停、继续、跳过、停止、延后、音量、静音和试听
+- [x] 到期逻辑没有调用任何升降、档位或运动接口
+
+MAX98357A 到货后的接线：
+
+| ESP32-S3 | MAX98357A | 说明 |
+|---|---|---|
+| USB 输入侧 `5V` | `VIN` | 不使用桌子 RJ45 红线 3.3V |
+| `GND` | `GND` | ESP、功放、USB 电源共地 |
+| `GPIO14` | `BCLK` | I2S Bit Clock |
+| `GPIO15` | `LRC` / `WS` | I2S Word Select |
+| `GPIO16` | `DIN` | ESP 到功放的数据 |
+| — | `SPK+` / `SPK-` | 扬声器接在两端之间，任意一端都不接 GND |
+
+首次实物门禁：
+
+- [ ] 断电确认模块丝印、VIN/GND、BCLK/LRC/DIN 和 SPK+/SPK-，无反接或短路
+- [ ] 确认 GPIO14/15/16 在实际开发板上已引出且无底板冲突
+- [ ] 使用完整 `idf.py flash`，不能只烧录 `app`，否则语音分区不会更新
+- [ ] 首次上电将 Web 音量设为 20%，分别试听提示音和三段中文语音
+- [ ] 一米距离语音完整清晰，无吞字、重复、明显 click/pop 或持续失真
+- [ ] 连续播放 10 分钟无 brownout、USB 断连、功放或扬声器异常发热
+- [ ] 播放期间 Web、BLE、原厂面板、升降和 STOP 响应正常
+- [ ] 关闭 Web/Wi-Fi 后，设置 1 分钟专注仍只在 ESP 本地到期播放一次
+- [ ] 暂停、继续、跳过、停止和延后不会触发旧定时器二次播放
+- [ ] 重启后回到 `idle`，时长、语音开关和音量配置保留，但不补播旧提醒
+
+本节真机项完成前，结论保持**代码 GO、语音与整机产品验收 NO-GO**。详细设计和错误边界见
+[`6-pomodoro-reminder-plan.md`](./6-pomodoro-reminder-plan.md)。
+
 ## B. 接线（yourdesk_v1 + RJ45）
 
 电源与安全：

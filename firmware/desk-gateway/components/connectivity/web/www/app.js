@@ -41,6 +41,26 @@
   const pairingWindowButton = document.getElementById('pairingWindowButton');
   const pairingWindowHint = document.getElementById('pairingWindowHint');
   const deleteAllBondsButton = document.getElementById('deleteAllBondsButton');
+  const reminderCard = document.getElementById('reminderCard');
+  const reminderPhase = document.getElementById('reminderPhase');
+  const reminderTime = document.getElementById('reminderTime');
+  const reminderStatus = document.getElementById('reminderStatus');
+  const reminderCycle = document.getElementById('reminderCycle');
+  const reminderPrimary = document.getElementById('reminderPrimary');
+  const reminderPause = document.getElementById('reminderPause');
+  const reminderSkip = document.getElementById('reminderSkip');
+  const reminderSnooze = document.getElementById('reminderSnooze');
+  const reminderStop = document.getElementById('reminderStop');
+  const reminderMsg = document.getElementById('reminderMsg');
+  const audioEnabled = document.getElementById('audioEnabled');
+  const audioVolume = document.getElementById('audioVolume');
+  const audioVolumeLabel = document.getElementById('audioVolumeLabel');
+  const audioStatus = document.getElementById('audioStatus');
+  const audioStop = document.getElementById('audioStop');
+  const focusMinutes = document.getElementById('focusMinutes');
+  const shortBreakMinutes = document.getElementById('shortBreakMinutes');
+  const longBreakMinutes = document.getElementById('longBreakMinutes');
+  const focusesPerLongBreak = document.getElementById('focusesPerLongBreak');
   let failStreak = 0;
   let lastStatus = {};
   let controllerResetPending = false;
@@ -207,10 +227,61 @@
     return fallback;
   }
 
+  function applyReminderStatus(reminder, audio) {
+    const view = DeskReminderControl.viewModel(reminder, audio);
+    reminderCard.classList.toggle('is-unavailable', !view.available);
+    reminderPhase.textContent = view.phaseLabel;
+    reminderTime.textContent = view.timeText;
+    reminderStatus.textContent = view.available
+      ? view.statusText : (reminder.last_error || '番茄时钟不可用');
+    const cycleSize = Number(reminder.focuses_per_long_break) || 4;
+    const completed = Number(reminder.completed_focus_count) || 0;
+    reminderCycle.textContent = `本轮已完成 ${completed % cycleSize} / ${cycleSize} 次专注`;
+
+    reminderPrimary.hidden = !view.primaryAction;
+    reminderPrimary.dataset.action = view.primaryAction || '';
+    reminderPrimary.textContent = view.primaryLabel;
+    reminderPause.hidden = !view.pauseAction;
+    reminderPause.dataset.action = view.pauseAction || '';
+    reminderPause.textContent = view.pauseLabel;
+    reminderPrimary.disabled = !view.available;
+    reminderPause.disabled = !view.available;
+    reminderSkip.disabled = !view.available || !view.canSkip;
+    reminderStop.disabled = !view.available || !view.canStop;
+    reminderSnooze.hidden = !view.canSnooze;
+    reminderSnooze.disabled = !view.available;
+
+    audioEnabled.checked = !!audio.enabled;
+    audioEnabled.disabled = !view.audioAvailable;
+    audioVolume.disabled = !view.audioAvailable;
+    if (document.activeElement !== audioVolume) {
+      audioVolume.value = Number(audio.volume_percent) || 0;
+    }
+    audioVolumeLabel.textContent = `${audioVolume.value}%`;
+    audioStatus.textContent = `${view.audioStatus} · ${audio.voice_pack || 'zh-CN-default'}`;
+    document.querySelectorAll('[data-prompt]').forEach((button) => {
+      button.disabled = !view.audioAvailable || !audio.enabled || audio.volume_percent === 0;
+    });
+    audioStop.disabled = !view.audioAvailable || !audio.playing;
+
+    const configValues = [
+      [focusMinutes, reminder.focus_minutes],
+      [shortBreakMinutes, reminder.short_break_minutes],
+      [longBreakMinutes, reminder.long_break_minutes],
+      [focusesPerLongBreak, reminder.focuses_per_long_break],
+    ];
+    configValues.forEach(([input, value]) => {
+      if (document.activeElement !== input && Number.isInteger(value)) {
+        input.value = value;
+      }
+    });
+  }
+
   function applyStatus(s) {
     failStreak = 0;
     showBanner('');
     lastStatus = s;
+    applyReminderStatus(s.reminder || {}, s.audio || {});
     const resetting = !!s.controller_reset_active;
     const st = resetting ? 'controller_resetting' : (s.status || 'idle');
     const moving = st === 'moving_up' || st === 'moving_down' ||
@@ -390,6 +461,80 @@
   bindSourceToggle(allowRest, 'rest');
   bindSourceToggle(allowBluetooth, 'bluetooth');
   bindSourceToggle(allowPanel, 'panel');
+
+  async function reminderAction(action) {
+    if (!action) return;
+    reminderMsg.textContent = '正在更新…';
+    try {
+      await api('/api/v1/reminder/action', 'POST', { action });
+      reminderMsg.textContent = '';
+      await tick();
+    } catch (error) {
+      reminderMsg.textContent = error.httpStatus === 409
+        ? '当前阶段不能执行这个操作，请刷新状态后重试'
+        : '番茄时钟操作失败，请检查设备状态';
+    }
+  }
+  reminderPrimary.onclick = () => reminderAction(reminderPrimary.dataset.action);
+  reminderPause.onclick = () => reminderAction(reminderPause.dataset.action);
+  reminderSkip.onclick = () => reminderAction('skip');
+  reminderStop.onclick = () => reminderAction('stop');
+  reminderSnooze.onclick = () => reminderAction('snooze');
+
+  async function saveAudioConfig(values) {
+    try {
+      await api('/api/v1/reminder/config', 'POST', values);
+      reminderMsg.textContent = '语音设置已保存';
+      await tick();
+    } catch (_) {
+      reminderMsg.textContent = '语音设置保存失败';
+      await tick();
+    }
+  }
+  audioEnabled.onchange = () => saveAudioConfig({ audio_enabled: audioEnabled.checked });
+  audioVolume.oninput = () => { audioVolumeLabel.textContent = `${audioVolume.value}%`; };
+  audioVolume.onchange = () => saveAudioConfig({ volume_percent: Number(audioVolume.value) });
+  document.querySelectorAll('[data-prompt]').forEach((button) => {
+    button.onclick = async () => {
+      try {
+        await api('/api/v1/audio/action', 'POST', {
+          action: 'test_audio',
+          prompt_id: button.dataset.prompt,
+        });
+        reminderMsg.textContent = '正在播放试听语音';
+        await tick();
+      } catch (_) {
+        reminderMsg.textContent = '试听失败，请检查音频分区和扬声器状态';
+      }
+    };
+  });
+  audioStop.onclick = () => api('/api/v1/audio/action', 'POST', {
+    action: 'stop_audio',
+  }).then(tick).catch(() => { reminderMsg.textContent = '停止声音失败'; });
+
+  document.getElementById('reminderConfigForm').onsubmit = async (event) => {
+    event.preventDefault();
+    const config = {
+      focus_minutes: Number(focusMinutes.value),
+      short_break_minutes: Number(shortBreakMinutes.value),
+      long_break_minutes: Number(longBreakMinutes.value),
+      focuses_per_long_break: Number(focusesPerLongBreak.value),
+    };
+    if (!Number.isInteger(config.focus_minutes) || config.focus_minutes < 1 || config.focus_minutes > 180 ||
+        !Number.isInteger(config.short_break_minutes) || config.short_break_minutes < 1 || config.short_break_minutes > 60 ||
+        !Number.isInteger(config.long_break_minutes) || config.long_break_minutes < 1 || config.long_break_minutes > 120 ||
+        !Number.isInteger(config.focuses_per_long_break) || config.focuses_per_long_break < 1 || config.focuses_per_long_break > 12) {
+      reminderMsg.textContent = '提醒时长或长休息间隔超出允许范围';
+      return;
+    }
+    try {
+      await api('/api/v1/reminder/config', 'POST', config);
+      reminderMsg.textContent = '提醒设置已保存，将从下一阶段生效';
+      await tick();
+    } catch (_) {
+      reminderMsg.textContent = '提醒设置保存失败';
+    }
+  };
 
   pairingWindowButton.onclick = async () => {
     pairingWindowButton.disabled = true;

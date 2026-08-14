@@ -102,6 +102,42 @@ menu "Desk Gateway"
             右侧间距、运动状态、传感器状态、Wi-Fi 与 BLE 摘要。
             OLED 缺失或初始化失败不会阻断其他功能。
 
+    config DESK_AUDIO_ENABLED
+        bool "Enable MAX98357A local voice playback"
+        default y
+        help
+            通过 I2S 播放 Audio Data 分区内的固定中文 WAV 资源。功放或音频
+            初始化失败只会让语音功能降级，不得阻断桌控、BLE、Wi-Fi 或 Web。
+
+    config DESK_AUDIO_I2S_BCLK_GPIO
+        int "MAX98357A I2S BCLK GPIO"
+        depends on DESK_AUDIO_ENABLED
+        default 14
+
+    config DESK_AUDIO_I2S_WS_GPIO
+        int "MAX98357A I2S WS/LRC GPIO"
+        depends on DESK_AUDIO_ENABLED
+        default 15
+
+    config DESK_AUDIO_I2S_DOUT_GPIO
+        int "MAX98357A I2S data GPIO"
+        depends on DESK_AUDIO_ENABLED
+        default 16
+
+    config DESK_AUDIO_DEFAULT_VOLUME_PERCENT
+        int "Default voice volume percent"
+        depends on DESK_AUDIO_ENABLED
+        range 0 100
+        default 60
+
+    config DESK_REMINDER_ENABLED
+        bool "Enable Pomodoro voice reminder"
+        default y
+        depends on DESK_AUDIO_ENABLED
+        help
+            ESP32-S3 使用单调时钟独立计时。到期只播放语音并更新页面状态，
+            绝不自动触发升桌、降桌或档位动作。
+
     config DESK_MOTION_TIMEOUT_MS
         int "Max continuous up/down hold (ms)"
         range 1000 60000

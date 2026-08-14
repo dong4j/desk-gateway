@@ -5,14 +5,16 @@ ESP-IDF project for the standing-desk gateway. Parent docs: [../../README.md](..
 ## Build
 
 ```bash
-# Activate ESP-IDF first, then:
+# Activate the project's fixed ESP-IDF v6.0.2 environment first, then:
 cd firmware/desk-gateway
+# Run set-target once after pulling the audio-partition change so an old local
+# sdkconfig cannot keep the former 1500 KiB partition table.
 idf.py set-target esp32s3
 idf.py build
 idf.py -p PORT flash monitor
 ```
 
-Requires ESP-IDF ≥ 5.2 (tested on 6.0.x). Component Manager pulls `espressif/cjson` on first build.
+Requires ESP-IDF v6.0.2. Component Manager pulls `espressif/cjson` on first build.
 
 The default configuration also enables the native NimBLE peripheral. It
 advertises as `DeskGateway`; BLE commands require a Just Works encrypted/bonded
@@ -51,6 +53,29 @@ The resistors are pull-ups, not series resistors: white and black still connect
 directly to their GPIOs. Power the ESP32 independently over USB.
 
 Acceptance checklist: [docs/bringup-checklist.md](../../docs/bringup-checklist.md)
+
+## Pomodoro voice reminder (MAX98357A)
+
+The default firmware includes an ESP-local Pomodoro timer and real Chinese WAV
+voice prompts. Wire the I2S amplifier as follows:
+
+| ESP32-S3 | MAX98357A |
+|----------|-----------|
+| USB-side 5V | VIN |
+| GND | GND |
+| GPIO14 | BCLK |
+| GPIO15 | LRC / WS |
+| GPIO16 | DIN |
+
+Connect a 4 Ω / 3 W speaker between `SPK+` and `SPK-`; neither speaker terminal
+goes to GND. Do not power the amplifier from the desk RJ45 3.3V rail.
+
+The 16 kHz / 16-bit / Mono WAV pack lives in a separate 4 MiB `audio` SPIFFS
+partition. Use a full `idf.py flash` after building so `audio.bin` is flashed at
+`0x310000`; `idf.py app-flash` alone does not install or update the voice pack.
+Start at 20% volume for first hardware bring-up. The firmware and automated
+tests are complete, but audio quality, brownout, click/pop and desk-bus EMI stay
+open until the physical amplifier and speaker are tested.
 
 ## Wiring (yourdesk_v1, Phase 2 original-panel proxy)
 
