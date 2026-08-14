@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -40,6 +41,7 @@ interface HomeScreenProps {
   onStop: () => void;
   onPreset1: () => void;
   onPreset4: () => void;
+  onResetController: () => void;
   onToggleChildLock: () => void;
 }
 
@@ -62,11 +64,13 @@ export function HomeScreen({
   onStop,
   onPreset1,
   onPreset4,
+  onResetController,
   onToggleChildLock,
 }: HomeScreenProps) {
   const [errorToast, setErrorToast] = useState<ErrorToastState | null>(null);
   const errorToastProgress = useRef(new Animated.Value(0)).current;
   const errorToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetPromptShown = useRef(false);
   const state = snapshot.deskState;
   const config = snapshot.deskConfig;
   const connected = snapshot.phase === 'ready';
@@ -75,7 +79,8 @@ export function HomeScreen({
     ? config?.restAllowed !== false
     : state?.bluetoothAllowed !== false;
   const motionBlocked =
-    !connected || state?.childLock === true || !activeSourceAllowed;
+    !connected || state?.childLock === true || !activeSourceAllowed ||
+    state?.controllerResetActive === true;
   const upwardBlocked = state?.upwardBlocked === true;
   const heightUnknown = state?.heightKnown !== true || state.heightMm === null;
   const heightCm = state?.heightKnown && state.heightMm !== null
@@ -92,6 +97,29 @@ export function HomeScreen({
     state.heightMm < preset1HeightMm;
   const preset4MovesUp = state?.heightKnown === true && state.heightMm !== null &&
     state.heightMm < preset4HeightMm;
+
+  useEffect(() => {
+    if (state?.controllerResetRecommended !== true) {
+      resetPromptShown.current = false;
+      return;
+    }
+    if (resetPromptShown.current) {
+      return;
+    }
+    resetPromptShown.current = true;
+    const actions = state.controllerResetSupported
+      ? [
+          { text: '稍后处理', style: 'cancel' as const },
+          { text: '立即重置', onPress: onResetController },
+        ]
+      : [{ text: '知道了', style: 'cancel' as const }];
+    Alert.alert(
+      '桌子可能需要重置',
+      '升降指令发出后高度没有正常变化，可能是控制盒 B12 错误。请确认桌子周围无障碍物后执行重置。',
+      actions,
+    );
+  }, [onResetController, state?.controllerResetRecommended,
+    state?.controllerResetSupported]);
 
   // Transport 可能在下一帧清空 error；Toast 使用独立状态，确保用户能看清提示。
   useEffect(() => {

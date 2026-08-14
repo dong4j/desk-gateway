@@ -292,6 +292,9 @@ export default function App() {
           onPreset4={() =>
             runCommand(clientRef.current!.sendCommand(DeskCommand.Preset4))
           }
+          onResetController={() =>
+            runCommand(clientRef.current!.resetController())
+          }
           onToggleChildLock={() =>
             runCommand(
               clientRef.current!.setChildLock(

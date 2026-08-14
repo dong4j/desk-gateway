@@ -263,6 +263,8 @@ static cJSON *snapshot_json(void)
                           s.controller_reset_supported);
     cJSON_AddBoolToObject(o, "controller_reset_active",
                           s.controller_reset_active);
+    cJSON_AddBoolToObject(o, "controller_reset_recommended",
+                          s.controller_reset_recommended);
     cJSON_AddNumberToObject(o, "max_height_mm", s.max_height_mm);
     cJSON_AddNumberToObject(o, "preset1_height_mm", s.preset1_height_mm);
     cJSON_AddNumberToObject(o, "preset4_height_mm", s.preset4_height_mm);

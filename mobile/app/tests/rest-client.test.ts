@@ -13,6 +13,9 @@ const status = {
   height_sim: false,
   child_lock: false,
   upward_blocked: false,
+  controller_reset_supported: true,
+  controller_reset_active: false,
+  controller_reset_recommended: true,
   max_height_mm: 1100,
   preset1_height_mm: 640,
   preset4_height_mm: 1020,
@@ -38,11 +41,13 @@ test('connects through X-Desk-Key and maps REST status to the shared snapshot', 
   let latestHeight: number | null = null;
   let latestPreset4 = 0;
   let latestFirmwareRevision: string | null = null;
+  let resetRecommended = false;
   client.subscribe((snapshot) => {
     latestTransport = snapshot.transport;
     latestHeight = snapshot.deskState?.heightMm ?? null;
     latestPreset4 = snapshot.deskConfig?.preset4HeightMm ?? 0;
     latestFirmwareRevision = snapshot.firmwareRevision;
+    resetRecommended = snapshot.deskState?.controllerResetRecommended ?? false;
   });
 
   client.configure('desk-gateway.local/', 'secret');
@@ -53,6 +58,7 @@ test('connects through X-Desk-Key and maps REST status to the shared snapshot', 
   assert.equal(latestHeight, 990);
   assert.equal(latestPreset4, 1020);
   assert.equal(latestFirmwareRevision, 'Aug 11 2026 21:05:03 @ fc310ab');
+  assert.equal(resetRecommended, true);
   assert.equal(requests[0].url, 'http://desk-gateway.local/api/v1/desk/status');
   assert.equal(
     (requests[0].init?.headers as Record<string, string>)['X-Desk-Key'],

@@ -31,6 +31,8 @@ test('decodes known height and safety flags', () => {
   assert.equal(state.maxHeightMm, 1100);
   assert.equal(state.bluetoothAllowed, true);
   assert.equal(state.upwardBlocked, true);
+  assert.equal(state.controllerResetSupported, false);
+  assert.equal(state.controllerResetRecommended, false);
 });
 
 test('maps unknown height to null', () => {
@@ -108,6 +110,10 @@ test('keeps system management commands separate from motion commands', () => {
   assert.deepEqual(
     encodeDeskSystemCommand(DeskSystemCommand.Restart),
     [0x01],
+  );
+  assert.deepEqual(
+    encodeDeskSystemCommand(DeskSystemCommand.ResetController),
+    [0x02],
   );
   assert.throws(() => encodeDeskSystemCommand(0x7f), /system command/);
 });

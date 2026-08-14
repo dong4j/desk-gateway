@@ -56,6 +56,7 @@ export interface DeskClient {
     preset4HeightMm: number,
   ): Promise<void>;
   restartGateway(): Promise<void>;
+  resetController(): Promise<void>;
   disconnect(): Promise<void>;
   dispose(): void;
 }

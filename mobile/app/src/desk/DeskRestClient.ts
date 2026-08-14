@@ -26,6 +26,9 @@ interface RestStatus {
   height_sim?: boolean;
   child_lock?: boolean;
   upward_blocked?: boolean;
+  controller_reset_supported?: boolean;
+  controller_reset_active?: boolean;
+  controller_reset_recommended?: boolean;
   max_height_mm?: number;
   preset1_height_mm?: number;
   preset4_height_mm?: number;
@@ -178,6 +181,13 @@ export class DeskRestClient implements DeskClient {
     this.update({ phase: 'disconnected' });
   }
 
+  async resetController(): Promise<void> {
+    await this.operation(() => this.request(
+      '/api/v1/desk/controller/reset',
+      { method: 'POST' },
+    ));
+  }
+
   /** Bond 管理始终走已认证 REST，即使当前控制通道是 BLE。 */
   async getBluetoothBonds(): Promise<DeskBondSnapshot> {
     this.ensureConfigured();
@@ -252,6 +262,10 @@ export class DeskRestClient implements DeskClient {
         childLock,
         bluetoothAllowed: sources.bluetooth !== false,
         upwardBlocked: status.upward_blocked === true,
+        controllerResetSupported: status.controller_reset_supported === true,
+        controllerResetActive: status.controller_reset_active === true,
+        controllerResetRecommended:
+          status.controller_reset_recommended === true,
         heightMm: heightKnown ? status.height_mm! : null,
         maxHeightMm,
       },

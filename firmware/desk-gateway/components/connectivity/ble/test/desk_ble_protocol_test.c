@@ -39,6 +39,9 @@ static void test_state_encode(void)
         .child_lock = true,
         .bluetooth_enabled = true,
         .upward_blocked = false,
+        .controller_reset_supported = true,
+        .controller_reset_active = false,
+        .controller_reset_recommended = true,
         .height_mm = 990,
         .max_height_mm = 1020,
     };
@@ -46,7 +49,7 @@ static void test_state_encode(void)
     assert(desk_ble_state_encode(&input, state, sizeof(state)) ==
            DESK_BLE_STATE_LENGTH);
     const uint8_t expected[] = {
-        0x01, 0x01, 0x0d, 0x00, 0xde, 0x03, 0xfc, 0x03,
+        0x01, 0x01, 0xad, 0x00, 0xde, 0x03, 0xfc, 0x03,
     };
     assert(memcmp(state, expected, sizeof(expected)) == 0);
 
@@ -103,6 +106,9 @@ static void test_config_protocol(void)
     const uint8_t restart = DESK_BLE_SYSTEM_COMMAND_RESTART;
     desk_ble_system_command_t system_command;
     assert(desk_ble_system_command_decode(&restart, 1, &system_command));
+    const uint8_t reset = DESK_BLE_SYSTEM_COMMAND_RESET_CONTROLLER;
+    assert(desk_ble_system_command_decode(&reset, 1, &system_command));
+    assert(system_command == DESK_BLE_SYSTEM_COMMAND_RESET_CONTROLLER);
     const uint8_t unknown_system_command = 0x7f;
     assert(!desk_ble_system_command_decode(&unknown_system_command, 1,
                                            &system_command));

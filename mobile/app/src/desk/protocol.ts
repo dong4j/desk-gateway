@@ -35,6 +35,7 @@ const configFieldCode: Record<DeskConfigField, number> = {
 
 export const DeskSystemCommand = {
   Restart: 0x01,
+  ResetController: 0x02,
 } as const;
 
 /** Client Info 只上报协议版本和平台类型，不传递设备名称或系统标识。 */
@@ -90,6 +91,9 @@ export function decodeDeskState(bytes: readonly number[]): DeskState {
     childLock: (flags & (1 << 2)) !== 0,
     bluetoothAllowed: (flags & (1 << 3)) !== 0,
     upwardBlocked: (flags & (1 << 4)) !== 0,
+    controllerResetSupported: (flags & (1 << 5)) !== 0,
+    controllerResetActive: (flags & (1 << 6)) !== 0,
+    controllerResetRecommended: (flags & (1 << 7)) !== 0,
     heightMm: heightKnown ? rawHeightMm : null,
     maxHeightMm,
   };
@@ -171,7 +175,8 @@ export function encodeDeskConfigWrite(
 
 /** System 管理命令独立于运动命令，避免重启被误当成桌体动作。 */
 export function encodeDeskSystemCommand(command: number): readonly number[] {
-  if (command !== DeskSystemCommand.Restart) {
+  if (command !== DeskSystemCommand.Restart &&
+      command !== DeskSystemCommand.ResetController) {
     throw new Error(`Unsupported Desk Gateway system command: ${command}`);
   }
   return [command];

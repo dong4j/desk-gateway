@@ -45,6 +45,7 @@ typedef enum {
 
 typedef enum {
     DESK_BLE_SYSTEM_COMMAND_RESTART = 0x01,
+    DESK_BLE_SYSTEM_COMMAND_RESET_CONTROLLER = 0x02,
 } desk_ble_system_command_t;
 
 enum {
@@ -53,6 +54,9 @@ enum {
     DESK_BLE_STATE_FLAG_CHILD_LOCK = UINT8_C(1) << 2,
     DESK_BLE_STATE_FLAG_BLUETOOTH_ENABLED = UINT8_C(1) << 3,
     DESK_BLE_STATE_FLAG_UPWARD_BLOCKED = UINT8_C(1) << 4,
+    DESK_BLE_STATE_FLAG_CONTROLLER_RESET_SUPPORTED = UINT8_C(1) << 5,
+    DESK_BLE_STATE_FLAG_CONTROLLER_RESET_ACTIVE = UINT8_C(1) << 6,
+    DESK_BLE_STATE_FLAG_CONTROLLER_RESET_RECOMMENDED = UINT8_C(1) << 7,
 };
 
 enum {
@@ -69,6 +73,9 @@ typedef struct {
     bool child_lock;
     bool bluetooth_enabled;
     bool upward_blocked;
+    bool controller_reset_supported;
+    bool controller_reset_active;
+    bool controller_reset_recommended;
     int height_mm;
     int max_height_mm;
 } desk_ble_state_input_t;

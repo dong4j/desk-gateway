@@ -53,6 +53,15 @@ size_t desk_ble_state_encode(const desk_ble_state_input_t *input,
     if (input->upward_blocked) {
         flags |= DESK_BLE_STATE_FLAG_UPWARD_BLOCKED;
     }
+    if (input->controller_reset_supported) {
+        flags |= DESK_BLE_STATE_FLAG_CONTROLLER_RESET_SUPPORTED;
+    }
+    if (input->controller_reset_active) {
+        flags |= DESK_BLE_STATE_FLAG_CONTROLLER_RESET_ACTIVE;
+    }
+    if (input->controller_reset_recommended) {
+        flags |= DESK_BLE_STATE_FLAG_CONTROLLER_RESET_RECOMMENDED;
+    }
 
     out[0] = DESK_BLE_PROTOCOL_VERSION;
     out[1] = input->status;
@@ -161,10 +170,11 @@ bool desk_ble_system_command_decode(const uint8_t *data, size_t len,
                                     desk_ble_system_command_t *out_command)
 {
     if (!data || !out_command || len != 1 ||
-        data[0] != DESK_BLE_SYSTEM_COMMAND_RESTART) {
+        (data[0] != DESK_BLE_SYSTEM_COMMAND_RESTART &&
+         data[0] != DESK_BLE_SYSTEM_COMMAND_RESET_CONTROLLER)) {
         return false;
     }
-    *out_command = DESK_BLE_SYSTEM_COMMAND_RESTART;
+    *out_command = (desk_ble_system_command_t)data[0];
     return true;
 }
 

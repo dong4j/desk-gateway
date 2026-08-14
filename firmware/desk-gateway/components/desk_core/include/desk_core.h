@@ -28,6 +28,7 @@ typedef struct {
     bool raise_to_max_supported;
     bool controller_reset_supported;
     bool controller_reset_active;
+    bool controller_reset_recommended;
     int max_height_mm;
     int preset1_height_mm;
     int preset4_height_mm;

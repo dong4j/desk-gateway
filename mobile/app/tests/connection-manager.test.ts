@@ -153,6 +153,7 @@ class FailingBleClient implements DeskClient {
   async setMaxHeightMm(): Promise<void> {}
   async setPresetHeightsMm(): Promise<void> {}
   async restartGateway(): Promise<void> {}
+  async resetController(): Promise<void> {}
   async disconnect(): Promise<void> {}
   dispose(): void {}
 
@@ -207,6 +208,7 @@ class ReadyBleClient implements DeskClient {
   async setMaxHeightMm(): Promise<void> {}
   async setPresetHeightsMm(): Promise<void> {}
   async restartGateway(): Promise<void> {}
+  async resetController(): Promise<void> {}
   async disconnect(): Promise<void> {}
   dispose(): void {}
 

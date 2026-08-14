@@ -15,6 +15,9 @@ export interface DeskState {
   childLock: boolean;
   bluetoothAllowed: boolean;
   upwardBlocked: boolean;
+  controllerResetSupported: boolean;
+  controllerResetActive: boolean;
+  controllerResetRecommended: boolean;
   heightMm: number | null;
   maxHeightMm: number;
 }

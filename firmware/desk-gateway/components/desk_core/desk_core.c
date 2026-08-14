@@ -8,6 +8,7 @@
  * SIM 高度：驱动无 digit 时本地推算，仅演示，禁止当真实高度。
  */
 #include "desk_core.h"
+#include "desk_motion_watch.h"
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -55,6 +56,7 @@ static const char *NVS_KEY_PRESET4_HEIGHT = "tof_p4_mm";
  * 使用 8 秒覆盖人工按键误差；无论页面是否在线，定时器到期都会 STOP。
  */
 #define DESK_CONTROLLER_RESET_HOLD_MS 8000U
+#define DESK_MOTION_WATCH_POLL_MS 100U
 
 typedef enum {
     DESK_JOG_NONE = 0,
@@ -73,6 +75,7 @@ static int s_preset4_height_mm = DESK_PRESET4_HEIGHT_MM_DEFAULT;
 static desk_jog_direction_t s_jog_pending_direction;
 static uint32_t s_jog_last_event_ms;
 static atomic_bool s_controller_reset_active;
+static atomic_bool s_controller_reset_recommended;
 static desk_core_event_listener_t s_event_listener;
 static void *s_event_listener_context;
 
@@ -510,6 +513,60 @@ static void probe_startup_height_if_unknown(const desk_driver_t *drv)
     }
 }
 
+static desk_motion_watch_kind_t motion_watch_kind(desk_status_t status)
+{
+    switch (status) {
+    case DESK_STATUS_MOVING_UP:
+        return DESK_MOTION_WATCH_UP;
+    case DESK_STATUS_MOVING_DOWN:
+        return DESK_MOTION_WATCH_DOWN;
+    case DESK_STATUS_GOTO_PRESET:
+        return DESK_MOTION_WATCH_TARGET;
+    case DESK_STATUS_IDLE:
+    case DESK_STATUS_ERROR:
+    default:
+        return DESK_MOTION_WATCH_IDLE;
+    }
+}
+
+/**
+ * 只使用驱动已经发布的真实高度，判断控制码输出后桌体是否确实移动。
+ *
+ * 诊断成立时先发布提示再 STOP；若高度传感器本身冻结，停止比继续输出更安全。
+ * 高度未知时不猜测 B12，也不会改变原有控制行为。
+ */
+static void motion_watch_task(void *arg)
+{
+    (void)arg;
+    desk_motion_watch_t watch = {0};
+    while (true) {
+        const desk_driver_t *drv = desk_driver_get_active();
+        if (!drv || !drv->get_status || !drv->get_height_mm ||
+            atomic_load(&s_controller_reset_active)) {
+            desk_motion_watch_reset(&watch);
+            vTaskDelay(pdMS_TO_TICKS(DESK_MOTION_WATCH_POLL_MS));
+            continue;
+        }
+
+        int height_mm = -1;
+        bool height_known = drv->get_height_mm(&height_mm) == ESP_OK;
+        desk_motion_watch_result_t result = desk_motion_watch_update(
+            &watch, motion_watch_kind(drv->get_status()), height_known,
+            height_mm, DESK_MAX_HEIGHT_MM_MIN, s_max_height_mm,
+            (uint32_t)(esp_timer_get_time() / 1000ULL));
+        if (result == DESK_MOTION_WATCH_PROGRESS) {
+            atomic_store(&s_controller_reset_recommended, false);
+        } else if (result == DESK_MOTION_WATCH_STALLED) {
+            atomic_store(&s_controller_reset_recommended, true);
+            ESP_LOGW(TAG,
+                     "motion stalled at %d mm; controller reset recommended",
+                     height_mm);
+            (void)desk_core_stop();
+        }
+        vTaskDelay(pdMS_TO_TICKS(DESK_MOTION_WATCH_POLL_MS));
+    }
+}
+
 esp_err_t desk_core_init(const desk_driver_t *drv)
 {
     const esp_timer_create_args_t args = {
@@ -518,6 +575,7 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
     };
     ESP_ERROR_CHECK(esp_timer_create(&args, &s_hold_timer));
     atomic_store(&s_controller_reset_active, false);
+    atomic_store(&s_controller_reset_recommended, false);
     (void)load_child_lock();
     (void)load_control_sources();
     (void)load_max_height();
@@ -554,6 +612,10 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
         }
     }
     probe_startup_height_if_unknown(drv);
+    if (xTaskCreate(motion_watch_task, "desk_motion_watch", 3072, NULL,
+                    tskIDLE_PRIORITY + 2, NULL) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
     ESP_LOGI(TAG,
              "init ok; child_lock=%d; sources=0x%08lx; max_height=%d mm; "
              "preset1=%d mm; preset4=%d mm; motion_timeout=%d ms",
@@ -760,6 +822,7 @@ esp_err_t desk_core_reset_controller(desk_control_source_t source)
         atomic_store(&s_controller_reset_active, false);
         return err;
     }
+    atomic_store(&s_controller_reset_recommended, false);
     arm_hold_ms(DESK_CONTROLLER_RESET_HOLD_MS);
     ESP_LOGW(TAG, "controller reset source=%s hold=%u ms",
              desk_control_source_name(source),
@@ -1108,6 +1171,8 @@ desk_core_snapshot_t desk_core_snapshot(void)
         .controller_reset_supported = false,
         .controller_reset_active =
             atomic_load(&s_controller_reset_active),
+        .controller_reset_recommended =
+            atomic_load(&s_controller_reset_recommended),
         .max_height_mm = s_max_height_mm,
         .preset1_height_mm = s_preset1_height_mm,
         .preset4_height_mm = s_preset4_height_mm,

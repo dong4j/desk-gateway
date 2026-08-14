@@ -254,6 +254,9 @@ I (...) yourdesk_v1: control-box height input disabled; waiting for external TOF
 - [ ] 重复重置和 Web 升降请求被拒绝，不会覆盖当前重置序列
 - [ ] 点击“停”可提前中断，并立即恢复 `DR=0x2E`
 - [ ] 不手动中断时，约 8 秒后日志出现 `reason=controller_reset_complete` 并恢复 `DR=0x2E`
+- [ ] Web/App 持续操作升降 2.5 秒且真实高度变化不足 8 mm 时，仅提示一次“可能是 B12”并先停止输出
+- [ ] 桌子处于最低/最高边界或操作时间不足 2.5 秒时，不出现 B12 误提示
+- [ ] Web/App 接受提示后可分别通过 REST/BLE 启动同一条 8 秒重置序列
 - [ ] 控制盒 B12 错误清除，随后原厂面板和 Web 均可正常升降
 
 首轮不要按原厂面板档位 1/4。先完成基础透传，再按上述短行程步骤验证童锁和 Panel 权限；

@@ -131,6 +131,10 @@ export class DeskConnectionManager implements DeskClient {
     return this.requireActive().restartGateway();
   }
 
+  resetController(): Promise<void> {
+    return this.requireActive().resetController();
+  }
+
   getBluetoothBonds(): Promise<DeskBondSnapshot> {
     return this.restClient.getBluetoothBonds();
   }

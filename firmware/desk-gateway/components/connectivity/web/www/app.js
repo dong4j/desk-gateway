@@ -65,6 +65,7 @@
   let lastStatus = {};
   let controllerResetPending = false;
   let controllerResetSeenActive = false;
+  let controllerResetPromptShown = false;
   let restarting = false;
   let lastBondSnapshot = null;
   let lastBondRefreshAt = 0;
@@ -227,6 +228,26 @@
     return fallback;
   }
 
+  async function startControllerReset(requireConfirmation) {
+    if (requireConfirmation && !window.confirm(
+      '仅在控制盒显示 B12 等故障时执行。确定模拟同时按住升降键约 8 秒吗？')) {
+      return;
+    }
+    controllerResetButton.disabled = true;
+    controllerResetMsg.textContent = '正在启动控制盒重置…';
+    controllerResetPending = true;
+    controllerResetSeenActive = false;
+    try {
+      await api('/api/v1/desk/controller/reset', 'POST');
+      await tick();
+    } catch (error) {
+      controllerResetPending = false;
+      controllerResetButton.disabled = false;
+      controllerResetMsg.textContent = motionError(
+        error, '无法启动控制盒重置，请确认桌子已停止');
+    }
+  }
+
   function applyReminderStatus(reminder, audio) {
     const view = DeskReminderControl.viewModel(reminder, audio);
     reminderCard.classList.toggle('is-unavailable', !view.available);
@@ -283,6 +304,16 @@
     lastStatus = s;
     applyReminderStatus(s.reminder || {}, s.audio || {});
     const resetting = !!s.controller_reset_active;
+    if (!s.controller_reset_recommended) {
+      controllerResetPromptShown = false;
+    } else if (!controllerResetPromptShown) {
+      controllerResetPromptShown = true;
+      showBanner('升降后高度没有变化，控制盒可能出现 B12 错误');
+      if (window.confirm(
+        '升降指令发出后高度没有正常变化，控制盒可能出现 B12 错误。确认桌子周围无障碍物后，是否立即执行约 8 秒重置？')) {
+        void startControllerReset(false);
+      }
+    }
     const st = resetting ? 'controller_resetting' : (s.status || 'idle');
     const moving = st === 'moving_up' || st === 'moving_down' ||
       st === 'goto_preset' || resetting;
@@ -403,25 +434,7 @@
   p4Button.onclick = () =>
     api('/api/v1/desk/preset/4/goto', 'POST')
       .catch((error) => showBanner(motionError(error, '档位失败')));
-  controllerResetButton.onclick = async () => {
-    if (!window.confirm(
-      '仅在控制盒显示 B12 等故障时执行。确定模拟同时按住升降键约 8 秒吗？')) {
-      return;
-    }
-    controllerResetButton.disabled = true;
-    controllerResetMsg.textContent = '正在启动控制盒重置…';
-    controllerResetPending = true;
-    controllerResetSeenActive = false;
-    try {
-      await api('/api/v1/desk/controller/reset', 'POST');
-      await tick();
-    } catch (error) {
-      controllerResetPending = false;
-      controllerResetButton.disabled = false;
-      controllerResetMsg.textContent = motionError(
-        error, '无法启动控制盒重置，请确认桌子已停止');
-    }
-  };
+  controllerResetButton.onclick = () => void startControllerReset(true);
   lock.onchange = async () => {
     try {
       await api('/api/v1/desk/child-lock', 'POST', { enabled: lock.checked });

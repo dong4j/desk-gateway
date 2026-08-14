@@ -261,6 +261,13 @@ export class DeskBleClient implements DeskClient {
     );
   }
 
+  resetController(): Promise<void> {
+    return this.enqueueWrite(
+      DESK_SYSTEM_UUID,
+      encodeDeskSystemCommand(DeskSystemCommand.ResetController),
+    );
+  }
+
   private enqueueWrite(
     characteristicUuid: string,
     bytes: readonly number[],

@@ -830,6 +830,10 @@ static size_t current_state(uint8_t out[DESK_BLE_STATE_LENGTH])
             (snapshot.enabled_sources & DESK_CONTROL_SOURCE_BIT(
                  DESK_CONTROL_SOURCE_BLUETOOTH)) != 0,
         .upward_blocked = snapshot.upward_blocked,
+        .controller_reset_supported = snapshot.controller_reset_supported,
+        .controller_reset_active = snapshot.controller_reset_active,
+        .controller_reset_recommended =
+            snapshot.controller_reset_recommended,
         .height_mm = snapshot.height_mm,
         .max_height_mm = snapshot.max_height_mm,
     };
@@ -994,12 +998,17 @@ static int system_access(uint16_t conn_handle, uint16_t attr_handle,
     if (!desk_ble_system_command_decode(&raw, sizeof(raw), &command)) {
         return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
     }
-    if (s_restart_pending) {
+    if (command == DESK_BLE_SYSTEM_COMMAND_RESTART && s_restart_pending) {
         return BLE_ATT_ERR_UNLIKELY;
     }
 
-    esp_err_t err = desk_core_stop();
-    if (err == ESP_OK) {
+    esp_err_t err;
+    if (command == DESK_BLE_SYSTEM_COMMAND_RESET_CONTROLLER) {
+        err = desk_core_reset_controller(DESK_CONTROL_SOURCE_BLUETOOTH);
+    } else {
+        err = desk_core_stop();
+    }
+    if (err == ESP_OK && command == DESK_BLE_SYSTEM_COMMAND_RESTART) {
         s_restart_pending = true;
         if (xTaskCreate(restart_task, "ble_restart", 2048, NULL,
                         tskIDLE_PRIORITY + 1, NULL) != pdPASS) {
@@ -1010,7 +1019,7 @@ static int system_access(uint16_t conn_handle, uint16_t attr_handle,
     if (err != ESP_OK) {
         return command_error_to_att(err);
     }
-    ESP_LOGI(TAG, "system restart accepted");
+    ESP_LOGI(TAG, "system command=0x%02x accepted", (unsigned)command);
     return 0;
 }
 

@@ -76,6 +76,13 @@ cc -std=c11 -Wall -Wextra -Werror \
 "${TEST_DIR}/control-policy-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
+    -I "${CORE_DIR}/include" \
+    "${CORE_DIR}/desk_motion_watch.c" \
+    "${CORE_DIR}/test/desk_motion_watch_test.c" \
+    -o "${TEST_DIR}/motion-watch-test"
+"${TEST_DIR}/motion-watch-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
     -I "${BLE_DIR}/include" \
     "${BLE_DIR}/desk_ble_protocol.c" \
     "${BLE_DIR}/test/desk_ble_protocol_test.c" \
