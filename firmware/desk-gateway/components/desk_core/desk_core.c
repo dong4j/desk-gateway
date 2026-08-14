@@ -24,7 +24,8 @@ static const char *NVS_NS = "desk_core";
 static const char *NVS_KEY_LOCK = "child_lock";
 /* Old calibrated-height keys are intentionally not reused for raw ToF values. */
 static const char *NVS_KEY_MAX_HEIGHT = "tof_max_mm";
-static const char *NVS_KEY_SOURCES = "ctrl_sources";
+static const char *NVS_KEY_SOURCES_LEGACY = "ctrl_sources";
+static const char *NVS_KEY_SOURCES = "ctrl_src_v2";
 static const char *NVS_KEY_PRESET1_HEIGHT = "tof_p1_mm";
 static const char *NVS_KEY_PRESET4_HEIGHT = "tof_p4_mm";
 
@@ -286,7 +287,19 @@ static esp_err_t load_control_sources(void)
         return err;
     }
     uint32_t value = 0;
+    bool migrated = false;
     err = nvs_get_u32(h, NVS_KEY_SOURCES, &value);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        /*
+         * v1 默认开放原厂面板。首次升级时保留其他入口设置，但清除 Panel
+         * bit；之后只读写 v2 key，用户主动开放面板后不会再次被迁移覆盖。
+         */
+        err = nvs_get_u32(h, NVS_KEY_SOURCES_LEGACY, &value);
+        if (err == ESP_OK) {
+            value &= ~DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_PANEL);
+            migrated = true;
+        }
+    }
     nvs_close(h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         return ESP_OK;
@@ -300,7 +313,23 @@ static esp_err_t load_control_sources(void)
     /* Console is a local diagnostic path, but still remains below child lock. */
     s_control_policy.enabled_sources |=
         DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_CONSOLE);
-    return ESP_OK;
+    if (!migrated) {
+        return ESP_OK;
+    }
+
+    /* Persist the migrated mask before normal source updates start using v2. */
+    nvs_handle_t write_handle;
+    err = nvs_open(NVS_NS, NVS_READWRITE, &write_handle);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_set_u32(write_handle, NVS_KEY_SOURCES,
+                      s_control_policy.enabled_sources);
+    if (err == ESP_OK) {
+        err = nvs_commit(write_handle);
+    }
+    nvs_close(write_handle);
+    return err;
 }
 
 /** Persist all known source bits as one extensible NVS mask. */

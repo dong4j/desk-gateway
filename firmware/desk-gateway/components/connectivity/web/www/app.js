@@ -370,7 +370,11 @@
           source,
           enabled: input.checked,
         });
-        msg.textContent = `${input.nextElementSibling.textContent}已${input.checked ? '开启' : '关闭'}`;
+        msg.textContent = source === 'panel'
+          ? (input.checked
+              ? '原厂面板操作已开启'
+              : '原厂面板已锁定，仅显示高度')
+          : `${input.nextElementSibling.textContent}已${input.checked ? '开启' : '关闭'}`;
         await tick();
       } catch (_) {
         msg.textContent = '入口权限保存失败，请检查设备状态或网络';

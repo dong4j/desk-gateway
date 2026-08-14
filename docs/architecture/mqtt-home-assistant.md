@@ -124,8 +124,8 @@ bit 4，升级后 MQTT 自然保持关闭。
 而应显式保留当前默认来源，不包含 MQTT：
 
 ```text
-默认开启：REST、Bluetooth、Panel、Console
-默认关闭：MQTT
+默认开启：REST、Bluetooth、Console
+默认关闭：Panel、MQTT
 ```
 
 MQTT 存在两个不同开关：
