@@ -4,13 +4,15 @@
  *
  * 超时/童锁在 desk_core；本文件维护当前 DR、应答主机轮询。产品默认路径只用
  * ESP32-S3 硬件 I²C Slave 响应 0x24。软件多地址和 GPIO 高度嗅探仅保留为
- * 协议实验，不得进入正常控桌固件；真实高度后续由独立 TOF400C 提供。
+ * 协议实验，不得进入正常控桌固件；产品路径使用 TOF400C 高度与 TOF050C
+ * 右侧距离执行档位闭环和上升安全限制。
  * 键码契约见 docs/3-protocol-reverse-notes.md §18。
  */
 #include "yourdesk_v1.h"
 #include "yourdesk_panel_arbiter.h"
 #include "yourdesk_preset_logic.h"
 
+#include "desk_tof.h"
 #include "driver/i2c_slave.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -34,6 +36,12 @@
 #include "yourdesk_soft_i2c_sm.h"
 #else
 #define YOURDESK_HEIGHT_INPUT_ENABLED 0
+#endif
+
+#if CONFIG_DESK_TOF_ENABLE || YOURDESK_HEIGHT_INPUT_ENABLED
+#define YOURDESK_CLOSED_LOOP_ENABLED 1
+#else
+#define YOURDESK_CLOSED_LOOP_ENABLED 0
 #endif
 
 #if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
@@ -119,13 +127,45 @@ static atomic_bool s_panel_active;
 static atomic_bool s_panel_connected;
 #endif
 
-#if YOURDESK_HEIGHT_INPUT_ENABLED
-static atomic_int s_height_mm;
+#if YOURDESK_CLOSED_LOOP_ENABLED
 static atomic_int s_max_height_mm;
 static atomic_int s_preset1_height_mm;
 static atomic_int s_preset4_height_mm;
 static atomic_int s_preset_target_mm;
 static atomic_int s_preset_direction;
+
+/** Cancel closed-loop preset tracking before any manual or explicit stop command. */
+static void cancel_preset_motion(void)
+{
+    atomic_store(&s_preset_target_mm, -1);
+    atomic_store(&s_preset_direction, 0);
+}
+#endif
+
+#if CONFIG_DESK_TOF_ENABLE
+/** Read the already-filtered ToF snapshot used by every upward safety path. */
+static bool tof_upward_blocked(desk_tof_snapshot_t snapshot)
+{
+    return yourdesk_tof_upward_blocked(
+        snapshot.height_known, snapshot.height_mm,
+        snapshot.right_gap_known, snapshot.right_gap_mm,
+        atomic_load(&s_max_height_mm));
+}
+
+/** Log one rejected/stopped UP command with both sensor inputs. */
+static void log_tof_upward_block(const char *source,
+                                 desk_tof_snapshot_t snapshot)
+{
+    ESP_LOGW(TAG,
+             "block upward source=%s height=%d known=%d right_gap=%d known=%d max=%d",
+             source, snapshot.height_mm, (int)snapshot.height_known,
+             snapshot.right_gap_mm, (int)snapshot.right_gap_known,
+             atomic_load(&s_max_height_mm));
+}
+#endif
+
+#if YOURDESK_HEIGHT_INPUT_ENABLED
+static atomic_int s_height_mm;
 static atomic_uint_fast32_t s_motion_epoch;
 static atomic_uint_fast32_t s_height_epoch;
 static atomic_uint_fast32_t s_height_tick;
@@ -152,13 +192,6 @@ static yourdesk_preset_direction_t current_height_direction(void)
         return YOURDESK_PRESET_DOWN;
     }
     return YOURDESK_PRESET_STOP;
-}
-
-/** Cancel closed-loop preset tracking before any manual or explicit stop command. */
-static void cancel_preset_motion(void)
-{
-    atomic_store(&s_preset_target_mm, -1);
-    atomic_store(&s_preset_direction, 0);
 }
 
 /** Require the next complete controller frame to establish a fresh baseline. */
@@ -315,7 +348,10 @@ static void motion_diagnostics_task(void *arg)
 }
 #endif
 
-/** Stop once the decoded height reaches or crosses the target in its travel direction. */
+#endif
+
+#if YOURDESK_CLOSED_LOOP_ENABLED
+/** Stop once the measured height reaches or crosses the preset target. */
 static void stop_preset_if_reached(int height_mm)
 {
     int target_mm = atomic_load(&s_preset_target_mm);
@@ -340,6 +376,40 @@ static void stop_preset_if_reached(int height_mm)
     ESP_LOGI(TAG, "preset target reached: current=%d mm target=%d mm",
              height_mm, target_mm);
     (void)set_dr(DR_IDLE);
+}
+#endif
+
+#if CONFIG_DESK_TOF_ENABLE
+/**
+ * Enforce the ToF ceiling/obstacle policy during motion and close preset loops.
+ *
+ * Entry checks reject unsafe commands before motion; this task is still
+ * required because a safe command can later reach 94 cm or encounter an
+ * obstacle below 80 cm. STOP goes through the panel arbiter so a held original
+ * panel key remains suppressed until it is released.
+ */
+static void tof_control_task(void *arg)
+{
+    (void)arg;
+    while (true) {
+        uint8_t dr = (uint8_t)atomic_load(&s_dr);
+        int target_mm = atomic_load(&s_preset_target_mm);
+        if (dr == DR_UP || dr == DR_DOWN || target_mm >= 0) {
+            desk_tof_snapshot_t snapshot = desk_tof_snapshot();
+            if (target_mm >= 0 && !snapshot.height_known) {
+                ESP_LOGW(TAG, "stop preset: TOF400C height unavailable");
+                cancel_preset_motion();
+                (void)set_dr(DR_IDLE);
+            } else if (dr == DR_UP && tof_upward_blocked(snapshot)) {
+                log_tof_upward_block("motion", snapshot);
+                cancel_preset_motion();
+                (void)set_dr(DR_IDLE);
+            } else if (target_mm >= 0) {
+                stop_preset_if_reached(snapshot.height_mm);
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(HEIGHT_SAFETY_POLL_MS));
+    }
 }
 #endif
 
@@ -593,13 +663,17 @@ static void panel_key_update(bool connected, uint8_t dr, void *ctx)
     atomic_store(&s_panel_connected, connected);
     portEXIT_CRITICAL(&s_panel_arbiter_mux);
 
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if YOURDESK_CLOSED_LOOP_ENABLED
     if (result.panel_started) {
         cancel_preset_motion();
+#if YOURDESK_HEIGHT_INPUT_ENABLED
         begin_height_resync();
+#endif
     } else if (result.output_changed &&
                (result.output_dr == DR_UP || result.output_dr == DR_DOWN)) {
+#if YOURDESK_HEIGHT_INPUT_ENABLED
         begin_height_resync();
+#endif
     }
 #endif
     if (result.panel_started) {
@@ -608,6 +682,17 @@ static void panel_key_update(bool connected, uint8_t dr, void *ctx)
         ESP_LOGI(TAG, "original panel released");
     }
     if (result.output_changed) {
+#if CONFIG_DESK_TOF_ENABLE
+        if (result.output_dr == DR_UP) {
+            desk_tof_snapshot_t snapshot = desk_tof_snapshot();
+            if (tof_upward_blocked(snapshot)) {
+                log_tof_upward_block("panel", snapshot);
+                cancel_preset_motion();
+                (void)set_dr(DR_IDLE);
+                return;
+            }
+        }
+#endif
         publish_controller_dr(result.output_dr);
     }
 }
@@ -717,6 +802,32 @@ static esp_err_t set_dr(uint8_t dr)
     return ESP_OK;
 }
 
+/** Return the product height source without applying any calibration offset. */
+static esp_err_t read_control_height_mm(int *out_mm)
+{
+    if (!out_mm) {
+        return ESP_ERR_INVALID_ARG;
+    }
+#if CONFIG_DESK_TOF_ENABLE
+    desk_tof_snapshot_t snapshot = desk_tof_snapshot();
+    if (!snapshot.height_known) {
+        /* NOT_SUPPORTED also prevents the obsolete boot-time digit probe. */
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    *out_mm = snapshot.height_mm;
+    return ESP_OK;
+#elif YOURDESK_HEIGHT_INPUT_ENABLED
+    int height_mm = atomic_load(&s_height_mm);
+    if (height_mm < 0) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    *out_mm = height_mm;
+    return ESP_OK;
+#else
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
 static esp_err_t yd_init(void)
 {
     atomic_store(&s_dr, DR_IDLE);
@@ -725,15 +836,17 @@ static esp_err_t yd_init(void)
     atomic_store(&s_panel_active, false);
     atomic_store(&s_panel_connected, false);
 #endif
+#if YOURDESK_CLOSED_LOOP_ENABLED
+    atomic_store(&s_max_height_mm, CONFIG_DESK_MAX_HEIGHT_MM);
+    atomic_store(&s_preset1_height_mm, DESK_PRESET1_HEIGHT_MM_DEFAULT);
+    atomic_store(&s_preset4_height_mm, DESK_PRESET4_HEIGHT_MM_DEFAULT);
+    cancel_preset_motion();
+#endif
 #if YOURDESK_HEIGHT_INPUT_ENABLED
     atomic_store(&s_height_mm, -1);
-    atomic_store(&s_max_height_mm, CONFIG_DESK_MAX_HEIGHT_MM);
-    atomic_store(&s_preset1_height_mm, YOURDESK_HEIGHT_MIN_MM);
-    atomic_store(&s_preset4_height_mm, 1020);
     atomic_store(&s_motion_epoch, 1);
     atomic_store(&s_height_epoch, 0);
     atomic_store(&s_height_tick, 0);
-    cancel_preset_motion();
 #endif
 #if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
     s_ctx.tx_q = xQueueCreate(1, sizeof(uint8_t));
@@ -801,6 +914,12 @@ static esp_err_t yd_init(void)
         return err; /* An enabled active bridge must fail closed, not half-start. */
     }
 #endif
+#if CONFIG_DESK_TOF_ENABLE
+    if (xTaskCreatePinnedToCore(tof_control_task, "yd_tof_guard", 3072, NULL,
+                                configMAX_PRIORITIES - 4, NULL, 0) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
+#endif
 #if YOURDESK_HEIGHT_INPUT_ENABLED && CONFIG_DESK_MOTION_DIAGNOSTICS
     if (xTaskCreatePinnedToCore(motion_diagnostics_task, "yd_motion_diag", 3072,
                                 NULL, configMAX_PRIORITIES - 3,
@@ -822,7 +941,7 @@ static esp_err_t yd_deinit(void)
 
 static esp_err_t yd_stop(void)
 {
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if YOURDESK_CLOSED_LOOP_ENABLED
     cancel_preset_motion();
 #endif
     return set_dr(DR_IDLE);
@@ -837,8 +956,19 @@ static esp_err_t yd_hold_direction(uint8_t dr)
     if (panel_has_priority()) {
         return ESP_ERR_INVALID_STATE;
     }
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if CONFIG_DESK_TOF_ENABLE
+    if (dr == DR_UP) {
+        desk_tof_snapshot_t snapshot = desk_tof_snapshot();
+        if (tof_upward_blocked(snapshot)) {
+            log_tof_upward_block("command", snapshot);
+            return ESP_ERR_INVALID_STATE;
+        }
+    }
+#endif
+#if YOURDESK_CLOSED_LOOP_ENABLED
     cancel_preset_motion();
+#endif
+#if YOURDESK_HEIGHT_INPUT_ENABLED
     if (dr == DR_UP) {
         int height_mm = atomic_load(&s_height_mm);
         if (height_mm < 0) {
@@ -872,7 +1002,7 @@ static esp_err_t yd_reset_controller(void)
     if (panel_has_priority()) {
         return ESP_ERR_INVALID_STATE;
     }
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if YOURDESK_CLOSED_LOOP_ENABLED
     cancel_preset_motion();
 #endif
     return set_dr(DR_RESET);
@@ -883,7 +1013,7 @@ static esp_err_t yd_goto_preset(uint8_t n)
     if (panel_has_priority()) {
         return ESP_ERR_INVALID_STATE;
     }
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if YOURDESK_CLOSED_LOOP_ENABLED
     int target_mm = yourdesk_preset_target_mm(
         n, atomic_load(&s_preset1_height_mm),
         atomic_load(&s_preset4_height_mm));
@@ -891,8 +1021,12 @@ static esp_err_t yd_goto_preset(uint8_t n)
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    int current_mm = atomic_load(&s_height_mm);
-    if (current_mm < 0) {
+    int current_mm = -1;
+    esp_err_t height_err = read_control_height_mm(&current_mm);
+    if (height_err != ESP_OK) {
+#if CONFIG_DESK_TOF_ENABLE
+        return ESP_ERR_INVALID_STATE;
+#else
         yourdesk_preset_direction_t bootstrap =
             yourdesk_preset_bootstrap_direction(n);
         if (bootstrap == YOURDESK_PRESET_STOP) {
@@ -903,7 +1037,12 @@ static esp_err_t yd_goto_preset(uint8_t n)
         begin_height_resync();
         ESP_LOGI(TAG, "preset %u bootstrap: height unknown, direction=down target=%d mm",
                  (unsigned)n, target_mm);
-        return set_dr(DR_DOWN);
+        esp_err_t err = set_dr(DR_DOWN);
+        if (err != ESP_OK) {
+            cancel_preset_motion();
+        }
+        return err;
+#endif
     }
     yourdesk_preset_direction_t direction = yourdesk_preset_direction(
         current_mm, target_mm, PRESET_STOP_MARGIN_MM);
@@ -911,13 +1050,28 @@ static esp_err_t yd_goto_preset(uint8_t n)
         cancel_preset_motion();
         return set_dr(DR_IDLE);
     }
+#if CONFIG_DESK_TOF_ENABLE
+    if (direction == YOURDESK_PRESET_UP) {
+        desk_tof_snapshot_t snapshot = desk_tof_snapshot();
+        if (tof_upward_blocked(snapshot)) {
+            log_tof_upward_block("preset", snapshot);
+            return ESP_ERR_INVALID_STATE;
+        }
+    }
+#endif
 
     atomic_store(&s_preset_direction, direction);
     atomic_store(&s_preset_target_mm, target_mm);
     ESP_LOGI(TAG, "preset %u: current=%d mm target=%d mm direction=%s",
              (unsigned)n, current_mm, target_mm, direction > 0 ? "up" : "down");
+#if YOURDESK_HEIGHT_INPUT_ENABLED
     begin_height_resync();
-    return set_dr(direction > 0 ? DR_UP : DR_DOWN);
+#endif
+    esp_err_t err = set_dr(direction > 0 ? DR_UP : DR_DOWN);
+    if (err != ESP_OK) {
+        cancel_preset_motion();
+    }
+    return err;
 #else
     (void)n;
     return ESP_ERR_NOT_SUPPORTED;
@@ -930,8 +1084,7 @@ static esp_err_t yd_set_max_height_mm(int max_height_mm)
         max_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
-#if YOURDESK_HEIGHT_INPUT_ENABLED
-    /* Keep the setting compatible while maximum-height enforcement is disabled. */
+#if YOURDESK_CLOSED_LOOP_ENABLED
     atomic_store(&s_max_height_mm, max_height_mm);
 #else
     /*
@@ -946,16 +1099,15 @@ static esp_err_t yd_set_max_height_mm(int max_height_mm)
 static esp_err_t yd_set_preset_heights_mm(int preset1_height_mm,
                                            int preset4_height_mm)
 {
-    if (preset1_height_mm < YOURDESK_HEIGHT_MIN_MM ||
-        preset1_height_mm > preset4_height_mm ||
-        preset4_height_mm > YOURDESK_HEIGHT_MAX_MM) {
+    if (preset1_height_mm < DESK_MAX_HEIGHT_MM_MIN ||
+        preset1_height_mm >= preset4_height_mm ||
+        preset4_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if YOURDESK_CLOSED_LOOP_ENABLED
     atomic_store(&s_preset1_height_mm, preset1_height_mm);
     atomic_store(&s_preset4_height_mm, preset4_height_mm);
 #else
-    /* 配置继续由 desk_core 保存，TOF400C 验收前不执行高度闭环档位。 */
     (void)preset1_height_mm;
     (void)preset4_height_mm;
 #endif
@@ -983,30 +1135,21 @@ static esp_err_t yd_save_preset(uint8_t n)
 
 static esp_err_t yd_get_height_mm(int *out_mm)
 {
-    if (!out_mm) {
-        return ESP_ERR_INVALID_ARG;
-    }
-#if YOURDESK_HEIGHT_INPUT_ENABLED
-    int height_mm = atomic_load(&s_height_mm);
-    if (height_mm < 0) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    *out_mm = height_mm;
-    return ESP_OK;
-#else
-    return ESP_ERR_NOT_SUPPORTED;
-#endif
+    return read_control_height_mm(out_mm);
 }
 
 static bool yd_is_upward_blocked(void)
 {
-    /* Continuous motion currently has no height-derived lockout. */
+#if CONFIG_DESK_TOF_ENABLE
+    return tof_upward_blocked(desk_tof_snapshot());
+#else
     return false;
+#endif
 }
 
 static desk_status_t yd_get_status(void)
 {
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if YOURDESK_CLOSED_LOOP_ENABLED
     if (atomic_load(&s_preset_target_mm) >= 0) {
         return DESK_STATUS_GOTO_PRESET;
     }
@@ -1032,7 +1175,12 @@ static desk_caps_t yd_get_caps(void)
 {
     return (desk_caps_t){
         .hold_up_down = true,
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if CONFIG_DESK_TOF_ENABLE
+        .preset_goto = true,
+        .preset_save = false,
+        .height = true,
+        .preset_mask = (1u << 0) | (1u << 3), /* 1 and 4 */
+#elif YOURDESK_HEIGHT_INPUT_ENABLED
         .preset_goto = true,
         .preset_save = true,
         .height = true,

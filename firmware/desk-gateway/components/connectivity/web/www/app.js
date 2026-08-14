@@ -202,7 +202,7 @@
       return '控制盒正在重置，请等待完成或点击“停”中断';
     }
     if (!lastStatus.height_known) {
-      return '高度未知，请先短按下降或点击档位 1 获取高度';
+      return 'TOF400C 高度不可用，当前禁止上升和档位控制';
     }
     return fallback;
   }
@@ -225,14 +225,18 @@
     const sources = s.control_sources || {};
     const restEnabled = sources.rest !== false;
     const motionBlocked = !!s.child_lock || !restEnabled || resetting;
-    // Manual UP must remain available after boot so it can trigger the
-    // controller's first height display frame. Firmware still owns all limit
-    // checks and rejects unsafe upward travel. Permission is the only extra
-    // reason for disabling manual UP here.
-    upButton.disabled = motionBlocked;
+    const upwardBlocked = !!s.upward_blocked;
+    const p1MovesUp = !heightUnknown &&
+      typeof s.preset1_height_mm === 'number' && s.height_mm < s.preset1_height_mm;
+    const p4MovesUp = !heightUnknown &&
+      typeof s.preset4_height_mm === 'number' && s.height_mm < s.preset4_height_mm;
+    // 前端只做状态提示；固件仍会在命令入口和运动过程中重复执行相同限制。
+    upButton.disabled = motionBlocked || upwardBlocked;
     downButton.disabled = motionBlocked;
-    p1Button.disabled = motionBlocked;
-    p4Button.disabled = motionBlocked || heightUnknown;
+    p1Button.disabled = motionBlocked || heightUnknown ||
+      (upwardBlocked && p1MovesUp);
+    p4Button.disabled = motionBlocked || heightUnknown ||
+      (upwardBlocked && p4MovesUp);
     controllerResetButton.disabled = !s.controller_reset_supported ||
       motionBlocked || st !== 'idle';
     if (!s.controller_reset_supported) {
@@ -251,18 +255,18 @@
       stateHint.textContent = 'REST 接口操作已关闭；可在设置中重新开启。';
     } else if (resetting) {
       stateHint.textContent = STATE_HINT.controller_resetting;
-    } else if (heightUnknown && tofHeightKnown) {
-      stateHint.textContent = 'ToF 高度仅用于显示；档位控制仍等待控制高度源。';
     } else if (heightUnknown) {
-      stateHint.textContent = moving
-        ? '正在等待控制盒高度帧。'
-        : '等待控制盒高度；可按住升或降触发显示帧。';
+      stateHint.textContent = 'TOF400C 高度不可用；下降仍可操作，上升已锁定。';
+    } else if (upwardBlocked) {
+      stateHint.textContent = s.height_mm >= s.max_height_mm
+        ? '已到最高安全高度；可以下降。'
+        : '80 cm 以下检测到右侧障碍或距离数据不可用；可以下降。';
     } else {
       stateHint.textContent = STATE_HINT[st] || st;
     }
 
     if (displayHeightKnown) {
-      const t = Math.min(1, Math.max(0, (displayHeightMm - 700) / 500));
+      const t = Math.min(1, Math.max(0, (displayHeightMm - 560) / 380));
       railFill.style.height = (12 + t * 76).toFixed(1) + '%';
       heightEl.textContent = (displayHeightMm / 10).toFixed(1);
     } else {
@@ -288,7 +292,7 @@
     allowPanel.checked = sources.panel !== false;
     if (typeof s.max_height_mm === 'number') {
       const maxCm = (s.max_height_mm / 10).toFixed(1);
-      maxHeightBadge.textContent = '高度限制已停用';
+      maxHeightBadge.textContent = `最高 ${maxCm} cm`;
       if (document.activeElement !== maxHeightInput) {
         maxHeightInput.value = maxCm;
       }
@@ -416,14 +420,14 @@
     e.preventDefault();
     const msg = document.getElementById('maxHeightMsg');
     const maxHeightMm = Math.round(Number(maxHeightInput.value) * 10);
-    if (!Number.isInteger(maxHeightMm) || maxHeightMm < 640 || maxHeightMm > 1290) {
-      msg.textContent = '请输入 64.0–129.0 cm';
+    if (!Number.isInteger(maxHeightMm) || maxHeightMm < 560 || maxHeightMm > 940) {
+      msg.textContent = '请输入 56.0–94.0 cm';
       return;
     }
     const requestedCm = (maxHeightMm / 10).toFixed(1);
     try {
       await api('/api/v1/desk/max-height', 'POST', { max_height_mm: maxHeightMm });
-      msg.textContent = `已保存 ${requestedCm} cm，当前不参与运动控制`;
+      msg.textContent = `已保存 ${requestedCm} cm，已用于上升限制`;
       await tick();
     } catch (_) {
       msg.textContent = '保存失败，请检查高度范围或网络';
@@ -437,9 +441,9 @@
     const preset4HeightMm = Math.round(Number(preset4HeightInput.value) * 10);
     if (!Number.isInteger(preset1HeightMm) ||
         !Number.isInteger(preset4HeightMm) ||
-        preset1HeightMm < 640 || preset1HeightMm >= preset4HeightMm ||
-        preset4HeightMm > 1290) {
-      msg.textContent = '请坐需低于站立，档位高度范围为 64–129 cm';
+        preset1HeightMm < 560 || preset1HeightMm >= preset4HeightMm ||
+        preset4HeightMm > 940) {
+      msg.textContent = '请坐需低于站立，档位高度范围为 56–94 cm';
       return;
     }
     try {

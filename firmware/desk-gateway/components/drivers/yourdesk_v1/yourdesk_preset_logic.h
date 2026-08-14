@@ -21,6 +21,10 @@
 /* Fragmented display transitions may legitimately arrive in larger batches. */
 #define YOURDESK_HEIGHT_TRANSITION_MAX_SPEED_MM_PER_S 35
 
+/* TOF400C 直接读数低于此高度时，TOF050C 才参与右侧障碍判断。 */
+#define YOURDESK_TOF_OBSTACLE_HEIGHT_MM 800
+#define YOURDESK_TOF_MIN_RIGHT_GAP_MM   80
+
 typedef enum {
     YOURDESK_PRESET_STOP = 0,
     YOURDESK_PRESET_UP = 1,
@@ -45,6 +49,16 @@ yourdesk_preset_direction_t yourdesk_preset_direction(
 /** Check the one-way stop boundary without reversing after small overshoot. */
 bool yourdesk_preset_reached(int current_mm, int target_mm, int stop_margin_mm,
                             yourdesk_preset_direction_t direction);
+
+/**
+ * 判断当前 TOF 数据是否必须阻止上升。
+ *
+ * 高度未知时无法保证 94 cm 上限，必须阻止上升。高度低于 80 cm 时，
+ * 右侧距离未知或小于 8 cm 也必须阻止；达到 80 cm 后不再使用右侧距离。
+ */
+bool yourdesk_tof_upward_blocked(bool height_known, int height_mm,
+                                 bool right_gap_known, int right_gap_mm,
+                                 int max_height_mm);
 
 /**
  * Validate one decoded controller height.

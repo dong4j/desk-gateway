@@ -76,12 +76,22 @@ export function HomeScreen({
     : state?.bluetoothAllowed !== false;
   const motionBlocked =
     !connected || state?.childLock === true || !activeSourceAllowed;
+  const upwardBlocked = state?.upwardBlocked === true;
+  const heightUnknown = state?.heightKnown !== true || state.heightMm === null;
   const heightCm = state?.heightKnown && state.heightMm !== null
     ? (state.heightMm / 10).toFixed(1)
     : '—';
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
-  const preset1HeightCm = ((config?.preset1HeightMm ?? 640) / 10).toFixed(0);
-  const preset4HeightCm = ((config?.preset4HeightMm ?? 1020) / 10).toFixed(0);
+  const maxHeightMm = state?.maxHeightMm ?? 940;
+  const maxHeightCm = (maxHeightMm / 10).toFixed(1);
+  const preset1HeightMm = config?.preset1HeightMm ?? 560;
+  const preset4HeightMm = config?.preset4HeightMm ?? 870;
+  const preset1HeightCm = (preset1HeightMm / 10).toFixed(0);
+  const preset4HeightCm = (preset4HeightMm / 10).toFixed(0);
+  const preset1MovesUp = state?.heightKnown === true && state.heightMm !== null &&
+    state.heightMm < preset1HeightMm;
+  const preset4MovesUp = state?.heightKnown === true && state.heightMm !== null &&
+    state.heightMm < preset4HeightMm;
 
   // Transport 可能在下一帧清空 error；Toast 使用独立状态，确保用户能看清提示。
   useEffect(() => {
@@ -157,7 +167,7 @@ export function HomeScreen({
 
         <DeskScene
           heightMm={state?.heightKnown ? state.heightMm : null}
-          maxHeightMm={1290}
+          maxHeightMm={maxHeightMm}
         />
 
         <View style={styles.heightBlock}>
@@ -167,7 +177,7 @@ export function HomeScreen({
             <Text style={styles.heightUnit}>cm</Text>
           </View>
           <View style={styles.limitPill}>
-            <Text style={styles.limitText}>高度限制已停用</Text>
+            <Text style={styles.limitText}>最高 {maxHeightCm} cm</Text>
           </View>
         </View>
 
@@ -175,7 +185,7 @@ export function HomeScreen({
           <HoldControl
             label="按住升高"
             direction="up"
-            disabled={motionBlocked}
+            disabled={motionBlocked || upwardBlocked}
             onPressIn={onHoldUpStart}
             onPressOut={onHoldEnd}
           />
@@ -206,14 +216,16 @@ export function HomeScreen({
             icon={<ChairIcon size={34} color={palette.gold} />}
             label="请坐"
             height={preset1HeightCm}
-            disabled={motionBlocked}
+            disabled={motionBlocked || heightUnknown ||
+              (upwardBlocked && preset1MovesUp)}
             onPress={onPreset1}
           />
           <PresetCard
             icon={<StandingIcon size={34} color={palette.gold} />}
             label="起立"
             height={preset4HeightCm}
-            disabled={motionBlocked}
+            disabled={motionBlocked || heightUnknown ||
+              (upwardBlocked && preset4MovesUp)}
             onPress={onPreset4}
           />
         </View>

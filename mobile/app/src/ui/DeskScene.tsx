@@ -22,8 +22,8 @@ interface DeskSceneProps {
   maxHeightMm?: number;
 }
 
-const SCENE_MIN_MM = 640;
-const SCENE_MAX_MM = 1290;
+const SCENE_MIN_MM = 560;
+const SCENE_MAX_MM = 940;
 const DESK_WORKSTATION_SOURCE = require('../../assets/desk-workstation.png');
 
 export function DeskScene({

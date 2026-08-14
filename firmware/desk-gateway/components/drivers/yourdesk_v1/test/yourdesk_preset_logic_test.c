@@ -34,6 +34,16 @@ int main(void)
     assert(!yourdesk_preset_reached(646, 640, 5, YOURDESK_PRESET_DOWN));
     assert(yourdesk_preset_reached(645, 640, 5, YOURDESK_PRESET_DOWN));
 
+    /* 右侧障碍仅在高度严格低于 80 cm 时阻止上升。 */
+    assert(yourdesk_tof_upward_blocked(false, -1, true, 100, 940));
+    assert(yourdesk_tof_upward_blocked(true, 799, true, 79, 940));
+    assert(!yourdesk_tof_upward_blocked(true, 799, true, 80, 940));
+    assert(yourdesk_tof_upward_blocked(true, 799, false, -1, 940));
+    assert(!yourdesk_tof_upward_blocked(true, 800, true, 79, 940));
+    assert(!yourdesk_tof_upward_blocked(true, 800, false, -1, 940));
+    assert(!yourdesk_tof_upward_blocked(true, 939, true, 10, 940));
+    assert(yourdesk_tof_upward_blocked(true, 940, true, 100, 940));
+
     /* The captured upward 89 -> 87 regression must never replace height. */
     assert(!yourdesk_height_transition_valid(
         800, 890, 1150, YOURDESK_PRESET_UP, false, 35, 20));

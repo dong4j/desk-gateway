@@ -306,11 +306,11 @@ static void publish_wall(desk_tof_context_t *ctx, int raw_mm)
 
 static void publish_height(desk_tof_context_t *ctx, int raw_mm)
 {
-    int corrected = raw_mm + CONFIG_DESK_TOF_HEIGHT_OFFSET_MM;
-    if (corrected < 0) {
+    if (raw_mm < 0) {
         return;
     }
-    int filtered = desk_tof_stable_filter_push(&ctx->height_filter, corrected);
+    /* 产品高度就是 TOF400C 原始距离，只做防抖，不做物理桌高换算。 */
+    int filtered = desk_tof_stable_filter_push(&ctx->height_filter, raw_mm);
     atomic_store(&s_height_mm, filtered);
     atomic_store(&s_height_known, true);
     ctx->height_last_valid = xTaskGetTickCount();

@@ -22,17 +22,15 @@
 static const char *TAG = "desk_core";
 static const char *NVS_NS = "desk_core";
 static const char *NVS_KEY_LOCK = "child_lock";
-static const char *NVS_KEY_MAX_HEIGHT = "max_height_mm";
+/* Old calibrated-height keys are intentionally not reused for raw ToF values. */
+static const char *NVS_KEY_MAX_HEIGHT = "tof_max_mm";
 static const char *NVS_KEY_SOURCES = "ctrl_sources";
-static const char *NVS_KEY_PRESET1_HEIGHT = "preset1_mm";
-static const char *NVS_KEY_PRESET4_HEIGHT = "preset4_mm";
-
-#define DESK_PRESET1_HEIGHT_MM_DEFAULT 640
-#define DESK_PRESET4_HEIGHT_MM_DEFAULT 1020
+static const char *NVS_KEY_PRESET1_HEIGHT = "tof_p1_mm";
+static const char *NVS_KEY_PRESET4_HEIGHT = "tof_p4_mm";
 
 /*
- * 上升不使用通用运动超时：手动上升由松手/显式 STOP 结束，档位 4
- * 由目标高度结束；两者始终受驱动层最高安全高度保护。传入 0 会先
+ * 上升不使用通用运动超时：手动上升由松手/显式 STOP 结束，站姿档位
+ * 由 TOF400C 目标高度结束；两者始终受驱动层限高与右侧障碍保护。传入 0 会先
  * 取消可能遗留的 core 定时器，但不会启动新的定时器。
  */
 #define DESK_UPWARD_MOTION_TIMEOUT_MS 0U
@@ -994,9 +992,7 @@ esp_err_t desk_core_set_max_height_mm(int max_height_mm)
     s_max_height_mm = max_height_mm;
     err = save_max_height();
     if (err == ESP_OK) {
-        ESP_LOGI(TAG,
-                 "max safe height setting=%d mm (motion enforcement disabled)",
-                 s_max_height_mm);
+        ESP_LOGI(TAG, "max safe TOF height=%d mm", s_max_height_mm);
     }
     return err;
 }

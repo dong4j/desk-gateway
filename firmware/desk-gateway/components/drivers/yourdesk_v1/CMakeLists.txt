@@ -1,4 +1,6 @@
-set(yourdesk_v1_sources "yourdesk_v1.c")
+set(yourdesk_v1_sources
+    "yourdesk_v1.c"
+    "yourdesk_preset_logic.c")
 set(yourdesk_v1_requires
     desk_driver esp_driver_i2c esp_driver_gpio driver freertos)
 
@@ -7,8 +9,7 @@ set(yourdesk_v1_requires
 if(CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS OR
    CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL)
     list(APPEND yourdesk_v1_sources
-         "tm1650_height_decoder.c"
-         "yourdesk_preset_logic.c")
+         "tm1650_height_decoder.c")
 endif()
 
 if(CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS)

@@ -45,6 +45,19 @@ bool yourdesk_preset_reached(int current_mm, int target_mm, int stop_margin_mm,
     return true;
 }
 
+bool yourdesk_tof_upward_blocked(bool height_known, int height_mm,
+                                 bool right_gap_known, int right_gap_mm,
+                                 int max_height_mm)
+{
+    if (!height_known || height_mm >= max_height_mm) {
+        return true;
+    }
+    if (height_mm >= YOURDESK_TOF_OBSTACLE_HEIGHT_MM) {
+        return false;
+    }
+    return !right_gap_known || right_gap_mm < YOURDESK_TOF_MIN_RIGHT_GAP_MM;
+}
+
 bool yourdesk_height_transition_valid(
     int previous_mm, int candidate_mm, int elapsed_ms,
     yourdesk_preset_direction_t direction, bool resync_pending,

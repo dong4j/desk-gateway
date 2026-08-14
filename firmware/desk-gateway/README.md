@@ -109,25 +109,22 @@ I (...) yourdesk_v1: I2C slave @0x24 SCL=4 SDA=5
 
 The historical controller-digit decoder and software-I²C Slave stay available
 only behind explicit experimental Kconfig switches; they are not compiled into
-the default component source list. The separate TOF400C on GPIO10/11 now feeds
-the Web/OLED/original-panel display path. It remains isolated from motion,
-presets, and maximum-height enforcement until calibration and full-travel
-hardware acceptance are complete. See
+the default component source list. The separate TOF400C on GPIO10/11 now
+supplies the raw, filtered control height as well as the Web/OLED/original-panel
+display. TOF050C blocks upward motion only while height is below `800 mm` and
+the right gap is below `80 mm`; the `940 mm` ceiling is always enforced. See
 `docs/7-hardware-i2c-restoration-investigation.md` for the controller-side
 rollback evidence.
 
 ## Maximum safe height
 
 The authenticated Web settings panel stores `max_height_mm` in NVS. The default
-is `1020 mm`, with an accepted range of `640–1290 mm`. The value remains
-persisted and synchronized across Web, BLE, and the mobile App, but it is not a
-motion safety input while height is unknown. Closed-loop presets 1/4 are also
-unavailable in this state.
-
-After TOF400C integration, its validated and calibrated height will feed the
-existing driver/core contract. Only then may the configured ceiling and preset
-targets be re-enabled. Until that hardware acceptance is complete, do not rely
-on the stored value to prevent a collision.
+is `940 mm`, with an accepted range of `560–940 mm`. Presets 1/4 default to
+`560 mm` and `870 mm`. These values use the filtered TOF400C distance directly,
+without converting it to tape-measure desktop height. They are persisted and
+synchronized across Web, BLE, and the mobile App. Upward motion is blocked when
+TOF400C is unavailable; below `800 mm`, it is also blocked when TOF050C is
+unavailable.
 
 ## License
 

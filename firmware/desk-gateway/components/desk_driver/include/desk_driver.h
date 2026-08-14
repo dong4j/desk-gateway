@@ -24,10 +24,11 @@ typedef enum {
     DESK_STATUS_ERROR,
 } desk_status_t;
 
-/* Shared safety policy: configurable physical ceiling plus early-stop margin. */
-#define DESK_MAX_HEIGHT_MM_MIN            640
-#define DESK_MAX_HEIGHT_MM_MAX            1290
-#define DESK_MAX_HEIGHT_STOP_MARGIN_MM    10
+/* Product control values use the filtered TOF400C distance without calibration. */
+#define DESK_MAX_HEIGHT_MM_MIN             560
+#define DESK_MAX_HEIGHT_MM_MAX             940
+#define DESK_PRESET1_HEIGHT_MM_DEFAULT     560
+#define DESK_PRESET4_HEIGHT_MM_DEFAULT     870
 
 typedef struct {
     bool hold_up_down;

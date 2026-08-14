@@ -48,8 +48,8 @@ import {
 import { PrototypeSwitch } from '../ui/PrototypeSwitch';
 import { palette, radii } from '../ui/theme';
 
-const MIN_DESK_HEIGHT_CM = 64;
-const MAX_DESK_HEIGHT_CM = 129;
+const MIN_DESK_HEIGHT_CM = 56;
+const MAX_DESK_HEIGHT_CM = 94;
 const MAX_HEIGHT_TICKS = [
   64, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 129,
 ] as const;
@@ -116,12 +116,12 @@ export function SettingsScreen({
   const config = snapshot.deskConfig;
   const deviceSettingsAvailable = connected && config !== null;
   const maxHeightMm = config?.maxHeightMm ?? snapshot.deskState?.maxHeightMm;
-  const maxHeightCm = maxHeightMm ? maxHeightMm / 10 : 110;
+  const maxHeightCm = maxHeightMm ? maxHeightMm / 10 : 94;
   const [maxHeightDraft, setMaxHeightDraft] = useState(String(maxHeightCm));
   const [maxHeightError, setMaxHeightError] = useState<string | null>(null);
   const maxHeightTickRef = useRef(Math.round(maxHeightCm));
-  const preset1HeightCm = (config?.preset1HeightMm ?? 640) / 10;
-  const preset4HeightCm = (config?.preset4HeightMm ?? 1020) / 10;
+  const preset1HeightCm = (config?.preset1HeightMm ?? 560) / 10;
+  const preset4HeightCm = (config?.preset4HeightMm ?? 870) / 10;
   const [preset1Draft, setPreset1Draft] = useState(String(preset1HeightCm));
   const [preset4Draft, setPreset4Draft] = useState(String(preset4HeightCm));
   const [presetHeightError, setPresetHeightError] = useState<string | null>(null);
@@ -273,7 +273,7 @@ export function SettingsScreen({
     if (!Number.isFinite(centimetres) ||
         centimetres < MIN_DESK_HEIGHT_CM ||
         centimetres > MAX_DESK_HEIGHT_CM) {
-      setMaxHeightError('请输入 64–129 cm');
+      setMaxHeightError('请输入 56–94 cm');
       return;
     }
     setMaxHeightError(null);
@@ -286,9 +286,9 @@ export function SettingsScreen({
     const preset1Mm = Math.round(Number(preset1Draft) * 10);
     const preset4Mm = Math.round(Number(preset4Draft) * 10);
     if (!Number.isInteger(preset1Mm) || !Number.isInteger(preset4Mm) ||
-        preset1Mm < 640 || preset1Mm >= preset4Mm ||
+        preset1Mm < 560 || preset1Mm >= preset4Mm ||
         preset4Mm > MAX_DESK_HEIGHT_CM * 10) {
-      setPresetHeightError('请坐需低于站立，档位高度范围为 64–129 cm');
+      setPresetHeightError('请坐需低于站立，档位高度范围为 56–94 cm');
       return;
     }
     setPresetHeightError(null);
@@ -889,7 +889,7 @@ function HapticLevelSelector({
   );
 }
 
-/** Map a centimetre mark onto the fixed 64–129 cm scale. */
+/** Map a centimetre mark onto the fixed 56–94 cm raw-ToF scale. */
 function maxHeightTickPosition(value: number): `${number}%` {
   const progress =
     (value - MIN_DESK_HEIGHT_CM) /
