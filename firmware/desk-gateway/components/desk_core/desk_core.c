@@ -57,7 +57,7 @@ typedef struct {
 #define DESK_UPWARD_MOTION_TIMEOUT_MS 0U
 
 /*
- * 当前 YourDesk 控制盒实测：DOWN 保持 130 ms 后立即 STOP，不产生可见位移，
+ * 当前 Mxtark 控制盒实测：DOWN 保持 130 ms 后立即 STOP，不产生可见位移，
  * 但会让控制盒发送当前高度显示帧。该时长是本机硬件经验值，不是协议常量。
  */
 #define DESK_STARTUP_HEIGHT_PROBE_MS 130U

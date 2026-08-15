@@ -16,7 +16,7 @@
 #include "desk_tof.h"
 #include "desk_web.h"
 #include "desk_wifi.h"
-#include "yourdesk_v1.h"
+#include "mxtark.h"
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -42,7 +42,7 @@ void app_main(void)
         ESP_ERROR_CHECK(nvs_flash_init());
     }
 
-    ESP_ERROR_CHECK(desk_core_init(&yourdesk_v1_driver));
+    ESP_ERROR_CHECK(desk_core_init(&mxtark_driver));
 #if CONFIG_DESK_AUDIO_ENABLED
     esp_err_t audio_err = desk_audio_init();
     if (audio_err != ESP_OK) {

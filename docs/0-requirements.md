@@ -125,7 +125,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 
 | 能力 | Phase 1（模拟面板 + 平台骨架） | Phase 2（中间人网关） |
 |---|---|---|
-| 协议逆向与命令复现 | 必做（yourdesk_v1） | 沿用 |
+| 协议逆向与命令复现 | 必做（mxtark） | 沿用 |
 | Desk Driver 框架 + desk_core | 必做 | 沿用 |
 | 上升 / 下降 / 停止 | 必做 | 必做 |
 | 档位前往 / 档位保存（若协议支持） | 必做 | 必做 |
@@ -177,7 +177,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 ```text
 Phase 0  抓包与协议逆向
    ↓
-Phase 1  平台骨架 + yourdesk_v1 Driver + 串口/Web 控桌
+Phase 1  平台骨架 + mxtark Driver + 串口/Web 控桌
    ↓  门禁：控桌可靠 + 停止可靠 + 局域网 Web 可用
 Phase 2  双 RJ45 主动中间人网关（透传 + 注入 + 面板优先）
    ↓
@@ -215,11 +215,11 @@ Phase 3  智能家居与多厂商 Driver 扩展
 | P1-F01 | 能发送上升，桌子上升（串口与 Web） |
 | P1-F02 | 能发送下降，桌子下降（串口与 Web） |
 | P1-F03 | 能发送停止/松开，桌子在合理时间内停下；Web 急停最醒目 |
-| P1-F04 | 若协议支持，能前往已验证档位（yourdesk：1/4） |
+| P1-F04 | 若协议支持，能前往已验证档位（mxtark：1/4） |
 | P1-F05 | 若协议支持，能保存已验证档位 |
 | P1-F06 | 运动状态必报；高度尽量（无高度时 UI 用命令驱动相对动效） |
 | P1-F07 | 通信异常或固件重启后，默认不发出任何运动命令 |
-| P1-F08 | `desk_driver` / `desk_core` 就位；yourdesk_v1 为默认驱动；其他厂商 stub |
+| P1-F08 | `desk_driver` / `desk_core` 就位；mxtark 为默认驱动；其他厂商 stub |
 | P1-F09 | WiFi STA + Web：简单密码登录、REST 控桌、短轮询刷新状态 |
 | P1-F10 | Web UI：品牌、升降桌示意图、升/降时示意图实时动画 |
 | P1-F11 | 童锁：可开关、进入 status；语义为「原厂面板不可控」（Phase1 预埋；Phase2 真屏蔽） |

@@ -1,14 +1,14 @@
 /**
- * @file yourdesk_soft_i2c_esp.c
- * @brief IRAM-safe GPIO bridge for the yourdesk_v1 software I2C slave.
+ * @file mxtark_soft_i2c_esp.c
+ * @brief IRAM-safe GPIO bridge for the mxtark software I2C slave.
  *
  * External 2 kOhm pull-ups provide the bus-high level. DAT is configured as
  * open-drain and is only pulled low for ACK/data zero bits; writing one releases
  * it. No logging or allocation is performed from interrupt context.
  */
-#include "yourdesk_soft_i2c_esp.h"
+#include "mxtark_soft_i2c_esp.h"
 
-#include "yourdesk_soft_i2c_sm.h"
+#include "mxtark_soft_i2c_sm.h"
 
 #include "driver/gpio.h"
 #include "esp_check.h"
@@ -19,14 +19,14 @@
 #include "soc/gpio_struct.h"
 #include "sdkconfig.h"
 
-static const char *TAG = "yourdesk_soft_i2c";
+static const char *TAG = "mxtark_soft_i2c";
 
-static DRAM_ATTR yourdesk_soft_i2c_sm_t s_sm;
+static DRAM_ATTR mxtark_soft_i2c_sm_t s_sm;
 static DRAM_ATTR QueueHandle_t s_digit_queue;
 static DRAM_ATTR QueueHandle_t s_mirror_digit_queue;
 static DRAM_ATTR bool s_drive_sda_low;
 static DRAM_ATTR bool s_ignore_own_sda_edge;
-static DRAM_ATTR yourdesk_soft_i2c_stats_t s_stats;
+static DRAM_ATTR mxtark_soft_i2c_stats_t s_stats;
 static DRAM_ATTR uint32_t s_last_key_read_cycles;
 static portMUX_TYPE s_sm_mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -54,8 +54,8 @@ static inline void IRAM_ATTR apply_sda_output(void)
 /** Count a key response that was reset before the controller completed it. */
 static inline void IRAM_ATTR count_aborted_key_read(void)
 {
-    if (s_sm.phase == YOURDESK_SOFT_I2C_TX_DATA ||
-        s_sm.phase == YOURDESK_SOFT_I2C_TX_MASTER_ACK) {
+    if (s_sm.phase == MXTARK_SOFT_I2C_TX_DATA ||
+        s_sm.phase == MXTARK_SOFT_I2C_TX_MASTER_ACK) {
         s_stats.aborted_key_reads++;
     }
 }
@@ -77,24 +77,24 @@ static inline void IRAM_ATTR count_key_address(uint8_t raw_address)
 static void IRAM_ATTR scl_edge_isr(void *arg)
 {
     (void)arg;
-    yourdesk_soft_i2c_digit_event_t event = {0};
+    mxtark_soft_i2c_digit_event_t event = {0};
 
     portENTER_CRITICAL_ISR(&s_sm_mux);
     if (line_is_high(CONFIG_DESK_I2C_SCL_GPIO)) {
-        yourdesk_soft_i2c_sm_scl_rising(
+        mxtark_soft_i2c_sm_scl_rising(
             &s_sm, line_is_high(CONFIG_DESK_I2C_SDA_GPIO));
     } else {
-        yourdesk_soft_i2c_phase_t phase_before = s_sm.phase;
+        mxtark_soft_i2c_phase_t phase_before = s_sm.phase;
         uint8_t bit_count_before = s_sm.bit_count;
         uint8_t rx_byte_before = s_sm.rx_byte;
-        event = yourdesk_soft_i2c_sm_scl_falling(&s_sm);
-        if (phase_before == YOURDESK_SOFT_I2C_RX_ADDRESS &&
+        event = mxtark_soft_i2c_sm_scl_falling(&s_sm);
+        if (phase_before == MXTARK_SOFT_I2C_RX_ADDRESS &&
             bit_count_before == 8) {
             count_key_address(rx_byte_before);
         }
-        if (phase_before == YOURDESK_SOFT_I2C_RX_ADDRESS &&
+        if (phase_before == MXTARK_SOFT_I2C_RX_ADDRESS &&
             bit_count_before == 9 &&
-            s_sm.phase == YOURDESK_SOFT_I2C_TX_DATA) {
+            s_sm.phase == MXTARK_SOFT_I2C_TX_DATA) {
             s_stats.key_tx_started++;
         }
         apply_sda_output();
@@ -141,7 +141,7 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
      * high, where the live levels would otherwise misclassify that edge as a
      * START/STOP and truncate 0x47. Do not alter receive-side boundary logic.
      */
-    if (yourdesk_soft_i2c_sm_key_tx_active(&s_sm)) {
+    if (mxtark_soft_i2c_sm_key_tx_active(&s_sm)) {
         s_ignore_own_sda_edge = false;
         s_stats.ignored_sda_edges_during_key_tx++;
         portEXIT_CRITICAL_ISR(&s_sm_mux);
@@ -162,17 +162,17 @@ static void IRAM_ATTR sda_edge_isr(void *arg)
     if (line_is_high(CONFIG_DESK_I2C_SDA_GPIO)) {
         count_aborted_key_read();
         s_stats.recognized_stops++;
-        yourdesk_soft_i2c_sm_stop(&s_sm);
+        mxtark_soft_i2c_sm_stop(&s_sm);
     } else {
         count_aborted_key_read();
         s_stats.recognized_starts++;
-        yourdesk_soft_i2c_sm_start(&s_sm);
+        mxtark_soft_i2c_sm_start(&s_sm);
     }
     apply_sda_output();
     portEXIT_CRITICAL_ISR(&s_sm_mux);
 }
 
-esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
+esp_err_t mxtark_soft_i2c_esp_init(QueueHandle_t digit_queue,
                                     QueueHandle_t mirror_digit_queue,
                                     uint8_t initial_dr)
 {
@@ -203,9 +203,9 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
     s_mirror_digit_queue = mirror_digit_queue;
     s_drive_sda_low = false;
     s_ignore_own_sda_edge = false;
-    s_stats = (yourdesk_soft_i2c_stats_t){0};
+    s_stats = (mxtark_soft_i2c_stats_t){0};
     s_last_key_read_cycles = 0;
-    yourdesk_soft_i2c_sm_init(&s_sm, initial_dr);
+    mxtark_soft_i2c_sm_init(&s_sm, initial_dr);
 
     esp_err_t err = gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
@@ -225,14 +225,14 @@ esp_err_t yourdesk_soft_i2c_esp_init(QueueHandle_t digit_queue,
     return ESP_OK;
 }
 
-void yourdesk_soft_i2c_esp_set_dr(uint8_t dr)
+void mxtark_soft_i2c_esp_set_dr(uint8_t dr)
 {
     portENTER_CRITICAL(&s_sm_mux);
-    yourdesk_soft_i2c_sm_set_dr(&s_sm, dr);
+    mxtark_soft_i2c_sm_set_dr(&s_sm, dr);
     portEXIT_CRITICAL(&s_sm_mux);
 }
 
-void yourdesk_soft_i2c_esp_take_stats(yourdesk_soft_i2c_stats_t *stats)
+void mxtark_soft_i2c_esp_take_stats(mxtark_soft_i2c_stats_t *stats)
 {
     if (!stats) {
         return;

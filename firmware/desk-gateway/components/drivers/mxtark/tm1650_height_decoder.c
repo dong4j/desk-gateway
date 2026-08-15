@@ -1,6 +1,6 @@
 /**
  * @file tm1650_height_decoder.c
- * @brief Pure TM1650 segment-to-height decoder for yourdesk_v1.
+ * @brief Pure TM1650 segment-to-height decoder for mxtark.
  *
  * Segment values come from archived captures, including the monotonic
  * 77 -> 64 sequence in preset_1_goto.sr. Unknown codes are rejected instead

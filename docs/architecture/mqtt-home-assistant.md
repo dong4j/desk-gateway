@@ -292,7 +292,7 @@ MQTT v1 命令使用固定的大写 UTF-8 文本，不使用自由格式 JSON：
   "preset1_height_mm": 640,
   "preset4_height_mm": 1020,
   "mqtt_control_enabled": true,
-  "driver": "yourdesk_v1",
+  "driver": "mxtark",
   "firmware_version": "0.1.0"
 }
 ```

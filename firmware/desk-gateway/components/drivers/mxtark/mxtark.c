@@ -1,6 +1,6 @@
 /**
- * @file yourdesk_v1.c
- * @brief yourdesk_v1：通过硬件 I²C Slave 稳定应答按键 DR
+ * @file mxtark.c
+ * @brief mxtark：通过硬件 I²C Slave 稳定应答按键 DR
  *
  * 超时/童锁在 desk_core；本文件维护当前 DR、应答主机轮询。产品默认路径只用
  * ESP32-S3 硬件 I²C Slave 响应 0x24。软件多地址和 GPIO 高度嗅探仅保留为
@@ -8,9 +8,9 @@
  * 右侧距离执行档位闭环和上升安全限制。
  * 键码契约见 docs/3-protocol-reverse-notes.md §18。
  */
-#include "yourdesk_v1.h"
-#include "yourdesk_panel_arbiter.h"
-#include "yourdesk_preset_logic.h"
+#include "mxtark.h"
+#include "mxtark_panel_arbiter.h"
+#include "mxtark_preset_logic.h"
 
 #include "desk_tof.h"
 #include "driver/i2c_slave.h"
@@ -24,46 +24,46 @@
 #include <limits.h>
 #include <stdatomic.h>
 
-#if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS && \
-    CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
+#if CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS && \
+    CONFIG_DESK_MXTARK_HEIGHT_SNIFFER_EXPERIMENTAL
 #error "software multi-address I2C and passive GPIO sniffer are mutually exclusive"
 #endif
 
-#if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS || \
-    CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
-#define YOURDESK_HEIGHT_INPUT_ENABLED 1
+#if CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS || \
+    CONFIG_DESK_MXTARK_HEIGHT_SNIFFER_EXPERIMENTAL
+#define MXTARK_HEIGHT_INPUT_ENABLED 1
 #include "tm1650_height_decoder.h"
-#include "yourdesk_soft_i2c_sm.h"
+#include "mxtark_soft_i2c_sm.h"
 #else
-#define YOURDESK_HEIGHT_INPUT_ENABLED 0
+#define MXTARK_HEIGHT_INPUT_ENABLED 0
 #endif
 
-#if CONFIG_DESK_TOF_ENABLE || YOURDESK_HEIGHT_INPUT_ENABLED
-#define YOURDESK_CLOSED_LOOP_ENABLED 1
+#if CONFIG_DESK_TOF_ENABLE || MXTARK_HEIGHT_INPUT_ENABLED
+#define MXTARK_CLOSED_LOOP_ENABLED 1
 #else
-#define YOURDESK_CLOSED_LOOP_ENABLED 0
+#define MXTARK_CLOSED_LOOP_ENABLED 0
 #endif
 
-#if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
-#include "yourdesk_soft_i2c_esp.h"
+#if CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
+#include "mxtark_soft_i2c_esp.h"
 #endif
 
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
-#include "yourdesk_panel_proxy.h"
+#if CONFIG_DESK_MXTARK_PANEL_PROXY
+#include "mxtark_panel_proxy.h"
 #endif
 
-#if CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
+#if CONFIG_DESK_MXTARK_HEIGHT_SNIFFER_EXPERIMENTAL
 #include "driver/gpio.h"
 #include "esp_check.h"
 #include "esp_intr_alloc.h"
 
 /* The experimental sniffer remains active while Flash cache is disabled. */
 #ifndef CONFIG_GPIO_CTRL_FUNC_IN_IRAM
-#error "yourdesk_v1 height sniffer requires CONFIG_GPIO_CTRL_FUNC_IN_IRAM=y"
+#error "mxtark height sniffer requires CONFIG_GPIO_CTRL_FUNC_IN_IRAM=y"
 #endif
 #endif
 
-static const char *TAG = "yourdesk_v1";
+static const char *TAG = "mxtark";
 
 #define ADDR_KEY_7BIT  0x24u
 #define DR_IDLE        0x2Eu
@@ -89,22 +89,22 @@ static const char *TAG = "yourdesk_v1";
 #define HEIGHT_SAFETY_POLL_MS           50
 #define HEIGHT_MOTION_DIAG_INTERVAL_MS  1000
 
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
 #define ADDR_DIG1_7BIT 0x34u
 #define ADDR_DIG4_7BIT 0x37u
 #endif
 
 typedef struct {
-#if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+#if !CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
     i2c_slave_dev_handle_t handle;
     QueueHandle_t tx_q;
 #endif
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
     QueueHandle_t digit_q;
 #endif
 } slave_ctx_t;
 
-#if CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
+#if CONFIG_DESK_MXTARK_HEIGHT_SNIFFER_EXPERIMENTAL
 /** ISR-only I²C frame state; the listener never drives CLK or DAT. */
 typedef struct {
     bool in_frame;
@@ -120,14 +120,14 @@ static atomic_uint_fast8_t s_dr;
 static esp_err_t set_dr(uint8_t dr);
 static void publish_controller_dr(uint8_t dr);
 
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
-static yourdesk_panel_arbiter_t s_panel_arbiter;
+#if CONFIG_DESK_MXTARK_PANEL_PROXY
+static mxtark_panel_arbiter_t s_panel_arbiter;
 static portMUX_TYPE s_panel_arbiter_mux = portMUX_INITIALIZER_UNLOCKED;
 static atomic_bool s_panel_active;
 static atomic_bool s_panel_connected;
 #endif
 
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
 static atomic_int s_max_height_mm;
 static atomic_int s_preset1_height_mm;
 static atomic_int s_preset4_height_mm;
@@ -146,7 +146,7 @@ static void cancel_preset_motion(void)
 /** Read the already-filtered ToF snapshot used by every upward safety path. */
 static bool tof_upward_blocked(desk_tof_snapshot_t snapshot)
 {
-    return yourdesk_tof_upward_blocked(
+    return mxtark_tof_upward_blocked(
         snapshot.height_known, snapshot.height_mm,
         snapshot.right_gap_known, snapshot.right_gap_mm,
         atomic_load(&s_max_height_mm));
@@ -164,7 +164,7 @@ static void log_tof_upward_block(const char *source,
 }
 #endif
 
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
 static atomic_int s_height_mm;
 static atomic_uint_fast32_t s_motion_epoch;
 static atomic_uint_fast32_t s_height_epoch;
@@ -182,16 +182,16 @@ static int elapsed_ms_since(uint_fast32_t then, TickType_t now)
 }
 
 /** Return the current command direction for height plausibility checks. */
-static yourdesk_preset_direction_t current_height_direction(void)
+static mxtark_preset_direction_t current_height_direction(void)
 {
     uint8_t dr = (uint8_t)atomic_load(&s_dr);
     if (dr == DR_UP) {
-        return YOURDESK_PRESET_UP;
+        return MXTARK_PRESET_UP;
     }
     if (dr == DR_DOWN) {
-        return YOURDESK_PRESET_DOWN;
+        return MXTARK_PRESET_DOWN;
     }
-    return YOURDESK_PRESET_STOP;
+    return MXTARK_PRESET_STOP;
 }
 
 /** Require the next complete controller frame to establish a fresh baseline. */
@@ -201,7 +201,7 @@ static void begin_height_resync(void)
 }
 
 #if CONFIG_DESK_MOTION_DIAGNOSTICS && \
-    CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+    CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
 /** Convert the fixed-frequency ESP32-S3 cycle counter used by ISR telemetry. */
 static uint32_t motion_diag_cycles_to_us(uint32_t cycles)
 {
@@ -211,18 +211,18 @@ static uint32_t motion_diag_cycles_to_us(uint32_t cycles)
 /** Name an incomplete software-I2C phase without reading mutable ISR state. */
 static const char *motion_diag_phase_name(uint8_t phase)
 {
-    switch ((yourdesk_soft_i2c_phase_t)phase) {
-    case YOURDESK_SOFT_I2C_IDLE:
+    switch ((mxtark_soft_i2c_phase_t)phase) {
+    case MXTARK_SOFT_I2C_IDLE:
         return "idle";
-    case YOURDESK_SOFT_I2C_RX_ADDRESS:
+    case MXTARK_SOFT_I2C_RX_ADDRESS:
         return "rx_addr";
-    case YOURDESK_SOFT_I2C_RX_DATA:
+    case MXTARK_SOFT_I2C_RX_DATA:
         return "rx_data";
-    case YOURDESK_SOFT_I2C_TX_DATA:
+    case MXTARK_SOFT_I2C_TX_DATA:
         return "tx_data";
-    case YOURDESK_SOFT_I2C_TX_MASTER_ACK:
+    case MXTARK_SOFT_I2C_TX_MASTER_ACK:
         return "tx_ack";
-    case YOURDESK_SOFT_I2C_IGNORE:
+    case MXTARK_SOFT_I2C_IGNORE:
     default:
         return "ignore";
     }
@@ -237,8 +237,8 @@ static void motion_bus_diag_log(
     uint8_t dr,
     TickType_t interval_tick,
     TickType_t now,
-    const yourdesk_soft_i2c_stats_t *baseline,
-    const yourdesk_soft_i2c_stats_t *stats)
+    const mxtark_soft_i2c_stats_t *baseline,
+    const mxtark_soft_i2c_stats_t *stats)
 {
     ESP_LOGI(TAG,
              "motion bus stage=%s dir=%s dt=%" PRIu32
@@ -276,11 +276,11 @@ static void motion_diagnostics_task(void *arg)
     (void)arg;
     TickType_t last_diag_tick = 0;
 #if CONFIG_DESK_MOTION_DIAGNOSTICS && \
-    CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+    CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
     bool bus_diag_active = false;
     uint8_t bus_diag_dr = DR_IDLE;
     TickType_t bus_diag_tick = 0;
-    yourdesk_soft_i2c_stats_t bus_diag_baseline = {0};
+    mxtark_soft_i2c_stats_t bus_diag_baseline = {0};
 #endif
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(HEIGHT_SAFETY_POLL_MS));
@@ -288,10 +288,10 @@ static void motion_diagnostics_task(void *arg)
         uint8_t dr = (uint8_t)atomic_load(&s_dr);
         if (dr != DR_UP && dr != DR_DOWN) {
 #if CONFIG_DESK_MOTION_DIAGNOSTICS && \
-    CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+    CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
             if (bus_diag_active) {
-                yourdesk_soft_i2c_stats_t stats = {0};
-                yourdesk_soft_i2c_esp_take_stats(&stats);
+                mxtark_soft_i2c_stats_t stats = {0};
+                mxtark_soft_i2c_esp_take_stats(&stats);
                 motion_bus_diag_log("end", bus_diag_dr, bus_diag_tick, now,
                                     &bus_diag_baseline, &stats);
                 bus_diag_active = false;
@@ -302,15 +302,15 @@ static void motion_diagnostics_task(void *arg)
         }
 
 #if CONFIG_DESK_MOTION_DIAGNOSTICS && \
-    CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+    CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
         if (!bus_diag_active || dr != bus_diag_dr) {
             if (bus_diag_active) {
-                yourdesk_soft_i2c_stats_t stats = {0};
-                yourdesk_soft_i2c_esp_take_stats(&stats);
+                mxtark_soft_i2c_stats_t stats = {0};
+                mxtark_soft_i2c_esp_take_stats(&stats);
                 motion_bus_diag_log("end", bus_diag_dr, bus_diag_tick, now,
                                     &bus_diag_baseline, &stats);
             }
-            yourdesk_soft_i2c_esp_take_stats(&bus_diag_baseline);
+            mxtark_soft_i2c_esp_take_stats(&bus_diag_baseline);
             bus_diag_active = true;
             bus_diag_dr = dr;
             bus_diag_tick = now;
@@ -323,8 +323,8 @@ static void motion_diagnostics_task(void *arg)
                      bus_diag_baseline.tx_dr);
         } else if (elapsed_ms_since((uint_fast32_t)bus_diag_tick, now) >=
                    HEIGHT_MOTION_DIAG_INTERVAL_MS) {
-            yourdesk_soft_i2c_stats_t stats = {0};
-            yourdesk_soft_i2c_esp_take_stats(&stats);
+            mxtark_soft_i2c_stats_t stats = {0};
+            mxtark_soft_i2c_esp_take_stats(&stats);
             motion_bus_diag_log("run", bus_diag_dr, bus_diag_tick, now,
                                 &bus_diag_baseline, &stats);
             bus_diag_baseline = stats;
@@ -350,7 +350,7 @@ static void motion_diagnostics_task(void *arg)
 
 #endif
 
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
 /** Stop once the measured height reaches or crosses the preset target. */
 static void stop_preset_if_reached(int height_mm)
 {
@@ -360,9 +360,9 @@ static void stop_preset_if_reached(int height_mm)
         return;
     }
 
-    bool reached = yourdesk_preset_reached(
+    bool reached = mxtark_preset_reached(
         height_mm, target_mm, PRESET_STOP_MARGIN_MM,
-        (yourdesk_preset_direction_t)direction);
+        (mxtark_preset_direction_t)direction);
     if (!reached) {
         return;
     }
@@ -413,7 +413,7 @@ static void tof_control_task(void *arg)
 }
 #endif
 
-#if CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
+#if CONFIG_DESK_MXTARK_HEIGHT_SNIFFER_EXPERIMENTAL
 static bus_sniffer_state_t s_sniffer;
 static portMUX_TYPE s_sniffer_mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -453,7 +453,7 @@ static void IRAM_ATTR sniffer_sda_edge_isr(void *arg)
         return; /* Normal data transition while SCL is low. */
     }
 
-    yourdesk_soft_i2c_digit_event_t event = {0};
+    mxtark_soft_i2c_digit_event_t event = {0};
     bool queue_event = false;
     portENTER_CRITICAL_ISR(&s_sniffer_mux);
     if (!gpio_get_level(CONFIG_DESK_I2C_SDA_GPIO)) {
@@ -515,7 +515,7 @@ static esp_err_t start_digit_sniffer(slave_ctx_t *ctx)
 
 #endif
 
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
 /** Assemble digit events away from ISR context and publish only valid heights. */
 static void height_decode_task(void *arg)
 {
@@ -526,7 +526,7 @@ static void height_decode_task(void *arg)
     tm1650_height_cache_reset(&cache);
     TickType_t frame_start_tick = 0;
     uint32_t last_invalid_raw = UINT32_MAX;
-    yourdesk_soft_i2c_digit_event_t event;
+    mxtark_soft_i2c_digit_event_t event;
 
     for (;;) {
         if (xQueueReceive(ctx->digit_q, &event, portMAX_DELAY) != pdTRUE) {
@@ -564,11 +564,11 @@ static void height_decode_task(void *arg)
         }
 
         int previous = atomic_load(&s_height_mm);
-        yourdesk_preset_direction_t direction = current_height_direction();
+        mxtark_preset_direction_t direction = current_height_direction();
         bool complete_frame = frame_result == TM1650_HEIGHT_VALID;
         bool cached_motion_sample =
             !complete_frame && previous >= 0 &&
-            direction != YOURDESK_PRESET_STOP &&
+            direction != MXTARK_PRESET_STOP &&
             cache_result == TM1650_HEIGHT_VALID;
         if (!complete_frame && !cached_motion_sample) {
             if (frame_result == TM1650_HEIGHT_INVALID) {
@@ -597,9 +597,9 @@ static void height_decode_task(void *arg)
         bool resync_pending = atomic_load(&s_height_epoch) != motion_epoch;
         /* Only a complete controller frame may bypass a stale baseline. */
         bool transition_resync = resync_pending && complete_frame;
-        bool accepted = yourdesk_height_transition_valid(
+        bool accepted = mxtark_height_transition_valid(
             previous, height_mm, elapsed_ms, direction, transition_resync,
-            YOURDESK_HEIGHT_TRANSITION_MAX_SPEED_MM_PER_S,
+            MXTARK_HEIGHT_TRANSITION_MAX_SPEED_MM_PER_S,
             HEIGHT_STEP_SLACK_MM);
         last_invalid_raw = UINT32_MAX;
         if (accepted) {
@@ -644,7 +644,7 @@ static void height_decode_task(void *arg)
 }
 #endif
 
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
+#if CONFIG_DESK_MXTARK_PANEL_PROXY
 /**
  * Merge a panel key into the controller-facing DR byte.
  *
@@ -655,23 +655,23 @@ static void height_decode_task(void *arg)
 static void panel_key_update(bool connected, uint8_t dr, void *ctx)
 {
     (void)ctx;
-    yourdesk_panel_arbiter_result_t result;
+    mxtark_panel_arbiter_result_t result;
     portENTER_CRITICAL(&s_panel_arbiter_mux);
-    yourdesk_panel_arbiter_panel_update(&s_panel_arbiter, connected, dr,
+    mxtark_panel_arbiter_panel_update(&s_panel_arbiter, connected, dr,
                                         &result);
     atomic_store(&s_panel_active, s_panel_arbiter.panel_active);
     atomic_store(&s_panel_connected, connected);
     portEXIT_CRITICAL(&s_panel_arbiter_mux);
 
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     if (result.panel_started) {
         cancel_preset_motion();
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
         begin_height_resync();
 #endif
     } else if (result.output_changed &&
                (result.output_dr == DR_UP || result.output_dr == DR_DOWN)) {
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
         begin_height_resync();
 #endif
     }
@@ -706,9 +706,9 @@ static bool panel_has_priority(void)
 /** Apply the core's effective panel permission through the tested arbiter. */
 static esp_err_t yd_set_panel_enabled(bool enabled)
 {
-    yourdesk_panel_arbiter_result_t result;
+    mxtark_panel_arbiter_result_t result;
     portENTER_CRITICAL(&s_panel_arbiter_mux);
-    yourdesk_panel_arbiter_set_enabled(&s_panel_arbiter, enabled, &result);
+    mxtark_panel_arbiter_set_enabled(&s_panel_arbiter, enabled, &result);
     atomic_store(&s_panel_active, s_panel_arbiter.panel_active);
     portEXIT_CRITICAL(&s_panel_arbiter_mux);
     if (result.output_changed) {
@@ -730,7 +730,7 @@ static esp_err_t yd_set_panel_enabled(bool enabled)
 }
 #endif
 
-#if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+#if !CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
 static bool IRAM_ATTR on_receive_cb(i2c_slave_dev_handle_t i2c_slave,
                                     const i2c_slave_rx_done_event_data_t *evt_data,
                                     void *arg)
@@ -773,8 +773,8 @@ static void slave_tx_task(void *arg)
 static void publish_controller_dr(uint8_t dr)
 {
     uint8_t previous = (uint8_t)atomic_exchange(&s_dr, dr);
-#if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
-    yourdesk_soft_i2c_esp_set_dr(dr);
+#if CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
+    mxtark_soft_i2c_esp_set_dr(dr);
 #endif
     if (previous != dr) {
         ESP_LOGI(TAG, "DR=0x%02X", dr);
@@ -784,10 +784,10 @@ static void publish_controller_dr(uint8_t dr)
 /** Apply a gateway/safety command through original-panel arbitration. */
 static esp_err_t set_dr(uint8_t dr)
 {
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
-    yourdesk_panel_arbiter_result_t result;
+#if CONFIG_DESK_MXTARK_PANEL_PROXY
+    mxtark_panel_arbiter_result_t result;
     portENTER_CRITICAL(&s_panel_arbiter_mux);
-    bool accepted = yourdesk_panel_arbiter_gateway_request(
+    bool accepted = mxtark_panel_arbiter_gateway_request(
         &s_panel_arbiter, dr, &result);
     portEXIT_CRITICAL(&s_panel_arbiter_mux);
     if (!accepted) {
@@ -816,7 +816,7 @@ static esp_err_t read_control_height_mm(int *out_mm)
     }
     *out_mm = snapshot.height_mm;
     return ESP_OK;
-#elif YOURDESK_HEIGHT_INPUT_ENABLED
+#elif MXTARK_HEIGHT_INPUT_ENABLED
     int height_mm = atomic_load(&s_height_mm);
     if (height_mm < 0) {
         return ESP_ERR_INVALID_STATE;
@@ -831,37 +831,37 @@ static esp_err_t read_control_height_mm(int *out_mm)
 static esp_err_t yd_init(void)
 {
     atomic_store(&s_dr, DR_IDLE);
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
-    yourdesk_panel_arbiter_init(&s_panel_arbiter, DR_IDLE);
+#if CONFIG_DESK_MXTARK_PANEL_PROXY
+    mxtark_panel_arbiter_init(&s_panel_arbiter, DR_IDLE);
     atomic_store(&s_panel_active, false);
     atomic_store(&s_panel_connected, false);
 #endif
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     atomic_store(&s_max_height_mm, CONFIG_DESK_MAX_HEIGHT_MM);
     atomic_store(&s_preset1_height_mm, DESK_PRESET1_HEIGHT_MM_DEFAULT);
     atomic_store(&s_preset4_height_mm, DESK_PRESET4_HEIGHT_MM_DEFAULT);
     cancel_preset_motion();
 #endif
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
     atomic_store(&s_height_mm, -1);
     atomic_store(&s_motion_epoch, 1);
     atomic_store(&s_height_epoch, 0);
     atomic_store(&s_height_tick, 0);
 #endif
-#if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+#if !CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
     s_ctx.tx_q = xQueueCreate(1, sizeof(uint8_t));
     if (!s_ctx.tx_q) {
         return ESP_ERR_NO_MEM;
     }
 #endif
-#if YOURDESK_HEIGHT_INPUT_ENABLED
-    s_ctx.digit_q = xQueueCreate(32, sizeof(yourdesk_soft_i2c_digit_event_t));
+#if MXTARK_HEIGHT_INPUT_ENABLED
+    s_ctx.digit_q = xQueueCreate(32, sizeof(mxtark_soft_i2c_digit_event_t));
     if (!s_ctx.digit_q) {
         return ESP_ERR_NO_MEM;
     }
 #endif
 
-#if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+#if !CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
     i2c_slave_config_t cfg = {
         .i2c_port = CONFIG_DESK_I2C_PORT,
         .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -886,19 +886,19 @@ static esp_err_t yd_init(void)
         return ESP_ERR_NO_MEM;
     }
 #endif
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
     if (xTaskCreatePinnedToCore(height_decode_task, "yd_height", 4096, &s_ctx,
                                 configMAX_PRIORITIES - 4, NULL, 0) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
 #endif
-#if CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
-    esp_err_t err = yourdesk_soft_i2c_esp_init(
+#if CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
+    esp_err_t err = mxtark_soft_i2c_esp_init(
         s_ctx.digit_q, NULL, DR_IDLE);
     if (err != ESP_OK) {
         return err; /* This adapter owns both motion and height in this mode. */
     }
-#elif CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
+#elif CONFIG_DESK_MXTARK_HEIGHT_SNIFFER_EXPERIMENTAL
     err = start_digit_sniffer(&s_ctx);
     if (err != ESP_OK) {
         /* Height is optional; never sacrifice the already working motion path. */
@@ -908,8 +908,8 @@ static esp_err_t yd_init(void)
     ESP_LOGI(TAG,
              "control-box height input disabled; waiting for external TOF source");
 #endif
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
-    err = yourdesk_panel_proxy_init(panel_key_update, NULL);
+#if CONFIG_DESK_MXTARK_PANEL_PROXY
+    err = mxtark_panel_proxy_init(panel_key_update, NULL);
     if (err != ESP_OK) {
         return err; /* An enabled active bridge must fail closed, not half-start. */
     }
@@ -920,14 +920,14 @@ static esp_err_t yd_init(void)
         return ESP_ERR_NO_MEM;
     }
 #endif
-#if YOURDESK_HEIGHT_INPUT_ENABLED && CONFIG_DESK_MOTION_DIAGNOSTICS
+#if MXTARK_HEIGHT_INPUT_ENABLED && CONFIG_DESK_MOTION_DIAGNOSTICS
     if (xTaskCreatePinnedToCore(motion_diagnostics_task, "yd_motion_diag", 3072,
                                 NULL, configMAX_PRIORITIES - 3,
                                 NULL, 0) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
 #endif
-#if !CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+#if !CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
     ESP_LOGI(TAG, "I2C slave @0x%02X SCL=%d SDA=%d", ADDR_KEY_7BIT,
              CONFIG_DESK_I2C_SCL_GPIO, CONFIG_DESK_I2C_SDA_GPIO);
 #endif
@@ -941,7 +941,7 @@ static esp_err_t yd_deinit(void)
 
 static esp_err_t yd_stop(void)
 {
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     cancel_preset_motion();
 #endif
     return set_dr(DR_IDLE);
@@ -965,10 +965,10 @@ static esp_err_t yd_hold_direction(uint8_t dr)
         }
     }
 #endif
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     cancel_preset_motion();
 #endif
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
     if (dr == DR_UP) {
         int height_mm = atomic_load(&s_height_mm);
         if (height_mm < 0) {
@@ -1010,7 +1010,7 @@ static esp_err_t yd_raise_to_max(void)
         return ESP_ERR_INVALID_STATE;
     }
     if (snapshot.height_mm >= max_height_mm) {
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
         cancel_preset_motion();
 #endif
         return set_dr(DR_IDLE);
@@ -1019,7 +1019,7 @@ static esp_err_t yd_raise_to_max(void)
         log_tof_upward_block("raise_to_max", snapshot);
         return ESP_ERR_INVALID_STATE;
     }
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     cancel_preset_motion();
 #endif
     ESP_LOGI(TAG, "raise to max: current=%d mm max=%d mm",
@@ -1041,7 +1041,7 @@ static esp_err_t yd_reset_controller(void)
     if (panel_has_priority()) {
         return ESP_ERR_INVALID_STATE;
     }
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     cancel_preset_motion();
 #endif
     return set_dr(DR_RESET);
@@ -1054,13 +1054,13 @@ static esp_err_t yd_reset_controller(void)
  * 当前高度未知时直接拒绝，避免猜错方向后持续移动。
  */
 static esp_err_t yd_start_height_target(
-    int target_mm, yourdesk_preset_direction_t unknown_height_direction,
+    int target_mm, mxtark_preset_direction_t unknown_height_direction,
     const char *log_label)
 {
     if (panel_has_priority()) {
         return ESP_ERR_INVALID_STATE;
     }
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     if (target_mm < DESK_HEIGHT_MM_MIN ||
         target_mm > DESK_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
@@ -1072,7 +1072,7 @@ static esp_err_t yd_start_height_target(
 #if CONFIG_DESK_TOF_ENABLE
         return ESP_ERR_INVALID_STATE;
 #else
-        if (unknown_height_direction == YOURDESK_PRESET_STOP) {
+        if (unknown_height_direction == MXTARK_PRESET_STOP) {
             return ESP_ERR_INVALID_STATE;
         }
         atomic_store(&s_preset_direction, unknown_height_direction);
@@ -1088,14 +1088,14 @@ static esp_err_t yd_start_height_target(
         return err;
 #endif
     }
-    yourdesk_preset_direction_t direction = yourdesk_preset_direction(
+    mxtark_preset_direction_t direction = mxtark_preset_direction(
         current_mm, target_mm, PRESET_STOP_MARGIN_MM);
-    if (direction == YOURDESK_PRESET_STOP) {
+    if (direction == MXTARK_PRESET_STOP) {
         cancel_preset_motion();
         return set_dr(DR_IDLE);
     }
 #if CONFIG_DESK_TOF_ENABLE
-    if (direction == YOURDESK_PRESET_UP) {
+    if (direction == MXTARK_PRESET_UP) {
         desk_tof_snapshot_t snapshot = desk_tof_snapshot();
         if (tof_upward_blocked(snapshot)) {
             log_tof_upward_block("preset", snapshot);
@@ -1109,7 +1109,7 @@ static esp_err_t yd_start_height_target(
     ESP_LOGI(TAG, "%s: current=%d mm target=%d mm direction=%s",
              log_label, current_mm, target_mm,
              direction > 0 ? "up" : "down");
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
     begin_height_resync();
 #endif
     esp_err_t err = set_dr(direction > 0 ? DR_UP : DR_DOWN);
@@ -1127,20 +1127,20 @@ static esp_err_t yd_start_height_target(
 
 static esp_err_t yd_goto_preset(uint8_t n)
 {
-    int target_mm = yourdesk_preset_target_mm(
+    int target_mm = mxtark_preset_target_mm(
         n, atomic_load(&s_preset1_height_mm),
         atomic_load(&s_preset4_height_mm));
     if (target_mm < 0) {
         return ESP_ERR_NOT_SUPPORTED;
     }
     return yd_start_height_target(target_mm,
-                                  yourdesk_preset_bootstrap_direction(n),
+                                  mxtark_preset_bootstrap_direction(n),
                                   n == 1 ? "preset 1" : "preset 4");
 }
 
 static esp_err_t yd_goto_height_mm(int target_height_mm)
 {
-    return yd_start_height_target(target_height_mm, YOURDESK_PRESET_STOP,
+    return yd_start_height_target(target_height_mm, MXTARK_PRESET_STOP,
                                   "custom preset");
 }
 
@@ -1150,7 +1150,7 @@ static esp_err_t yd_set_max_height_mm(int max_height_mm)
         max_height_mm > DESK_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     atomic_store(&s_max_height_mm, max_height_mm);
 #else
     /*
@@ -1170,7 +1170,7 @@ static esp_err_t yd_set_preset_heights_mm(int preset1_height_mm,
         preset4_height_mm > DESK_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     atomic_store(&s_preset1_height_mm, preset1_height_mm);
     atomic_store(&s_preset4_height_mm, preset4_height_mm);
 #else
@@ -1182,7 +1182,7 @@ static esp_err_t yd_set_preset_heights_mm(int preset1_height_mm,
 
 static esp_err_t yd_save_preset(uint8_t n)
 {
-#if YOURDESK_HEIGHT_INPUT_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED
     if (panel_has_priority()) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -1215,7 +1215,7 @@ static bool yd_is_upward_blocked(void)
 
 static desk_status_t yd_get_status(void)
 {
-#if YOURDESK_CLOSED_LOOP_ENABLED
+#if MXTARK_CLOSED_LOOP_ENABLED
     if (atomic_load(&s_preset_target_mm) >= 0) {
         return DESK_STATUS_GOTO_PRESET;
     }
@@ -1247,7 +1247,7 @@ static desk_caps_t yd_get_caps(void)
         .preset_save = false,
         .height = true,
         .preset_mask = (1u << 0) | (1u << 3), /* 1 and 4 */
-#elif YOURDESK_HEIGHT_INPUT_ENABLED
+#elif MXTARK_HEIGHT_INPUT_ENABLED
         .preset_goto = true,
         .preset_save = true,
         .height = true,
@@ -1262,8 +1262,8 @@ static desk_caps_t yd_get_caps(void)
     };
 }
 
-const desk_driver_t yourdesk_v1_driver = {
-    .name = "yourdesk_v1",
+const desk_driver_t mxtark_driver = {
+    .name = "mxtark",
     .init = yd_init,
     .deinit = yd_deinit,
     .stop = yd_stop,

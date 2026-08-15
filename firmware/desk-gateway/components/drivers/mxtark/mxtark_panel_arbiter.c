@@ -1,8 +1,8 @@
 /**
- * @file yourdesk_panel_arbiter.c
+ * @file mxtark_panel_arbiter.c
  * @brief Host-testable original-panel priority and STOP suppression logic.
  */
-#include "yourdesk_panel_arbiter.h"
+#include "mxtark_panel_arbiter.h"
 
 #include <stddef.h>
 
@@ -14,7 +14,7 @@
 #define PANEL_DR_P4_GOTO  0x2Fu
 #define PANEL_DR_P4_SAVE  0x6Fu
 
-uint8_t yourdesk_panel_arbiter_normalize_dr(uint8_t dr, uint8_t idle_dr)
+uint8_t mxtark_panel_arbiter_normalize_dr(uint8_t dr, uint8_t idle_dr)
 {
     switch (dr) {
     case PANEL_DR_UP:
@@ -30,9 +30,9 @@ uint8_t yourdesk_panel_arbiter_normalize_dr(uint8_t dr, uint8_t idle_dr)
 }
 
 /** Publish a result without exposing mutable arbiter state to callers. */
-static void finish_result(const yourdesk_panel_arbiter_t *arbiter,
+static void finish_result(const mxtark_panel_arbiter_t *arbiter,
                           uint8_t previous_output,
-                          yourdesk_panel_arbiter_result_t *result)
+                          mxtark_panel_arbiter_result_t *result)
 {
     if (!result) {
         return;
@@ -41,13 +41,13 @@ static void finish_result(const yourdesk_panel_arbiter_t *arbiter,
     result->output_changed = previous_output != arbiter->output_dr;
 }
 
-void yourdesk_panel_arbiter_init(yourdesk_panel_arbiter_t *arbiter,
+void mxtark_panel_arbiter_init(mxtark_panel_arbiter_t *arbiter,
                                  uint8_t idle_dr)
 {
     if (!arbiter) {
         return;
     }
-    *arbiter = (yourdesk_panel_arbiter_t){
+    *arbiter = (mxtark_panel_arbiter_t){
         .idle_dr = idle_dr,
         .gateway_dr = idle_dr,
         .output_dr = idle_dr,
@@ -57,9 +57,9 @@ void yourdesk_panel_arbiter_init(yourdesk_panel_arbiter_t *arbiter,
     };
 }
 
-void yourdesk_panel_arbiter_set_enabled(
-    yourdesk_panel_arbiter_t *arbiter, bool enabled,
-    yourdesk_panel_arbiter_result_t *result)
+void mxtark_panel_arbiter_set_enabled(
+    mxtark_panel_arbiter_t *arbiter, bool enabled,
+    mxtark_panel_arbiter_result_t *result)
 {
     if (!arbiter) {
         return;
@@ -67,7 +67,7 @@ void yourdesk_panel_arbiter_set_enabled(
     uint8_t previous_output = arbiter->output_dr;
     bool panel_released = arbiter->panel_active;
     if (result) {
-        *result = (yourdesk_panel_arbiter_result_t){
+        *result = (mxtark_panel_arbiter_result_t){
             .panel_released = panel_released,
         };
     }
@@ -80,16 +80,16 @@ void yourdesk_panel_arbiter_set_enabled(
     finish_result(arbiter, previous_output, result);
 }
 
-bool yourdesk_panel_arbiter_gateway_request(
-    yourdesk_panel_arbiter_t *arbiter, uint8_t dr,
-    yourdesk_panel_arbiter_result_t *result)
+bool mxtark_panel_arbiter_gateway_request(
+    mxtark_panel_arbiter_t *arbiter, uint8_t dr,
+    mxtark_panel_arbiter_result_t *result)
 {
     if (!arbiter) {
         return false;
     }
     uint8_t previous_output = arbiter->output_dr;
     if (result) {
-        *result = (yourdesk_panel_arbiter_result_t){0};
+        *result = (mxtark_panel_arbiter_result_t){0};
     }
 
     if (dr != arbiter->idle_dr && arbiter->panel_active) {
@@ -107,22 +107,22 @@ bool yourdesk_panel_arbiter_gateway_request(
     return true;
 }
 
-void yourdesk_panel_arbiter_panel_update(
-    yourdesk_panel_arbiter_t *arbiter, bool connected, uint8_t dr,
-    yourdesk_panel_arbiter_result_t *result)
+void mxtark_panel_arbiter_panel_update(
+    mxtark_panel_arbiter_t *arbiter, bool connected, uint8_t dr,
+    mxtark_panel_arbiter_result_t *result)
 {
     if (!arbiter) {
         return;
     }
     uint8_t normalized_dr =
-        yourdesk_panel_arbiter_normalize_dr(dr, arbiter->idle_dr);
+        mxtark_panel_arbiter_normalize_dr(dr, arbiter->idle_dr);
     uint8_t previous_output = arbiter->output_dr;
     bool next_active = connected && normalized_dr != arbiter->idle_dr;
     bool panel_started = next_active && !arbiter->panel_active;
     bool panel_released = !next_active && arbiter->panel_active;
 
     if (result) {
-        *result = (yourdesk_panel_arbiter_result_t){
+        *result = (mxtark_panel_arbiter_result_t){
             .panel_started = panel_started,
             .panel_released = panel_released,
         };

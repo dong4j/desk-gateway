@@ -1,16 +1,16 @@
 /**
- * @file yourdesk_panel_proxy.c
+ * @file mxtark_panel_proxy.c
  * @brief GPIO6/7 上的原厂 TM1650 面板事务代理。
  *
  * 控制盒侧继续使用稳定的 ESP32-S3 硬件 I2C Slave @0x24。面板侧使用
  * 开漏 GPIO 软件 Master，避免占用双 ToF/OLED 所在的 I2C1。任务只缓存按键
  * 并把 ToF 实测高度写回原厂数码管，任何 NACK 或总线超时都会立即发布空闲。
  */
-#include "yourdesk_panel_proxy.h"
+#include "mxtark_panel_proxy.h"
 
 #include "desk_tof.h"
-#include "yourdesk_panel_arbiter.h"
-#include "yourdesk_panel_display.h"
+#include "mxtark_panel_arbiter.h"
+#include "mxtark_panel_display.h"
 
 #include "driver/gpio.h"
 #include "esp_check.h"
@@ -22,9 +22,9 @@
 
 #include <stddef.h>
 
-#if CONFIG_DESK_YOURDESK_PANEL_PROXY
+#if CONFIG_DESK_MXTARK_PANEL_PROXY
 
-static const char *TAG = "yourdesk_panel";
+static const char *TAG = "mxtark_panel";
 
 #define PANEL_KEY_ADDR_7BIT       0x24u
 #define PANEL_DIG1_ADDR_7BIT      0x34u
@@ -41,7 +41,7 @@ static const char *TAG = "yourdesk_panel";
 #define PANEL_UNKNOWN_LOG_MS      2000u
 
 typedef struct {
-    yourdesk_panel_key_callback_t key_callback;
+    mxtark_panel_key_callback_t key_callback;
     void *callback_ctx;
 } panel_proxy_ctx_t;
 
@@ -242,8 +242,8 @@ static esp_err_t refresh_panel_height(int previous_height_cm,
         return ESP_ERR_INVALID_STATE;
     }
 
-    yourdesk_panel_display_frame_t frame;
-    if (!yourdesk_panel_display_encode_height(tof.height_mm, &frame)) {
+    mxtark_panel_display_frame_t frame;
+    if (!mxtark_panel_display_encode_height(tof.height_mm, &frame)) {
         return ESP_ERR_INVALID_ARG;
     }
     if (frame.height_cm == previous_height_cm) {
@@ -295,7 +295,7 @@ static void panel_proxy_task(void *arg)
         }
 
         TickType_t now = xTaskGetTickCount();
-        uint8_t normalized_dr = yourdesk_panel_arbiter_normalize_dr(
+        uint8_t normalized_dr = mxtark_panel_arbiter_normalize_dr(
             dr, PANEL_IDLE_DR);
         bool unknown_dr = next_connected && dr != normalized_dr;
         bool connection_changed = next_connected != connected;
@@ -347,8 +347,8 @@ static void panel_proxy_task(void *arg)
     }
 }
 
-esp_err_t yourdesk_panel_proxy_init(
-    yourdesk_panel_key_callback_t key_callback, void *callback_ctx)
+esp_err_t mxtark_panel_proxy_init(
+    mxtark_panel_key_callback_t key_callback, void *callback_ctx)
 {
     ESP_RETURN_ON_FALSE(key_callback, ESP_ERR_INVALID_ARG, TAG,
                         "key callback is required");
@@ -410,8 +410,8 @@ esp_err_t yourdesk_panel_proxy_init(
 
 #else
 
-esp_err_t yourdesk_panel_proxy_init(
-    yourdesk_panel_key_callback_t key_callback, void *callback_ctx)
+esp_err_t mxtark_panel_proxy_init(
+    mxtark_panel_key_callback_t key_callback, void *callback_ctx)
 {
     (void)key_callback;
     (void)callback_ctx;

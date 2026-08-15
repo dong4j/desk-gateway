@@ -1,5 +1,5 @@
 /**
- * @file yourdesk_upward_pipeline_test.c
+ * @file mxtark_upward_pipeline_test.c
  * @brief End-to-end host replay for imperial height decoding and preset motion.
  *
  * The isolated decoder and safety tests previously passed while their runtime
@@ -8,7 +8,7 @@
  * stopping are verified together without any maximum-height intervention.
  */
 #include "tm1650_height_decoder.h"
-#include "yourdesk_preset_logic.h"
+#include "mxtark_preset_logic.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -68,23 +68,23 @@ static void expect_sparse_imperial_ascent_reaches_preset(void)
 
         if (previous_mm >= 0) {
             int elapsed_ms = (int)(samples[i].at_ms - previous_ms);
-            assert(yourdesk_height_transition_valid(
-                previous_mm, height_mm, elapsed_ms, YOURDESK_PRESET_UP,
-                false, YOURDESK_HEIGHT_TRANSITION_MAX_SPEED_MM_PER_S,
+            assert(mxtark_height_transition_valid(
+                previous_mm, height_mm, elapsed_ms, MXTARK_PRESET_UP,
+                false, MXTARK_HEIGHT_TRANSITION_MAX_SPEED_MM_PER_S,
                 STEP_SLACK_MM));
         }
         previous_mm = height_mm;
         previous_ms = samples[i].at_ms;
     }
 
-    assert(yourdesk_preset_reached(previous_mm, 1020,
+    assert(mxtark_preset_reached(previous_mm, 1020,
                                    PRESET_STOP_MARGIN_MM,
-                                   YOURDESK_PRESET_UP));
+                                   MXTARK_PRESET_UP));
 }
 
 int main(void)
 {
     expect_sparse_imperial_ascent_reaches_preset();
-    puts("yourdesk upward pipeline vectors: OK");
+    puts("mxtark upward pipeline vectors: OK");
     return 0;
 }

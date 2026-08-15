@@ -6,9 +6,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将现有 Phase1 固件演进为平台工程 `firmware/desk-gateway/`：可插拔 `desk_driver` + 统一 `desk_core`（含童锁/超时），默认驱动 `yourdesk_v1`，并交付局域网 WiFi + 带认证的现代化 Web（REST/SSE、升降示意图动效）。
+**Goal:** 将现有 Phase1 固件演进为平台工程 `firmware/desk-gateway/`：可插拔 `desk_driver` + 统一 `desk_core`（含童锁/超时），默认驱动 `mxtark`，并交付局域网 WiFi + 带认证的现代化 Web（REST/SSE、升降示意图动效）。
 
-**Architecture:** 单 ESP-IDF 工程；所有控桌入口（UART、Web）只调 `desk_core`；`yourdesk_v1` 实现 I²C Slave @0x24 回 `DR`；Web 静态资源嵌入固件。BLE / Matter / 双 RJ45 / 米家华为原生 **不在本计划**。
+**Architecture:** 单 ESP-IDF 工程；所有控桌入口（UART、Web）只调 `desk_core`；`mxtark` 实现 I²C Slave @0x24 回 `DR`；Web 静态资源嵌入固件。BLE / Matter / 双 RJ45 / 米家华为原生 **不在本计划**。
 
 **Tech Stack:** ESP-IDF ≥ 5.2，目标 `esp32s3`（YD-ESP32-S3 N16R8），`esp_http_server`，NVS，FreeRTOS，原生 HTML/CSS/JS（无 CDN）。
 
@@ -55,9 +55,9 @@ firmware/desk-gateway/
       desk_core.c              # 超时、童锁 NVS、扇出到 driver
       CMakeLists.txt
     drivers/
-      yourdesk_v1/
-        include/yourdesk_v1.h
-        yourdesk_v1.c          # 自 phase1 desk_dr + i2c_panel_slave 迁入
+      mxtark/
+        include/mxtark.h
+        mxtark.c          # 自 phase1 desk_dr + i2c_panel_slave 迁入
         CMakeLists.txt
       loctek/                  # stub: init 返回 OK，动作 NOT_SUPPORTED
       jiecang/                 # stub
@@ -265,15 +265,15 @@ EOF
 
 ---
 
-### Task 4: `yourdesk_v1` 驱动（迁 I²C Slave）
+### Task 4: `mxtark` 驱动（迁 I²C Slave）
 
 **Files:**
-- Create: `firmware/desk-gateway/components/drivers/yourdesk_v1/*`（从 phase1 的 `desk_dr` 键码常量 + `i2c_panel_slave` 迁入）
-- Modify: `firmware/desk-gateway/main/app_main.c` — `desk_core_init(&yourdesk_v1_driver)`
+- Create: `firmware/desk-gateway/components/drivers/mxtark/*`（从 phase1 的 `desk_dr` 键码常量 + `i2c_panel_slave` 迁入）
+- Modify: `firmware/desk-gateway/main/app_main.c` — `desk_core_init(&mxtark_driver)`
 
 **Interfaces:**
 - Consumes: `desk_driver_t`；GPIO from Kconfig
-- Produces: `extern const desk_driver_t yourdesk_v1_driver;`
+- Produces: `extern const desk_driver_t mxtark_driver;`
 
 映射（已批准契约）：
 
@@ -287,11 +287,11 @@ EOF
 | height | `ESP_ERR_NOT_SUPPORTED` |
 | get_status | 由驱动内部当前 DR 推导 |
 
-- [ ] **Step 1: 迁 I²C Slave 与 DR 状态进 yourdesk_v1**
+- [ ] **Step 1: 迁 I²C Slave 与 DR 状态进 mxtark**
 
 保持 phase1 的 ISR→队列→`i2c_slave_write` 模式；DR 原子变量留在驱动内。
 
-- [ ] **Step 2: 实现 `yourdesk_v1_driver` ops 表并注册**
+- [ ] **Step 2: 实现 `mxtark_driver` ops 表并注册**
 
 - [ ] **Step 3: 烧录 + 串口冒烟（有硬件时）**
 
@@ -302,9 +302,9 @@ Expected：主机轮询时 Slave ACK；默认不运动。
 - [ ] **Step 4: Commit**
 
 ```bash
-git add firmware/desk-gateway/components/drivers/yourdesk_v1 firmware/desk-gateway/main
+git add firmware/desk-gateway/components/drivers/mxtark firmware/desk-gateway/main
 git commit -m "$(cat <<'EOF'
-feat: migrate yourdesk_v1 I2C panel slave as first desk_driver
+feat: migrate mxtark I2C panel slave as first desk_driver
 
 EOF
 )"
@@ -500,7 +500,7 @@ EOF
 - Modify: `firmware/desk-gateway/README.md` — 完整接线、命令、默认密码、安全警告
 - Modify: `docs/2-esp32-s3-n16r8-platform.md` — 主工程路径改为 `firmware/desk-gateway/`
 
-- [ ] **Step 1: 加 stub，Kconfig 选驱动仅 yourdesk_v1 默认可编译**
+- [ ] **Step 1: 加 stub，Kconfig 选驱动仅 mxtark 默认可编译**
 
 - [ ] **Step 2: 更新文档交叉链接**
 
@@ -525,7 +525,7 @@ EOF
 | desk_driver / registry | 2 |
 | desk_core 超时 | 3 |
 | 童锁 API/NVS/UI | 3, 7, 9 |
-| yourdesk_v1 I²C | 4 |
+| mxtark I²C | 4 |
 | UART 经 core | 5 |
 | WiFi STA | 6 |
 | REST + Bearer | 7 |

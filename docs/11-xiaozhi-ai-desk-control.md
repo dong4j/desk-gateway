@@ -27,7 +27,7 @@ flowchart LR
     Server --> Endpoint["MCP Endpoint Server<br/>端口 8004"]
     Endpoint --> Bridge["desk_mcp.py<br/>MCP 工具桥接"]
     Bridge --> REST["Desk Gateway REST<br/>X-Desk-Key"]
-    REST --> Core["desk_core + YourDesk Driver"]
+    REST --> Core["desk_core + Mxtark Driver"]
     Core --> Safety["TOF400C 高度闭环<br/>TOF050C 右侧障碍保护"]
     Safety --> Desk["升降桌"]
 ```
@@ -154,7 +154,7 @@ curl --fail --silent --show-error \
   "control_sources": {
     "rest": true
   },
-  "driver": "yourdesk_v1"
+  "driver": "mxtark"
 }
 ```
 

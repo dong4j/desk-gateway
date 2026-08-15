@@ -31,7 +31,7 @@ connection. UUIDs and LightBlue steps are documented in
 
 LAN Web default password: `desk-gateway`.
 
-## Wiring (yourdesk_v1, Phase 1 panel replacement)
+## Wiring (mxtark, Phase 1 panel replacement)
 
 | RJ45 | Signal | Connection |
 |-------|--------|------------|
@@ -77,7 +77,7 @@ Start at 20% volume for first hardware bring-up. The firmware and automated
 tests are complete, but audio quality, brownout, click/pop and desk-bus EMI stay
 open until the physical amplifier and speaker are tested.
 
-## Wiring (yourdesk_v1, Phase 2 original-panel proxy)
+## Wiring (mxtark, Phase 2 original-panel proxy)
 
 The two RJ45 sockets on the breakout are independent. Keep controller CLK/DAT
 on the stable ESP32-S3 hardware-slave bus, and connect the original panel
@@ -96,7 +96,7 @@ the panel side; the original panel already measured approximately `1.99 kΩ` fro
 3.3V to CLK and DAT. The red jumper only carries the controller's 3.3V to power
 the original panel and must still not connect to ESP32 `3V3`.
 
-With `CONFIG_DESK_YOURDESK_PANEL_PROXY=y`, the controller side remains the
+With `CONFIG_DESK_MXTARK_PANEL_PROXY=y`, the controller side remains the
 hardware I2C Slave `@0x24` on GPIO4/5. GPIO6/7 reproduce the captured TM1650
 transactions as a 9.6 kHz open-drain software Master, publish original-panel
 keys into the existing arbiter, and display the calibrated TOF400C height on the
@@ -128,8 +128,8 @@ The default build therefore uses the ESP32-S3 hardware I²C Slave only at `0x24`
 and logs:
 
 ```text
-I (...) yourdesk_v1: control-box height input disabled; waiting for external TOF source
-I (...) yourdesk_v1: I2C slave @0x24 SCL=4 SDA=5
+I (...) mxtark: control-box height input disabled; waiting for external TOF source
+I (...) mxtark: I2C slave @0x24 SCL=4 SDA=5
 ```
 
 The historical controller-digit decoder and software-I²C Slave stay available

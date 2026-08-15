@@ -5,7 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
-DRIVER_DIR="${REPO_ROOT}/firmware/desk-gateway/components/drivers/yourdesk_v1"
+DRIVER_DIR="${REPO_ROOT}/firmware/desk-gateway/components/drivers/mxtark"
 CORE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_core"
 BLE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/ble"
 WEB_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/web"
@@ -34,37 +34,37 @@ cc -std=c11 -Wall -Wextra -Werror \
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${DRIVER_DIR}" \
-    "${DRIVER_DIR}/yourdesk_soft_i2c_sm.c" \
-    "${DRIVER_DIR}/test/yourdesk_soft_i2c_sm_test.c" \
+    "${DRIVER_DIR}/mxtark_soft_i2c_sm.c" \
+    "${DRIVER_DIR}/test/mxtark_soft_i2c_sm_test.c" \
     -o "${TEST_DIR}/soft-i2c-sm-test"
 "${TEST_DIR}/soft-i2c-sm-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${DRIVER_DIR}" \
-    "${DRIVER_DIR}/yourdesk_preset_logic.c" \
-    "${DRIVER_DIR}/test/yourdesk_preset_logic_test.c" \
+    "${DRIVER_DIR}/mxtark_preset_logic.c" \
+    "${DRIVER_DIR}/test/mxtark_preset_logic_test.c" \
     -o "${TEST_DIR}/preset-logic-test"
 "${TEST_DIR}/preset-logic-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${DRIVER_DIR}" \
     "${DRIVER_DIR}/tm1650_height_decoder.c" \
-    "${DRIVER_DIR}/yourdesk_preset_logic.c" \
-    "${DRIVER_DIR}/test/yourdesk_upward_pipeline_test.c" \
+    "${DRIVER_DIR}/mxtark_preset_logic.c" \
+    "${DRIVER_DIR}/test/mxtark_upward_pipeline_test.c" \
     -o "${TEST_DIR}/upward-pipeline-test"
 "${TEST_DIR}/upward-pipeline-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${DRIVER_DIR}" \
-    "${DRIVER_DIR}/yourdesk_panel_arbiter.c" \
-    "${DRIVER_DIR}/test/yourdesk_panel_arbiter_test.c" \
+    "${DRIVER_DIR}/mxtark_panel_arbiter.c" \
+    "${DRIVER_DIR}/test/mxtark_panel_arbiter_test.c" \
     -o "${TEST_DIR}/panel-arbiter-test"
 "${TEST_DIR}/panel-arbiter-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${DRIVER_DIR}" \
-    "${DRIVER_DIR}/yourdesk_panel_display.c" \
-    "${DRIVER_DIR}/test/yourdesk_panel_display_test.c" \
+    "${DRIVER_DIR}/mxtark_panel_display.c" \
+    "${DRIVER_DIR}/test/mxtark_panel_display_test.c" \
     -o "${TEST_DIR}/panel-display-test"
 "${TEST_DIR}/panel-display-test"
 

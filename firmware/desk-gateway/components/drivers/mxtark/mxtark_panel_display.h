@@ -1,5 +1,5 @@
 /**
- * @file yourdesk_panel_display.h
+ * @file mxtark_panel_display.h
  * @brief 将 ToF 实测高度编码为原厂 TM1650 面板段码。
  *
  * 控制盒侧继续只使用稳定的硬件 I2C Slave @0x24，不再尝试同时应答
@@ -18,11 +18,11 @@ extern "C" {
 typedef struct {
     uint8_t digits[4]; /* DIG1、DIG2、DIG3、DIG4 的 TM1650 段码。 */
     int height_cm;
-} yourdesk_panel_display_frame_t;
+} mxtark_panel_display_frame_t;
 
 /** 将 400-2000 mm 的高度四舍五入为整数厘米并生成四位段码。 */
-bool yourdesk_panel_display_encode_height(
-    int height_mm, yourdesk_panel_display_frame_t *out_frame);
+bool mxtark_panel_display_encode_height(
+    int height_mm, mxtark_panel_display_frame_t *out_frame);
 
 #ifdef __cplusplus
 }

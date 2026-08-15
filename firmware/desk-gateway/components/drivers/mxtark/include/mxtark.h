@@ -1,5 +1,5 @@
 /**
- * @file yourdesk_v1.h
+ * @file mxtark.h
  * @brief 用户桌协议驱动：硬件 I²C Slave 响应 TM1650 键通道 @0x24
  */
 #pragma once
@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 /** 可注册到 desk_core 的驱动实例 */
-extern const desk_driver_t yourdesk_v1_driver;
+extern const desk_driver_t mxtark_driver;
 
 #ifdef __cplusplus
 }

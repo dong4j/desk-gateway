@@ -1,5 +1,5 @@
 /**
- * @file yourdesk_panel_arbiter.h
+ * @file mxtark_panel_arbiter.h
  * @brief Pure command arbiter for the original-panel proxy.
  *
  * The original panel must preempt a gateway motion without allowing that
@@ -22,14 +22,14 @@ typedef struct {
     bool panel_enabled;
     bool panel_active;
     bool panel_suppressed;
-} yourdesk_panel_arbiter_t;
+} mxtark_panel_arbiter_t;
 
 typedef struct {
     uint8_t output_dr;
     bool output_changed;
     bool panel_started;
     bool panel_released;
-} yourdesk_panel_arbiter_result_t;
+} mxtark_panel_arbiter_result_t;
 
 /**
  * Normalize a raw TM1650 panel value before it enters motion arbitration.
@@ -38,10 +38,10 @@ typedef struct {
  * or not-yet-reversed value becomes idle so it cannot hold wireless control
  * indefinitely after a physical key is released.
  */
-uint8_t yourdesk_panel_arbiter_normalize_dr(uint8_t dr, uint8_t idle_dr);
+uint8_t mxtark_panel_arbiter_normalize_dr(uint8_t dr, uint8_t idle_dr);
 
 /** Initialize both sources and the controller-facing output to idle. */
-void yourdesk_panel_arbiter_init(yourdesk_panel_arbiter_t *arbiter,
+void mxtark_panel_arbiter_init(mxtark_panel_arbiter_t *arbiter,
                                  uint8_t idle_dr);
 
 /**
@@ -51,9 +51,9 @@ void yourdesk_panel_arbiter_init(yourdesk_panel_arbiter_t *arbiter,
  * suppressed until an idle key sample is observed, preventing a held key from
  * starting the desk immediately after child-lock release.
  */
-void yourdesk_panel_arbiter_set_enabled(
-    yourdesk_panel_arbiter_t *arbiter, bool enabled,
-    yourdesk_panel_arbiter_result_t *result);
+void mxtark_panel_arbiter_set_enabled(
+    mxtark_panel_arbiter_t *arbiter, bool enabled,
+    mxtark_panel_arbiter_result_t *result);
 
 /**
  * Apply a gateway command.
@@ -62,9 +62,9 @@ void yourdesk_panel_arbiter_set_enabled(
  * accepted and suppresses a held panel key until that key is physically
  * released, so STOP and height safety cannot be immediately undone.
  */
-bool yourdesk_panel_arbiter_gateway_request(
-    yourdesk_panel_arbiter_t *arbiter, uint8_t dr,
-    yourdesk_panel_arbiter_result_t *result);
+bool mxtark_panel_arbiter_gateway_request(
+    mxtark_panel_arbiter_t *arbiter, uint8_t dr,
+    mxtark_panel_arbiter_result_t *result);
 
 /**
  * Apply the latest cached panel key.
@@ -73,9 +73,9 @@ bool yourdesk_panel_arbiter_gateway_request(
  * first supported action key cancels any gateway motion permanently; releasing
  * the panel therefore returns idle rather than resuming a stale command.
  */
-void yourdesk_panel_arbiter_panel_update(
-    yourdesk_panel_arbiter_t *arbiter, bool connected, uint8_t dr,
-    yourdesk_panel_arbiter_result_t *result);
+void mxtark_panel_arbiter_panel_update(
+    mxtark_panel_arbiter_t *arbiter, bool connected, uint8_t dr,
+    mxtark_panel_arbiter_result_t *result);
 
 #ifdef __cplusplus
 }

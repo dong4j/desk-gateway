@@ -5,7 +5,7 @@
 | 文档编号 | DG-INV-001 |
 | 日期 | 2026-08-12 |
 | 已确认稳定基线 | `3269faa` |
-| 适用硬件 | ESP32-S3 + yourdesk_v1 控制盒 |
+| 适用硬件 | ESP32-S3 + mxtark 控制盒 |
 | 最终决策 | 控制盒侧只用硬件 I²C Slave 响应 `0x24`；停止解析控制盒高度 |
 
 ## 1. 问题现象
@@ -120,7 +120,7 @@ TOF200C 接入后，高度由独立传感器驱动提供，不再改变控制盒
 
 本次只做以下修改：
 
-1. 默认关闭 `CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS`；
+1. 默认关闭 `CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS`；
 2. 保持实验性 GPIO 高度嗅探关闭；
 3. 恢复已有的 ESP-IDF 硬件 I²C Slave `@0x24` 路径；
 4. 保留现有上层 API 和客户端 UI；

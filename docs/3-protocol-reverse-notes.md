@@ -1095,8 +1095,8 @@ ESP32 内部待回传字节改变，不能证明控制盒已经发起 `0x24` 轮
 
 **A. 产品路径：硬件 I²C `@0x24`**
 
-1. `CONFIG_DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL=n`。
-2. `CONFIG_DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS=n`。
+1. `CONFIG_DESK_MXTARK_HEIGHT_SNIFFER_EXPERIMENTAL=n`。
+2. `CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS=n`。
 3. 使用 ESP-IDF 硬件 I²C Slave 返回 `0x2E / 0x47 / 0x4F`，分别真机验收连续升、连续降和松手停止。
 4. Web、REST、BLE 和 App 必须显示高度未知；档位闭环与上升限高等 TOF200C 到货后另行实现。
 5. 软件多地址实验若将来恢复，必须放在独立实验分支，不得直接替换稳定产品路径。

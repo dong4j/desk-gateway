@@ -16,7 +16,7 @@ Web UI + 手机 App（BLE/REST）+ UART + BLE 外设（OLED/旋钮）
               │
         desk_driver API
               │
-   yourdesk_v1 / loctek* / jiecang* / …
+   mxtark / loctek* / jiecang* / …
 ```
 
 ## 当前状态
@@ -28,7 +28,7 @@ Web UI + 手机 App（BLE/REST）+ UART + BLE 外设（OLED/旋钮）
 
 | 层 | 状态 |
 |---|---|
-| `yourdesk_v1`（硬件 I²C Slave `@0x24`） | 稳定返回升降键码；控制盒 digit 高度解析停用，TOF400C 作为产品高度源 |
+| `mxtark`（硬件 I²C Slave `@0x24`） | 稳定返回升降键码；控制盒 digit 高度解析停用，TOF400C 作为产品高度源 |
 | `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位、全局童锁和来源权限 |
 | WiFi + Web（局域网、密码、UI、升降动效） | 基础真机路径已完成；实时显示 TOF400C 高度和右侧 TOF050C 间距；ToF 已参与档位和上升保护 |
 | 手机 App 双通道 | iPhone BLE 真机控制已完成；Client Info、Desk Busy 和配对设备 REST 管理 UI 已实现；自动回退矩阵和 Android 待验收 |
@@ -46,7 +46,7 @@ firmware/desk-gateway/
   components/
     desk_core/
     desk_driver/
-    drivers/yourdesk_v1|loctek|jiecang
+    drivers/mxtark|loctek|jiecang
     connectivity/wifi|web|ble
 docs/architecture/          ← 本目录
 docs/superpowers/specs/     ← 设计定稿
@@ -110,5 +110,5 @@ docs/superpowers/specs/     ← 设计定稿
 | [Apple Watch 控制方案](./apple-watch-control.md) | SwiftUI Watch App 与直连 BLE 安全边界 |
 | [需求](../0-requirements.md) | 做什么、阶段门禁 |
 | [主控板](../2-esp32-s3-n16r8-platform.md) | YD-ESP32-S3 N16R8 |
-| [协议逆向](../3-protocol-reverse-notes.md) | yourdesk_v1 契约 |
+| [协议逆向](../3-protocol-reverse-notes.md) | mxtark 契约 |
 | [Upsy Desky](https://github.com/tjhorner/upsy-desky) | 参考产品，非协议照搬 |

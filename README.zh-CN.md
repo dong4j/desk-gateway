@@ -9,7 +9,7 @@
 ## 当前能力
 
 - **Phase 1 — 模拟面板：** ESP32-S3 硬件 I²C Slave 只处理键地址 `0x24`
-- **可插拔驱动：** `yourdesk_v1` 已实现；Loctek / Jiecang 为 stub
+- **可插拔驱动：** `mxtark` 已实现；Loctek / Jiecang 为 stub
 - **desk_core：** 按住升/降与停止；全局童锁与 REST/蓝牙/面板来源权限使用 NVS 保存
 - **双 ToF 高度与侧距：** TOF400C 直接提供产品高度，TOF050C 提供桌面右侧间距；两路均完成防抖和失效检测
 - **高度闭环：** 坐姿、站姿和最高安全高度跨 Web/App 同步并持久化，档位运动与上升限高已接入统一安全裁决
@@ -33,7 +33,7 @@
 | 开发板 | YD-ESP32-S3 N16R8（或兼容 ESP32-S3） |
 | 供电 | ESP32 用 USB-C；**不要**用桌子 3.3V 给 MCU 供电 |
 | 地 | 与主机共地 |
-| I²C（yourdesk_v1） | RJ45 pin 2 / 白线 CLK → GPIO4；pin 4 / 黑线 DAT → GPIO5 |
+| I²C（mxtark） | RJ45 pin 2 / 白线 CLK → GPIO4；pin 4 / 黑线 DAT → GPIO5 |
 | 上拉 | RJ45 pin 1 / 红线 3.3V 分别经 **2 kΩ（可用 2.2 kΩ）** 接 CLK、DAT |
 
 红线只作为两个上拉电阻的电源端，**不得直接连接 ESP32 的 `3V3`**。拔掉原厂面板也会移除面板上

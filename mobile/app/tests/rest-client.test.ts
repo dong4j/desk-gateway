@@ -25,7 +25,7 @@ const status = {
     bluetooth: true,
     panel: false,
   },
-  driver: 'yourdesk_v1',
+  driver: 'mxtark',
   build_date: 'Aug 11 2026',
   build_time: '21:05:03',
   build_id: '1234abcd',

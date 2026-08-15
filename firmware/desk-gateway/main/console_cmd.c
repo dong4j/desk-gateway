@@ -21,7 +21,7 @@ static const char *TAG = "console";
 
 static void print_help(void)
 {
-    printf("\nDesk Gateway — yourdesk_v1 @0x24\n"
+    printf("\nDesk Gateway — mxtark @0x24\n"
            "  help | status | stop | idle | up | down\n"
            "  p1 | p4 | save1 | save4\n"
            "  lock | unlock\n"

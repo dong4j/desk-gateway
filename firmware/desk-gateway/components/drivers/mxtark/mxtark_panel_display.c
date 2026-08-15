@@ -1,8 +1,8 @@
 /**
- * @file yourdesk_panel_display.c
+ * @file mxtark_panel_display.c
  * @brief 原厂 TM1650 面板整数厘米显示编码器。
  */
-#include "yourdesk_panel_display.h"
+#include "mxtark_panel_display.h"
 
 #include <stddef.h>
 
@@ -15,8 +15,8 @@ static const uint8_t s_digit_segments[10] = {
     0xD3, 0xDB, 0x46, 0xDF, 0xD7,
 };
 
-bool yourdesk_panel_display_encode_height(
-    int height_mm, yourdesk_panel_display_frame_t *out_frame)
+bool mxtark_panel_display_encode_height(
+    int height_mm, mxtark_panel_display_frame_t *out_frame)
 {
     if (!out_frame || height_mm < PANEL_HEIGHT_MIN_MM ||
         height_mm > PANEL_HEIGHT_MAX_MM) {

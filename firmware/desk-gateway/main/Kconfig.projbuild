@@ -13,17 +13,17 @@ menu "Desk Gateway"
         range 0 1
         default 0
 
-    config DESK_YOURDESK_HEIGHT_SNIFFER_EXPERIMENTAL
-        bool "Enable experimental yourdesk_v1 GPIO height sniffer"
-        depends on !DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+    config DESK_MXTARK_HEIGHT_SNIFFER_EXPERIMENTAL
+        bool "Enable experimental mxtark GPIO height sniffer"
+        depends on !DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
         default n
         help
             当前 GPIO 边沿嗅探会与同引脚上的硬件 I2C Slave 竞争，并且无法为
             0x34-0x37 digit 地址提供 ACK。真机已观察到升降链路回归，因此默认关闭。
             仅用于协议实验；正常控桌固件不得启用。
 
-    config DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
-        bool "Enable experimental yourdesk_v1 software multi-address I2C slave"
+    config DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
+        bool "Enable experimental mxtark software multi-address I2C slave"
         default n
         help
             使用 GPIO 中断同时应答 0x24 按键地址与 0x34-0x37 高度数码管地址。
@@ -31,9 +31,9 @@ menu "Desk Gateway"
             仅保留用于协议实验；正常控桌固件必须使用硬件 I2C Slave @0x24，
             不得启用本选项，也不能同时启用旧的只读 GPIO 高度嗅探。
 
-    config DESK_YOURDESK_PANEL_PROXY
+    config DESK_MXTARK_PANEL_PROXY
         bool "Enable active proxy to the original TM1650 panel"
-        depends on !DESK_YOURDESK_SOFT_I2C_MULTI_ADDRESS
+        depends on !DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
         default y
         help
             双 RJ45 主动代理：控制盒侧继续使用稳定的 GPIO4/5 硬件 I2C
@@ -44,12 +44,12 @@ menu "Desk Gateway"
 
     config DESK_PANEL_I2C_SCL_GPIO
         int "Original panel CLK GPIO"
-        depends on DESK_YOURDESK_PANEL_PROXY
+        depends on DESK_MXTARK_PANEL_PROXY
         default 6
 
     config DESK_PANEL_I2C_SDA_GPIO
         int "Original panel DAT GPIO"
-        depends on DESK_YOURDESK_PANEL_PROXY
+        depends on DESK_MXTARK_PANEL_PROXY
         default 7
 
     config DESK_TOF_ENABLE

@@ -72,7 +72,7 @@
 │                    └────────┬────────┘                      │
 │           ┌─────────────────┼─────────────────┐             │
 │           ▼                 ▼                 ▼             │
-│    yourdesk_v1          loctek*           jiecang* …        │
+│    mxtark          loctek*           jiecang* …        │
 │    (I²C Slave)          (stub)            (stub)            │
 └─────────────────────────────────────────────────────────────┘
 
@@ -103,7 +103,7 @@ desk-gateway/
         desk_core/                # 统一命令与安全
         desk_driver/              # 接口定义 + 驱动注册
         drivers/
-          yourdesk_v1/            # 现有 TM1650 键通道模拟
+          mxtark/            # 现有 TM1650 键通道模拟
           loctek/                 # stub
           jiecang/                # stub
         connectivity/
@@ -118,9 +118,9 @@ desk-gateway/
 
 抓包硬件推荐开源逻辑分析仪 **[nanoDLA](https://github.com/wuxx/nanoDLA)**（本仓库不 Vendoring 其固件/文档）。
 
-**驱动选择（本阶段）**：Kconfig 编译期选择默认 Driver（默认 `yourdesk_v1`）。运行时多驱动切换列为 Backlog。
+**驱动选择（本阶段）**：Kconfig 编译期选择默认 Driver（默认 `mxtark`）。运行时多驱动切换列为 Backlog。
 
-**迁移策略**：将现有 `firmware/phase1-panel-slave/` 逻辑拆入 `drivers/yourdesk_v1` + `desk_core` + `connectivity`；旧目录可保留短暂兼容说明后删除或改成指向新工程的 README 跳转，避免双源。
+**迁移策略**：将现有 `firmware/phase1-panel-slave/` 逻辑拆入 `drivers/mxtark` + `desk_core` + `connectivity`；旧目录可保留短暂兼容说明后删除或改成指向新工程的 README 跳转，避免双源。
 
 ---
 
@@ -150,9 +150,9 @@ desk-gateway/
 | `get_status` | 上表状态 | 是 |
 | `get_caps` | 位标志：升降/档位/高度/… | 是 |
 
-**禁止**：驱动内伪造未验证的厂商键码（如 yourdesk 的 Preset2/3）。
+**禁止**：驱动内伪造未验证的厂商键码（如 mxtark 的 Preset2/3）。
 
-### 4.3 `yourdesk_v1` 映射（已逆向）
+### 4.3 `mxtark` 映射（已逆向）
 
 | core 操作 | DR / 行为 |
 |---|---|
@@ -258,7 +258,7 @@ desk-gateway/
   "height_mm": null,
   "height_known": false,
   "child_lock": false,
-  "driver": "yourdesk_v1",
+  "driver": "mxtark",
   "ts_ms": 123456
 }
 ```
@@ -320,7 +320,7 @@ desk-gateway/
 | 里程碑 | 内容 | 退出标准 |
 |---|---|---|
 | **M0 文档** | 本文 + architecture overview + requirements 同步 | 你审阅通过 |
-| **M1 骨架** | 目录重组、`desk_driver` + `desk_core`、迁入 `yourdesk_v1`、串口仍可用 | 串口 up/down/stop 与现 Phase1 等价 |
+| **M1 骨架** | 目录重组、`desk_driver` + `desk_core`、迁入 `mxtark`、串口仍可用 | 串口 up/down/stop 与现 Phase1 等价 |
 | **M2 WiFi+Web** | STA、认证、REST、短轮询、UI 动效、**全局童锁与来源权限** | 局域网可升降停；童锁可开关并阻止运动；动效随 status |
 | **M3 stubs** | loctek/jiecang 空壳；**ble Accessory GATT 雏形或完整 stub 接口** | 编译可选；有 BLE 时可用调试器订阅 status |
 | **Phase 2** | 双 RJ45 + 面板仲裁 + 全局童锁的 Panel 真机验收；BLE 外设联调 | 锁 ON 后所有入口不能运动；锁 OFF 后按来源权限仲裁；旋钮类可升降 |
@@ -352,7 +352,7 @@ Phase 2 中间人、生态接入的其余部分仍按需求文档。
 
 （实现前写入 `docs/0-requirements.md`）
 
-- 产品定位改为：**多厂商可适配的 Desk Gateway 平台**（先打通 yourdesk_v1）。  
+- 产品定位改为：**多厂商可适配的 Desk Gateway 平台**（先打通 mxtark）。
 - Phase 1 退出标准增加：局域网 Web + 简单认证 + 控制升降停 + 童锁 API/UI（面板屏蔽 Phase 2 生效）。  
 - 「多品牌开箱即用」仍非首版；改为「Driver 框架已就绪，其他厂商 stub」。  
 - Web：局域网、简单密码、现代化 UI、升降示意图动效。  

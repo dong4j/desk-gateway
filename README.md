@@ -9,7 +9,7 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 ## Features (current)
 
 - **Phase 1 — panel emulation:** ESP32-S3 hardware I²C Slave serves the key address `0x24`
-- **Pluggable drivers:** `yourdesk_v1` implemented; Loctek / Jiecang stubs
+- **Pluggable drivers:** `mxtark` implemented; Loctek / Jiecang stubs
 - **desk_core:** hold up/down and stop; global child-lock and per-source REST/Bluetooth/panel permissions are persisted in NVS
 - **Dual-ToF sensing:** TOF400C provides the product height directly; TOF050C measures right-side clearance; both paths include stabilization and stale-data detection
 - **Closed-loop height control:** seated, standing, and ceiling settings are synchronized and persisted; presets and upward limits use the unified safety policy
@@ -36,7 +36,7 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 | Board | YD-ESP32-S3 N16R8 (or compatible ESP32-S3) |
 | Power | USB-C to the ESP32 — **do not** power the MCU from the desk 3.3V rail |
 | Ground | Shared GND with the desk host |
-| I²C (yourdesk_v1) | RJ45 pin 2 / white CLK → GPIO4; pin 4 / black DAT → GPIO5 |
+| I²C (mxtark) | RJ45 pin 2 / white CLK → GPIO4; pin 4 / black DAT → GPIO5 |
 | Pull-ups | RJ45 pin 1 / red 3.3V → **2 kΩ (2.2 kΩ acceptable)** → CLK, and another → DAT |
 
 The red 3.3V wire is only the pull-up source. **Never connect it directly to the

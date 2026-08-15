@@ -129,7 +129,7 @@ MAX98357A 到货后的接线：
 本节真机项完成前，结论保持**代码 GO、语音与整机产品验收 NO-GO**。详细设计和错误边界见
 [`6-pomodoro-reminder-plan.md`](./6-pomodoro-reminder-plan.md)。
 
-## B. 接线（yourdesk_v1 + RJ45）
+## B. 接线（mxtark + RJ45）
 
 电源与安全：
 
@@ -203,8 +203,8 @@ MAX98357A 到货后的接线：
 升降键码时大量事务被中断，导致控制盒间歇读不到 `0x47`。产品固件已恢复硬件 I²C：
 
 ```text
-I (...) yourdesk_v1: I2C slave @0x24 SCL=4 SDA=5
-I (...) yourdesk_v1: control-box height input disabled; waiting for external TOF source
+I (...) mxtark: I2C slave @0x24 SCL=4 SDA=5
+I (...) mxtark: control-box height input disabled; waiting for external TOF source
 ```
 
 已知稳定提交 `3269faa` 证明硬件 I²C 键码返回可连续驱动桌子；本次恢复后的新固件仍需按
@@ -240,9 +240,9 @@ I (...) yourdesk_v1: control-box height input disabled; waiting for external TOF
 #### B.4.2 首次通电与短行程验收
 
 - [ ] 通电后右口红↔绿约 `3.3V`
-- [ ] 启动见 `yourdesk_panel: software panel proxy SCL=6 SDA=7 9.6kHz split-STOP ACK+STOP`
-- [ ] 原厂面板接入后见 `yourdesk_panel: original panel connected raw DR=0x2E`
-- [ ] 按键时见 `yourdesk_panel: panel raw DR=0x47/0x4F`，松开恢复 `0x2E`
+- [ ] 启动见 `mxtark_panel: software panel proxy SCL=6 SDA=7 9.6kHz split-STOP ACK+STOP`
+- [ ] 原厂面板接入后见 `mxtark_panel: original panel connected raw DR=0x2E`
+- [ ] 按键时见 `mxtark_panel: panel raw DR=0x47/0x4F`，松开恢复 `0x2E`
 - [ ] TOF400C 数据有效时，原厂面板数码管显示与 Web 一致的厘米高度
 - [ ] 只短按原厂面板下降并松开：桌子下降，松开立即停止
 - [ ] 只短按原厂面板上升并松开：桌子上升，松开立即停止
