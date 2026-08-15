@@ -129,15 +129,16 @@ Flags：
 
 ### 4.3 Config 数据与写入
 
-Config Read / Notify v2 固定返回 8 字节：
+Config Read / Notify v3 固定返回 10 字节；前 8 字节保持 v2 布局：
 
 | Byte | 内容 |
 |---|---|
-| `0` | 协议版本，v2 固定 `02` |
+| `0` | 协议版本，v3 固定 `03` |
 | `1` | flags：bit0 童锁、bit1 REST、bit2 Bluetooth、bit3 原厂面板 |
 | `2..3` | `max_height_mm`，uint16 little-endian |
 | `4..5` | `preset1_height_mm`，uint16 little-endian |
 | `6..7` | `preset4_height_mm`，uint16 little-endian |
+| `8..9` | `min_height_mm`，uint16 little-endian；只约束档位输入 |
 
 Config Write 固定为 `[version, field, value_le16]`，每次只修改一个字段，避免客户端拿旧
 
@@ -147,18 +148,20 @@ Config Write 固定为 `[version, field, value_le16]`，每次只修改一个字
 | `02` | REST 来源允许 | `0` / `1` |
 | `03` | Bluetooth 来源允许 | `0` / `1` |
 | `04` | 原厂面板来源允许 | `0` / `1` |
-| `05` | 最高安全高度 | TOF400C 毫米读数，有效范围 `560..940` |
-| `06` | 档位 1（请坐）高度 | TOF400C 毫米读数，须满足 `560 <= 档位1 < 档位4` |
+| `05` | 最高安全高度 | TOF400C 毫米读数，有效范围 `min_height_mm..940` |
+| `06` | 档位 1（请坐）高度 | TOF400C 毫米读数，须满足 `min_height_mm <= 档位1 < 档位4` |
 | `07` | 档位 4（站立）高度 | TOF400C 毫米读数，须满足 `档位1 < 档位4 <= 940` |
+| `08` | 最低档位高度 | TOF400C 毫米读数，物理范围下限为 `550`；不参与下行 STOP |
 
-固件仍接受 v1 的 4 字节 Config Write，以兼容已经发布的童锁、来源权限和最高安全高度
-客户端；新增档位字段必须使用 v2。移动端可读取旧固件的 4 字节 v1 快照，并回退显示
-56 cm / 87 cm，但只有收到 v2 快照后才允许修改档位。设备 NVS 是
+固件仍接受 v1/v2 的 4 字节 Config Write，以兼容已经发布的童锁、来源权限、最高高度和
+档位客户端；最低档位字段必须使用 v3。移动端可读取旧固件的 v1/v2 快照，缺失的最低
+档位高度按 550 mm 显示，但只有收到 v3 快照后才允许修改该字段。设备 NVS 是
 配置唯一事实来源：Web 保存或 BLE 写入成功后，Config Notify 会把同一份真实值同步给 App。
 
 管理写入不受童锁或 Bluetooth 来源开关阻断，否则客户端关闭 Bluetooth 后无法通过同一
 加密连接重新开启；但这些设置只能改变策略，所有运动命令仍必须经过 `desk_core` 的童锁、
-来源权限裁决。最高安全高度写入后立即参与上升裁决；Config 会 Notify 最新真实快照。
+来源权限裁决。最高安全高度写入后立即参与上升裁决；最低档位高度仅校验档位输入，
+手动下降和 Jog 仍由控制盒处理机械下限。Config 会 Notify 最新真实快照。
 
 ### 4.4 System 管理命令
 

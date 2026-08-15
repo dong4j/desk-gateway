@@ -151,12 +151,14 @@ REST 状态包含：
 
 | 配置 | 默认值 | 允许范围 / 约束 |
 |---|---:|---|
-| 坐姿档位 `preset1_mm` | `560 mm` | `560 ≤ preset1 < preset4` |
+| 最低档位高度 `min_height_mm` | `550 mm` | `550 ≤ min_height ≤ preset1`；不触发下行 STOP |
+| 坐姿档位 `preset1_mm` | `550 mm` | `min_height ≤ preset1 < preset4` |
 | 站姿档位 `preset4_mm` | `870 mm` | `preset1 < preset4 ≤ 940` |
-| 最高高度 `max_height_mm` | `940 mm` | `560～940 mm` |
+| 最高高度 `max_height_mm` | `940 mm` | `min_height～940 mm` |
 | 档位停止容差 | `5 mm` | 到达目标附近即停止 |
 
-档位和最高高度可由 Web 修改并保存到 NVS。当前上升裁决矩阵如下：
+最低档位高度、档位和最高高度可由 Web 修改并保存到 NVS。最低档位高度只用于输入校验，
+不会根据 TOF 跳动主动停止下降；机械最低位由控制盒处理。当前上升裁决矩阵如下：
 
 | 当前状态 | 是否允许继续上升 | 原因 |
 |---|---|---|

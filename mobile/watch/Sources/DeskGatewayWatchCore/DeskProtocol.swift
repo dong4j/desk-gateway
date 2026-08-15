@@ -139,11 +139,12 @@ public struct DeskState: Equatable, Sendable {
   }
 }
 
-/// Config v1/v2 的只读快照；固定高度必须以 ESP32 回读值为准。
+/// Config v1/v2/v3 的只读快照；固定高度必须以 ESP32 回读值为准。
 public struct DeskConfiguration: Equatable, Sendable {
   public let protocolVersion: UInt8
   public let childLockEnabled: Bool
   public let bluetoothControlAllowed: Bool
+  public let minimumHeightMillimeters: UInt16
   public let maximumHeightMillimeters: UInt16
   public let sittingHeightMillimeters: UInt16
   public let standingHeightMillimeters: UInt16
@@ -152,6 +153,7 @@ public struct DeskConfiguration: Equatable, Sendable {
     protocolVersion: UInt8,
     childLockEnabled: Bool,
     bluetoothControlAllowed: Bool,
+    minimumHeightMillimeters: UInt16,
     maximumHeightMillimeters: UInt16,
     sittingHeightMillimeters: UInt16,
     standingHeightMillimeters: UInt16
@@ -159,6 +161,7 @@ public struct DeskConfiguration: Equatable, Sendable {
     self.protocolVersion = protocolVersion
     self.childLockEnabled = childLockEnabled
     self.bluetoothControlAllowed = bluetoothControlAllowed
+    self.minimumHeightMillimeters = minimumHeightMillimeters
     self.maximumHeightMillimeters = maximumHeightMillimeters
     self.sittingHeightMillimeters = sittingHeightMillimeters
     self.standingHeightMillimeters = standingHeightMillimeters
@@ -258,19 +261,21 @@ public enum DeskProtocol {
     )
   }
 
-  /// 解码 Config v1/v2；v1 缺少档位时使用协议规定的兼容默认值。
+  /// 解码 Config v1/v2/v3；旧协议缺少最低档位高度时使用 550 mm 兼容值。
   public static func decodeConfiguration(_ data: Data) throws -> DeskConfiguration {
     let bytes = [UInt8](data)
-    guard bytes.count == 4 || bytes.count == 8 else {
-      throw DeskProtocolError.invalidLength(expected: "4 or 8", actual: bytes.count)
+    guard bytes.count == 4 || bytes.count == 8 || bytes.count == 10 else {
+      throw DeskProtocolError.invalidLength(expected: "4, 8 or 10", actual: bytes.count)
     }
     let version = bytes[0]
-    guard version == 1 || version == 2 else {
+    guard version == 1 || version == 2 || version == 3 else {
       throw DeskProtocolError.unsupportedVersion(version)
     }
-    guard (version == 1 && bytes.count == 4) || (version == 2 && bytes.count == 8) else {
+    guard (version == 1 && bytes.count == 4) ||
+      (version == 2 && bytes.count == 8) ||
+      (version == 3 && bytes.count == 10) else {
       throw DeskProtocolError.invalidLength(
-        expected: version == 1 ? "4" : "8",
+        expected: version == 1 ? "4" : version == 2 ? "8" : "10",
         actual: bytes.count
       )
     }
@@ -281,9 +286,12 @@ public enum DeskProtocol {
       protocolVersion: version,
       childLockEnabled: flags & 0x01 != 0,
       bluetoothControlAllowed: flags & 0x04 != 0,
+      minimumHeightMillimeters: version == 3
+        ? uint16LE(bytes[8], bytes[9])
+        : 550,
       maximumHeightMillimeters: maximum,
-      sittingHeightMillimeters: version == 2 ? uint16LE(bytes[4], bytes[5]) : 640,
-      standingHeightMillimeters: version == 2
+      sittingHeightMillimeters: version >= 2 ? uint16LE(bytes[4], bytes[5]) : 640,
+      standingHeightMillimeters: version >= 2
         ? uint16LE(bytes[6], bytes[7])
         : min(1020, maximum)
     )

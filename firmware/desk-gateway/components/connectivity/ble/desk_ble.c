@@ -392,9 +392,10 @@ static void hold_lease_event_cb(struct ble_npl_event *event)
 static esp_err_t arm_hold_lease(void)
 {
     cancel_hold_lease();
+    /* NimBLE callout 使用 NPL tick；FreeRTOS tick 会把 750 ms 缩短到约 75 ms。 */
     ble_npl_error_t rc = ble_npl_callout_reset(
         &s_hold_lease_callout,
-        pdMS_TO_TICKS(CONFIG_DESK_BLE_HOLD_LEASE_MS));
+        ble_npl_time_ms_to_ticks32(CONFIG_DESK_BLE_HOLD_LEASE_MS));
     if (rc != BLE_NPL_OK) {
         desk_ble_session_release_motion(&s_session);
         update_session_aggregates();
@@ -917,6 +918,7 @@ static size_t current_config(uint8_t out[DESK_BLE_CONFIG_LENGTH])
         .panel_enabled =
             (snapshot.enabled_sources & DESK_CONTROL_SOURCE_BIT(
                  DESK_CONTROL_SOURCE_PANEL)) != 0,
+        .min_height_mm = snapshot.min_height_mm,
         .max_height_mm = snapshot.max_height_mm,
         .preset1_height_mm = snapshot.preset1_height_mm,
         .preset4_height_mm = snapshot.preset4_height_mm,
@@ -1049,6 +1051,8 @@ static esp_err_t execute_config_write(const desk_ble_config_write_t *write)
                                             write->value != 0);
     case DESK_BLE_CONFIG_FIELD_MAX_HEIGHT_MM:
         return desk_core_set_max_height_mm((int)write->value);
+    case DESK_BLE_CONFIG_FIELD_MIN_HEIGHT_MM:
+        return desk_core_set_min_height_mm((int)write->value);
     case DESK_BLE_CONFIG_FIELD_PRESET1_HEIGHT_MM: {
         desk_core_snapshot_t snapshot = desk_core_snapshot();
         return desk_core_set_preset_heights_mm((int)write->value,

@@ -61,6 +61,7 @@ export interface DeskClient {
     source: 'rest' | 'bluetooth' | 'panel',
     enabled: boolean,
   ): Promise<void>;
+  setMinHeightMm(minHeightMm: number): Promise<void>;
   setMaxHeightMm(maxHeightMm: number): Promise<void>;
   setPresetHeightsMm(
     preset1HeightMm: number,

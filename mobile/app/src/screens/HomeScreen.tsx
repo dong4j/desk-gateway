@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Alert,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -84,8 +85,6 @@ export function HomeScreen({
   onToggleChildLock,
 }: HomeScreenProps) {
   const [errorToast, setErrorToast] = useState<ErrorToastState | null>(null);
-  const [activeHoldDirection, setActiveHoldDirection] =
-    useState<HoldDirection | null>(null);
   const errorToastProgress = useRef(new Animated.Value(0)).current;
   const errorToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resetPromptShown = useRef(false);
@@ -204,8 +203,6 @@ export function HomeScreen({
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <ScrollView
-        /* 长按期间禁止父容器抢占 responder，否则 Pressable 会立刻触发松手 STOP。 */
-        scrollEnabled={activeHoldDirection === null}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
@@ -253,16 +250,8 @@ export function HomeScreen({
             label="按住升高"
             direction="up"
             disabled={motionBlocked || upwardBlocked || heightUnknown}
-            onPressIn={() => {
-              setActiveHoldDirection('up');
-              onHoldUpStart();
-            }}
-            onPressOut={() => {
-              setActiveHoldDirection((current) =>
-                current === 'up' ? null : current,
-              );
-              onHoldEnd('up');
-            }}
+            onPressIn={onHoldUpStart}
+            onPressOut={() => onHoldEnd('up')}
           />
           <Pressable
             accessibilityRole="button"
@@ -281,16 +270,8 @@ export function HomeScreen({
             label="按住降低"
             direction="down"
             disabled={motionBlocked}
-            onPressIn={() => {
-              setActiveHoldDirection('down');
-              onHoldDownStart();
-            }}
-            onPressOut={() => {
-              setActiveHoldDirection((current) =>
-                current === 'down' ? null : current,
-              );
-              onHoldEnd('down');
-            }}
+            onPressIn={onHoldDownStart}
+            onPressOut={() => onHoldEnd('down')}
           />
         </View>
 
@@ -455,14 +436,63 @@ function HoldControl({
   onPressIn: () => void;
   onPressOut: () => void;
 }) {
+  const [pressed, setPressed] = useState(false);
+  const activeRef = useRef(false);
+  const disabledRef = useRef(disabled);
+  const onPressInRef = useRef(onPressIn);
+  const onPressOutRef = useRef(onPressOut);
+  disabledRef.current = disabled;
+  onPressInRef.current = onPressIn;
+  onPressOutRef.current = onPressOut;
+
+  const beginPress = () => {
+    if (disabledRef.current || activeRef.current) {
+      return;
+    }
+    activeRef.current = true;
+    setPressed(true);
+    onPressInRef.current();
+  };
+  const endPress = () => {
+    if (!activeRef.current) {
+      return;
+    }
+    activeRef.current = false;
+    setPressed(false);
+    onPressOutRef.current();
+  };
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => !disabledRef.current,
+    onPanResponderGrant: beginPress,
+    onPanResponderRelease: endPress,
+    onPanResponderTerminate: endPress,
+    /* 长按运动期间不允许父级 ScrollView 抢走 responder。 */
+    onPanResponderTerminationRequest: () => false,
+    onShouldBlockNativeResponder: () => true,
+  })).current;
+
+  useEffect(() => {
+    if (disabled) {
+      endPress();
+    }
+  }, [disabled]);
+
+  useEffect(() => () => {
+    if (activeRef.current) {
+      activeRef.current = false;
+      onPressOutRef.current();
+    }
+  }, []);
+
   return (
-    <Pressable
+    <View
+      {...panResponder.panHandlers}
+      accessible
       accessibilityRole="button"
       accessibilityHint="持续按住移动，松手立即停止"
-      disabled={disabled}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      style={({ pressed }) => [
+      accessibilityState={{ disabled }}
+      pointerEvents={disabled ? 'none' : 'auto'}
+      style={[
         styles.holdButton,
         styles.holdOutline,
         disabled && styles.disabled,
@@ -476,7 +506,7 @@ function HoldControl({
         strokeWidth={2.2}
       />
       <Text style={styles.holdText}>{label}</Text>
-    </Pressable>
+    </View>
   );
 }
 

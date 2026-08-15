@@ -65,9 +65,9 @@ import { palette, radii } from '../ui/theme';
 const MIN_DESK_HEIGHT_CM = DESK_MIN_HEIGHT_MM / 10;
 const MAX_DESK_HEIGHT_CM = DESK_MAX_HEIGHT_MM / 10;
 const MAX_HEIGHT_TICKS = [
-  56, 60, 65, 70, 75, 80, 85, 90, 94,
+  55, 60, 65, 70, 75, 80, 85, 90, 94,
 ] as const;
-const MAX_HEIGHT_LABELS = [56, 65, 75, 85, 94] as const;
+const MAX_HEIGHT_LABELS = [55, 65, 75, 85, 94] as const;
 
 interface SettingsScreenProps {
   snapshot: DeskClientSnapshot;
@@ -103,6 +103,7 @@ interface SettingsScreenProps {
     source: 'rest' | 'bluetooth' | 'panel',
     enabled: boolean,
   ) => Promise<void>;
+  onSetMinHeightMm: (minHeightMm: number) => Promise<void>;
   onSetMaxHeightMm: (maxHeightMm: number) => Promise<void>;
   onSetPresetHeightsMm: (
     preset1HeightMm: number,
@@ -140,6 +141,7 @@ export function SettingsScreen({
   onDeleteHeightPreset,
   onSetChildLock,
   onSetSourceEnabled,
+  onSetMinHeightMm,
   onSetMaxHeightMm,
   onSetPresetHeightsMm,
   onResetController,
@@ -149,6 +151,13 @@ export function SettingsScreen({
   const connected = snapshot.phase === 'ready';
   const config = snapshot.deskConfig;
   const deviceSettingsAvailable = connected && config !== null;
+  const minHeightConfigAvailable = deviceSettingsAvailable &&
+    (config?.protocolVersion ?? 0) >= 3;
+  const minHeightMm = config?.minHeightMm ?? DESK_MIN_HEIGHT_MM;
+  const minHeightCm = minHeightMm / 10;
+  const [minHeightDraft, setMinHeightDraft] = useState(String(minHeightCm));
+  const [minHeightError, setMinHeightError] = useState<string | null>(null);
+  const [minHeightMessage, setMinHeightMessage] = useState<string | null>(null);
   const maxHeightMm = config?.maxHeightMm ?? snapshot.deskState?.maxHeightMm;
   const maxHeightCm = maxHeightMm ? maxHeightMm / 10 : MAX_DESK_HEIGHT_CM;
   const [maxHeightDraft, setMaxHeightDraft] = useState(String(maxHeightCm));
@@ -196,6 +205,11 @@ export function SettingsScreen({
   const selectedAutoLockDevice = bondSnapshot?.devices.find(
     (device) => device.id === selectedAutoLockDeviceId,
   );
+
+  useEffect(() => {
+    setMinHeightDraft(String(minHeightCm));
+    setMinHeightError(null);
+  }, [minHeightCm]);
 
   useEffect(() => {
     setMaxHeightDraft(String(maxHeightCm));
@@ -398,9 +412,9 @@ export function SettingsScreen({
 
   const commitMaxHeight = (centimetres: number) => {
     if (!Number.isFinite(centimetres) ||
-        centimetres < MIN_DESK_HEIGHT_CM ||
+        centimetres < minHeightCm ||
         centimetres > MAX_DESK_HEIGHT_CM) {
-      setMaxHeightError('请输入 56–94 cm');
+      setMaxHeightError(`请输入 ${minHeightCm.toFixed(1)}–94 cm`);
       setMaxHeightMessage(null);
       return;
     }
@@ -417,13 +431,39 @@ export function SettingsScreen({
   };
   const saveMaxHeight = () => commitMaxHeight(Number(maxHeightDraft));
 
+  const saveMinHeight = () => {
+    const centimetres = Number(minHeightDraft);
+    if (!Number.isFinite(centimetres) ||
+        centimetres < MIN_DESK_HEIGHT_CM ||
+        centimetres > MAX_DESK_HEIGHT_CM ||
+        centimetres > preset1HeightCm || centimetres > maxHeightCm) {
+      setMinHeightError(
+        `请输入 ${MIN_DESK_HEIGHT_CM.toFixed(1)}–${
+          Math.min(preset1HeightCm, maxHeightCm).toFixed(1)} cm`,
+      );
+      setMinHeightMessage(null);
+      return;
+    }
+    setMinHeightError(null);
+    setMinHeightMessage('正在保存…');
+    void runDeviceOperation(
+      'min-height',
+      () => onSetMinHeightMm(Math.round(centimetres * 10)),
+      '最低档位高度保存失败',
+    ).then((succeeded) => {
+      setMinHeightMessage(succeeded ? '已保存到设备，不影响手动下降' : null);
+    });
+  };
+
   const savePresetHeights = () => {
     const preset1Mm = Math.round(Number(preset1Draft) * 10);
     const preset4Mm = Math.round(Number(preset4Draft) * 10);
     if (!Number.isInteger(preset1Mm) || !Number.isInteger(preset4Mm) ||
-        preset1Mm < DESK_MIN_HEIGHT_MM || preset1Mm >= preset4Mm ||
+        preset1Mm < minHeightMm || preset1Mm >= preset4Mm ||
         preset4Mm > MAX_DESK_HEIGHT_CM * 10) {
-      setPresetHeightError('请坐需低于站立，档位高度范围为 56–94 cm');
+      setPresetHeightError(
+        `请坐需低于站立，档位高度范围为 ${minHeightCm.toFixed(1)}–94 cm`,
+      );
       setPresetHeightMessage(null);
       return;
     }
@@ -480,7 +520,7 @@ export function SettingsScreen({
     let heightMm: number;
     try {
       name = normalizeHeightPresetName(customPresetNameDraft);
-      heightMm = heightPresetMmFromCm(customPresetHeightDraft);
+      heightMm = heightPresetMmFromCm(customPresetHeightDraft, minHeightMm);
     } catch (error) {
       setHeightPresetMessage(error instanceof Error ? error.message : String(error));
       return;
@@ -501,7 +541,7 @@ export function SettingsScreen({
     let heightMm: number;
     try {
       name = normalizeHeightPresetName(editingHeightPresetName);
-      heightMm = heightPresetMmFromCm(editingHeightPresetHeight);
+      heightMm = heightPresetMmFromCm(editingHeightPresetHeight, minHeightMm);
     } catch (error) {
       setHeightPresetMessage(error instanceof Error ? error.message : String(error));
       return;
@@ -528,7 +568,7 @@ export function SettingsScreen({
     ]);
   };
   const parsedMaxHeightDraft = Number(maxHeightDraft);
-  const minimumAllowedMaxHeightCm = MIN_DESK_HEIGHT_CM;
+  const minimumAllowedMaxHeightCm = minHeightCm;
   const maxHeightSliderValue = Number.isFinite(parsedMaxHeightDraft)
     ? Math.max(
         minimumAllowedMaxHeightCm,
@@ -880,6 +920,53 @@ export function SettingsScreen({
 
         <SectionTitle>安全</SectionTitle>
         <View style={styles.card}>
+          <View style={styles.heightSetting}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.settingTitle}>最低档位高度</Text>
+              <Text style={styles.settingValue}>{minHeightCm.toFixed(1)} cm</Text>
+            </View>
+            <Text style={styles.settingDescription}>
+              仅用于档位输入校验；下降到底由控制盒自行处理。
+            </Text>
+            <View style={styles.heightEditor}>
+              <TextInput
+                accessibilityLabel="最低档位高度，单位厘米"
+                editable={minHeightConfigAvailable &&
+                  deviceOperationBusy === null}
+                keyboardType="decimal-pad"
+                value={minHeightDraft}
+                onChangeText={setMinHeightDraft}
+                onSubmitEditing={saveMinHeight}
+                style={styles.heightInput}
+              />
+              <Text style={styles.heightUnit}>cm</Text>
+              <Pressable
+                accessibilityRole="button"
+                disabled={!minHeightConfigAvailable ||
+                  deviceOperationBusy !== null}
+                onPress={saveMinHeight}
+                style={({ pressed }) => [
+                  styles.heightSave,
+                  (!minHeightConfigAvailable || deviceOperationBusy !== null) &&
+                    styles.disabled,
+                  pressed && minHeightConfigAvailable &&
+                    deviceOperationBusy === null && styles.pressed,
+                ]}
+              >
+                <Text style={styles.heightSaveText}>保存</Text>
+              </Pressable>
+            </View>
+            {!minHeightConfigAvailable && connected ? (
+              <Text style={styles.heightError}>当前固件不支持最低档位高度配置</Text>
+            ) : null}
+            {minHeightError ? (
+              <Text style={styles.heightError}>{minHeightError}</Text>
+            ) : null}
+            {minHeightMessage ? (
+              <Text style={styles.settingFeedback}>{minHeightMessage}</Text>
+            ) : null}
+          </View>
+          <View style={styles.divider} />
           <View style={styles.heightSetting}>
             <View style={styles.rowBetween}>
               <Text style={styles.settingTitle}>最高安全高度</Text>
@@ -1485,7 +1572,7 @@ function HapticLevelSelector({
   );
 }
 
-/** Map a centimetre mark onto the fixed 56–94 cm raw-ToF scale. */
+/** Map a centimetre mark onto the fixed 55–94 cm raw-ToF scale. */
 function maxHeightTickPosition(value: number): `${number}%` {
   const progress =
     (value - MIN_DESK_HEIGHT_CM) /

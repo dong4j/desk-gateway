@@ -8,9 +8,9 @@ import {
   normalizeDeskHeight,
 } from '../src/desk/heightPresentation';
 
-test('maps the fixed 560–940 mm product range', () => {
-  assert.equal(normalizeDeskHeight(560), 0);
-  assert.equal(normalizeDeskHeight(750), 0.5);
+test('maps the fixed 550–940 mm product range', () => {
+  assert.equal(normalizeDeskHeight(550), 0);
+  assert.equal(normalizeDeskHeight(745), 0.5);
   assert.equal(normalizeDeskHeight(940), 1);
   assert.equal(normalizeDeskHeight(1_200), 1);
 });

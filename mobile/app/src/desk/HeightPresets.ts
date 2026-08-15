@@ -25,10 +25,16 @@ export function normalizeHeightPresetName(value: string): string {
   return name;
 }
 
-export function heightPresetMmFromCm(value: string): number {
+export function heightPresetMmFromCm(
+  value: string,
+  minimumHeightMm = 550,
+): number {
   const heightMm = Math.round(Number(value) * 10);
-  if (!Number.isInteger(heightMm) || heightMm < 560 || heightMm > 940) {
-    throw new Error('档位高度范围为 56.0–94.0 cm');
+  if (!Number.isInteger(heightMm) || heightMm < minimumHeightMm ||
+      heightMm > 940) {
+    throw new Error(
+      `档位高度范围为 ${(minimumHeightMm / 10).toFixed(1)}–94.0 cm`,
+    );
   }
   return heightMm;
 }

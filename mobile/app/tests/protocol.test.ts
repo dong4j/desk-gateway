@@ -89,6 +89,7 @@ test('decodes Config snapshots and encodes field-only writes', () => {
   assert.equal(config.restAllowed, true);
   assert.equal(config.bluetoothAllowed, true);
   assert.equal(config.panelAllowed, true);
+  assert.equal(config.minHeightMm, 550);
   assert.equal(config.maxHeightMm, 1100);
   assert.equal(config.preset1HeightMm, 640);
   assert.equal(config.preset4HeightMm, 1020);
@@ -98,10 +99,28 @@ test('decodes Config snapshots and encodes field-only writes', () => {
   ]);
   assert.equal(configV2.preset1HeightMm, 650);
   assert.equal(configV2.preset4HeightMm, 1050);
+  assert.equal(configV2.minHeightMm, 550);
 
-  assert.deepEqual(encodeDeskConfigWrite('child_lock', true), [2, 1, 1, 0]);
-  assert.deepEqual(encodeDeskConfigWrite('max_height_mm', 1020), [2, 5, 0xfc, 3]);
-  assert.deepEqual(encodeDeskConfigWrite('preset1_height_mm', 650), [2, 6, 0x8a, 2]);
+  const configV3 = decodeDeskConfig([
+    0x03, 0b0000_1110, 0xac, 0x03, 0x26, 0x02, 0x66, 0x03, 0x26, 0x02,
+  ]);
+  assert.equal(configV3.minHeightMm, 550);
+  assert.equal(configV3.maxHeightMm, 940);
+  assert.equal(configV3.preset1HeightMm, 550);
+  assert.equal(configV3.preset4HeightMm, 870);
+
+  assert.deepEqual(encodeDeskConfigWrite('child_lock', true), [3, 1, 1, 0]);
+  assert.deepEqual(encodeDeskConfigWrite('max_height_mm', 1020), [3, 5, 0xfc, 3]);
+  assert.deepEqual(encodeDeskConfigWrite('preset1_height_mm', 650), [3, 6, 0x8a, 2]);
+  assert.deepEqual(encodeDeskConfigWrite('min_height_mm', 550), [3, 8, 0x26, 2]);
+  assert.deepEqual(
+    encodeDeskConfigWrite('max_height_mm', 940, 2),
+    [2, 5, 0xac, 3],
+  );
+  assert.throws(
+    () => encodeDeskConfigWrite('min_height_mm', 550, 2),
+    /minimum preset height/,
+  );
   assert.throws(
     () => encodeDeskConfigWrite('rest_allowed', 2),
     /boolean config value/,

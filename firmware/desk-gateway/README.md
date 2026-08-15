@@ -143,11 +143,13 @@ rollback evidence.
 
 ## Maximum safe height
 
-The authenticated Web settings panel stores `max_height_mm` in NVS. The default
-is `940 mm`, with an accepted range of `560–940 mm`. Presets 1/4 default to
-`560 mm` and `870 mm`. These values use the filtered TOF400C distance directly,
-without converting it to tape-measure desktop height. They are persisted and
-synchronized across Web, BLE, and the mobile App. Upward motion is blocked when
+The authenticated Web settings panel stores `min_height_mm` and `max_height_mm`
+in NVS. They default to `550 mm` and `940 mm`; the physical input range is
+`550–940 mm`. The minimum only validates preset input because the control box
+owns the noisy lower stop. Presets 1/4 default to `550 mm` and `870 mm`. These
+values use the filtered TOF400C distance directly, without converting it to
+tape-measure desktop height. They are persisted and synchronized across Web,
+BLE, and the mobile App. Upward motion is blocked when
 TOF400C is unavailable; below `800 mm`, it is also blocked when TOF050C is
 unavailable.
 

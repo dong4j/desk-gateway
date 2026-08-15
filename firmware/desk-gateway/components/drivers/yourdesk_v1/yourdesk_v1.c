@@ -1061,8 +1061,8 @@ static esp_err_t yd_start_height_target(
         return ESP_ERR_INVALID_STATE;
     }
 #if YOURDESK_CLOSED_LOOP_ENABLED
-    if (target_mm < DESK_MAX_HEIGHT_MM_MIN ||
-        target_mm > DESK_MAX_HEIGHT_MM_MAX) {
+    if (target_mm < DESK_HEIGHT_MM_MIN ||
+        target_mm > DESK_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -1146,8 +1146,8 @@ static esp_err_t yd_goto_height_mm(int target_height_mm)
 
 static esp_err_t yd_set_max_height_mm(int max_height_mm)
 {
-    if (max_height_mm < DESK_MAX_HEIGHT_MM_MIN ||
-        max_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
+    if (max_height_mm < DESK_HEIGHT_MM_MIN ||
+        max_height_mm > DESK_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
 #if YOURDESK_CLOSED_LOOP_ENABLED
@@ -1165,9 +1165,9 @@ static esp_err_t yd_set_max_height_mm(int max_height_mm)
 static esp_err_t yd_set_preset_heights_mm(int preset1_height_mm,
                                            int preset4_height_mm)
 {
-    if (preset1_height_mm < DESK_MAX_HEIGHT_MM_MIN ||
+    if (preset1_height_mm < DESK_HEIGHT_MM_MIN ||
         preset1_height_mm >= preset4_height_mm ||
-        preset4_height_mm > DESK_MAX_HEIGHT_MM_MAX) {
+        preset4_height_mm > DESK_HEIGHT_MM_MAX) {
         return ESP_ERR_INVALID_ARG;
     }
 #if YOURDESK_CLOSED_LOOP_ENABLED

@@ -79,7 +79,10 @@ test('connects, subscribes, bonds, then writes encrypted iOS Client Info', async
 
   await client.setChildLock(true);
   assert.equal(latestChildLock, true);
-  assert.deepEqual(adapter.writes.at(-1), [2, 1, 1, 0]);
+  assert.deepEqual(adapter.writes.at(-1), [3, 1, 1, 0]);
+
+  await client.setMinHeightMm(550);
+  assert.deepEqual(adapter.writes.at(-1), [3, 8, 0x26, 0x02]);
 
   await client.setPresetHeightMm(1, 650);
   assert.equal(adapter.writes.at(-1)?.[1], 6);
@@ -108,6 +111,19 @@ test('keeps old firmware controllable when Device Information is absent', async 
 
   assert.equal(latestPhase, 'ready');
   assert.equal(latestFirmware, null);
+  client.dispose();
+});
+
+test('keeps Config v2 writes compatible and rejects only the new minimum field', async () => {
+  const adapter = new FakeBleAdapter(true, true, true, 2);
+  const client = new DeskBleClient(adapter);
+  await client.initialize();
+  await client.scanAndConnect();
+
+  await client.setMaxHeightMm(940);
+  assert.deepEqual(adapter.writes.at(-1), [2, 5, 0xac, 0x03]);
+  await assert.rejects(async () => client.setMinHeightMm(550),
+    /minimum preset height/);
   client.dispose();
 });
 
@@ -223,15 +239,18 @@ class FakeBleAdapter implements BleAdapter {
   private stateListener: BytesListener | null = null;
   private configListener: BytesListener | null = null;
   private disconnectListener: DisconnectListener | null = null;
-  private config = [
-    0x02, 0b0000_1110, 0x4c, 0x04, 0x80, 0x02, 0xfc, 0x03,
-  ];
+  private config: number[];
 
   constructor(
     private readonly firmwareAvailable = true,
     private readonly configAvailable = true,
     private readonly clientInfoAvailable = true,
-  ) {}
+    configVersion: 2 | 3 = 3,
+  ) {
+    this.config = configVersion === 3
+      ? [0x03, 0b0000_1110, 0x4c, 0x04, 0x80, 0x02, 0xfc, 0x03, 0x26, 0x02]
+      : [0x02, 0b0000_1110, 0x4c, 0x04, 0x80, 0x02, 0xfc, 0x03];
+  }
 
   async initialize(): Promise<void> {
     this.operations.push('initialize');
@@ -370,6 +389,9 @@ class FakeBleAdapter implements BleAdapter {
     } else if (field === 7) {
       this.config[6] = value & 0xff;
       this.config[7] = value >> 8;
+    } else if (field === 8 && this.config.length === 10) {
+      this.config[8] = value & 0xff;
+      this.config[9] = value >> 8;
     }
   }
 }

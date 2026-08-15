@@ -16,6 +16,7 @@ const status = {
   controller_reset_supported: true,
   controller_reset_active: false,
   controller_reset_recommended: true,
+  min_height_mm: 550,
   max_height_mm: 1100,
   preset1_height_mm: 640,
   preset4_height_mm: 1020,
@@ -61,6 +62,7 @@ test('connects through X-Desk-Key and maps REST status to the shared snapshot', 
   });
   let latestTransport: string | null = null;
   let latestHeight: number | null = null;
+  let latestMinHeight = 0;
   let latestPreset4 = 0;
   let latestFirmwareRevision: string | null = null;
   let resetRecommended = false;
@@ -69,6 +71,7 @@ test('connects through X-Desk-Key and maps REST status to the shared snapshot', 
   client.subscribe((snapshot) => {
     latestTransport = snapshot.transport;
     latestHeight = snapshot.deskState?.heightMm ?? null;
+    latestMinHeight = snapshot.deskConfig?.minHeightMm ?? 0;
     latestPreset4 = snapshot.deskConfig?.preset4HeightMm ?? 0;
     latestFirmwareRevision = snapshot.firmwareRevision;
     resetRecommended = snapshot.deskState?.controllerResetRecommended ?? false;
@@ -82,6 +85,7 @@ test('connects through X-Desk-Key and maps REST status to the shared snapshot', 
 
   assert.equal(latestTransport, 'wifi');
   assert.equal(latestHeight, 990);
+  assert.equal(latestMinHeight, 550);
   assert.equal(latestPreset4, 1020);
   assert.equal(latestFirmwareRevision, 'Aug 11 2026 21:05:03 @ fc310ab');
   assert.equal(resetRecommended, true);
@@ -147,6 +151,7 @@ test('maps shared commands and configuration writes to existing REST endpoints',
 
   await client.sendCommand(DeskCommand.HoldUp);
   await client.sendCommand(DeskCommand.Stop);
+  await client.setMinHeightMm(550);
   await client.setPresetHeightsMm(650, 1010);
 
   assert.deepEqual(
@@ -154,13 +159,19 @@ test('maps shared commands and configuration writes to existing REST endpoints',
     [
       '/api/v1/desk/up',
       '/api/v1/desk/stop',
+      '/api/v1/desk/min-height',
+      '/api/v1/desk/status',
       '/api/v1/desk/presets',
       '/api/v1/desk/status',
     ],
   );
   assert.equal(
-    requests[2].init?.body,
+    requests[4].init?.body,
     JSON.stringify({ preset1_height_mm: 650, preset4_height_mm: 1010 }),
+  );
+  assert.equal(
+    requests[2].init?.body,
+    JSON.stringify({ min_height_mm: 550 }),
   );
   client.dispose();
 });

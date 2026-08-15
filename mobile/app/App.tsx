@@ -523,6 +523,10 @@ export default function App() {
               feedback();
               return clientRef.current!.setSourceEnabled(source, enabled);
             }}
+            onSetMinHeightMm={(minHeightMm) => {
+              feedback();
+              return clientRef.current!.setMinHeightMm(minHeightMm);
+            }}
             onSetMaxHeightMm={(maxHeightMm) => {
               feedback();
               return clientRef.current!.setMaxHeightMm(maxHeightMm);

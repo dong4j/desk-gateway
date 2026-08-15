@@ -22,18 +22,19 @@
 
     let isMock = true
 
-    private let minimumHeightMillimeters: UInt16 = 560
+    private let minimumHeightMillimeters: UInt16 = 550
     private var currentHeightMillimeters: UInt16 = 720
     private var motionTask: Task<Void, Never>?
     private var connectionTask: Task<Void, Never>?
 
     init() {
       configuration = DeskConfiguration(
-        protocolVersion: 2,
+        protocolVersion: 3,
         childLockEnabled: false,
         bluetoothControlAllowed: true,
+        minimumHeightMillimeters: 550,
         maximumHeightMillimeters: 940,
-        sittingHeightMillimeters: 560,
+        sittingHeightMillimeters: 550,
         standingHeightMillimeters: 870
       )
       publishState(motion: .idle)
@@ -68,7 +69,7 @@
       case .holdDown:
         startContinuousMotion(.movingDown)
       case .preset1:
-        startPresetMotion(to: configuration?.sittingHeightMillimeters ?? 560)
+        startPresetMotion(to: configuration?.sittingHeightMillimeters ?? 550)
       case .preset4:
         startPresetMotion(to: configuration?.standingHeightMillimeters ?? 870)
       }

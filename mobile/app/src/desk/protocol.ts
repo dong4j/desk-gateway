@@ -9,6 +9,7 @@ import type {
   ReminderSnapshot,
   AudioSnapshot,
 } from './types';
+import { DESK_MIN_HEIGHT_MM } from './heightPresentation';
 
 export const DESK_SERVICE_UUID = '7f4e0001-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_COMMAND_UUID = '7f4e0002-6d4c-4f4b-9f7a-3c1d2e5a9b10';
@@ -25,6 +26,7 @@ export const DESK_ADVERTISING_NAME = 'DeskGateway';
 const STATE_PACKET_LENGTH = 8;
 const CONFIG_V1_PACKET_LENGTH = 4;
 const CONFIG_V2_PACKET_LENGTH = 8;
+const CONFIG_V3_PACKET_LENGTH = 10;
 const CONFIG_WRITE_PACKET_LENGTH = 4;
 const UNKNOWN_HEIGHT = 0xffff;
 const REMINDER_PACKET_LENGTH = 20;
@@ -50,6 +52,7 @@ const configFieldCode: Record<DeskConfigField, number> = {
   max_height_mm: 0x05,
   preset1_height_mm: 0x06,
   preset4_height_mm: 0x07,
+  min_height_mm: 0x08,
 };
 
 export const DeskSystemCommand = {
@@ -132,14 +135,15 @@ export function decodeFirmwareRevision(bytes: readonly number[]): string {
 /** 解码设备设置快照；状态必须来自 ESP32 回读，App 不做乐观伪更新。 */
 export function decodeDeskConfig(bytes: readonly number[]): DeskConfig {
   if (bytes.length !== CONFIG_V1_PACKET_LENGTH &&
-      bytes.length !== CONFIG_V2_PACKET_LENGTH) {
+      bytes.length !== CONFIG_V2_PACKET_LENGTH &&
+      bytes.length !== CONFIG_V3_PACKET_LENGTH) {
     throw new Error(
-      `Invalid Desk Gateway config length: expected ${CONFIG_V1_PACKET_LENGTH} or ${CONFIG_V2_PACKET_LENGTH}, got ${bytes.length}`,
+      `Invalid Desk Gateway config length: expected ${CONFIG_V1_PACKET_LENGTH}, ${CONFIG_V2_PACKET_LENGTH} or ${CONFIG_V3_PACKET_LENGTH}, got ${bytes.length}`,
     );
   }
   validateBytes(bytes, 'config');
   const protocolVersion = bytes[0];
-  if (protocolVersion !== 1 && protocolVersion !== 2) {
+  if (protocolVersion !== 1 && protocolVersion !== 2 && protocolVersion !== 3) {
     throw new Error(`Unsupported Desk Gateway config version: ${protocolVersion}`);
   }
   if (protocolVersion === 1 && bytes.length !== CONFIG_V1_PACKET_LENGTH) {
@@ -147,6 +151,9 @@ export function decodeDeskConfig(bytes: readonly number[]): DeskConfig {
   }
   if (protocolVersion === 2 && bytes.length !== CONFIG_V2_PACKET_LENGTH) {
     throw new Error('Desk Gateway config v2 must contain 8 bytes');
+  }
+  if (protocolVersion === 3 && bytes.length !== CONFIG_V3_PACKET_LENGTH) {
+    throw new Error('Desk Gateway config v3 must contain 10 bytes');
   }
   const flags = bytes[1];
   const maxHeightMm = readUint16LE(bytes, 2);
@@ -157,10 +164,13 @@ export function decodeDeskConfig(bytes: readonly number[]): DeskConfig {
     restAllowed: (flags & (1 << 1)) !== 0,
     bluetoothAllowed: (flags & (1 << 2)) !== 0,
     panelAllowed: (flags & (1 << 3)) !== 0,
+    minHeightMm: protocolVersion === 3
+      ? readUint16LE(bytes, 8)
+      : DESK_MIN_HEIGHT_MM,
     maxHeightMm,
-    preset1HeightMm: protocolVersion === 2 ? readUint16LE(bytes, 4) : 640,
+    preset1HeightMm: protocolVersion >= 2 ? readUint16LE(bytes, 4) : 640,
     preset4HeightMm:
-      protocolVersion === 2 ? readUint16LE(bytes, 6) : Math.min(1020, maxHeightMm),
+      protocolVersion >= 2 ? readUint16LE(bytes, 6) : Math.min(1020, maxHeightMm),
   };
 }
 
@@ -178,6 +188,7 @@ export function encodeDeskPresence(deviceId: string): readonly number[] {
 export function encodeDeskConfigWrite(
   field: DeskConfigField,
   value: boolean | number,
+  protocolVersion: 1 | 2 | 3 = 3,
 ): readonly number[] {
   const numericValue = typeof value === 'boolean' ? (value ? 1 : 0) : value;
   if (
@@ -187,12 +198,19 @@ export function encodeDeskConfigWrite(
   ) {
     throw new Error(`Invalid Desk Gateway config value: ${numericValue}`);
   }
-  const numericField = field === 'max_height_mm' ||
+  const numericField = field === 'min_height_mm' || field === 'max_height_mm' ||
     field === 'preset1_height_mm' || field === 'preset4_height_mm';
   if (!numericField && numericValue > 1) {
     throw new Error(`Invalid boolean config value: ${numericValue}`);
   }
-  const packet = [2, configFieldCode[field], 0, 0];
+  if (field === 'min_height_mm' && protocolVersion < 3) {
+    throw new Error('Connected firmware does not support minimum preset height');
+  }
+  if ((field === 'preset1_height_mm' || field === 'preset4_height_mm') &&
+      protocolVersion < 2) {
+    throw new Error('Connected firmware does not support configurable presets');
+  }
+  const packet = [protocolVersion, configFieldCode[field], 0, 0];
   packet[2] = numericValue & 0xff;
   packet[3] = numericValue >> 8;
   if (packet.length !== CONFIG_WRITE_PACKET_LENGTH) {

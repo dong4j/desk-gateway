@@ -290,6 +290,7 @@ static cJSON *snapshot_json(void)
                           s.controller_reset_active);
     cJSON_AddBoolToObject(o, "controller_reset_recommended",
                           s.controller_reset_recommended);
+    cJSON_AddNumberToObject(o, "min_height_mm", s.min_height_mm);
     cJSON_AddNumberToObject(o, "max_height_mm", s.max_height_mm);
     cJSON_AddNumberToObject(o, "preset1_height_mm", s.preset1_height_mm);
     cJSON_AddNumberToObject(o, "preset4_height_mm", s.preset4_height_mm);
@@ -805,6 +806,22 @@ static esp_err_t handler_cmd(httpd_req_t *req)
                 preset4->valuedouble == (double)preset4->valueint) {
                 err = desk_core_set_preset_heights_mm(preset1->valueint,
                                                        preset4->valueint);
+            } else {
+                err = ESP_ERR_INVALID_ARG;
+            }
+            cJSON_Delete(root);
+        } else {
+            err = ESP_ERR_INVALID_ARG;
+        }
+    } else if (strstr(uri, "/min-height")) {
+        char body[64];
+        if (read_body(req, body, sizeof(body)) == ESP_OK) {
+            cJSON *root = cJSON_Parse(body);
+            const cJSON *min_height =
+                root ? cJSON_GetObjectItem(root, "min_height_mm") : NULL;
+            if (cJSON_IsNumber(min_height) &&
+                min_height->valuedouble == (double)min_height->valueint) {
+                err = desk_core_set_min_height_mm(min_height->valueint);
             } else {
                 err = ESP_ERR_INVALID_ARG;
             }

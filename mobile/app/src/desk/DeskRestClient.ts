@@ -9,6 +9,7 @@ import { DeskCommand, type DeskCommandValue } from './commands';
 import {
   DESK_DEFAULT_SIT_HEIGHT_MM,
   DESK_DEFAULT_STAND_HEIGHT_MM,
+  DESK_MIN_HEIGHT_MM,
   DESK_MAX_HEIGHT_MM,
 } from './heightPresentation';
 import type {
@@ -43,6 +44,7 @@ interface RestStatus {
   controller_reset_supported?: boolean;
   controller_reset_active?: boolean;
   controller_reset_recommended?: boolean;
+  min_height_mm?: number;
   max_height_mm?: number;
   preset1_height_mm?: number;
   preset4_height_mm?: number;
@@ -261,6 +263,12 @@ export class DeskRestClient implements DeskClient {
     });
   }
 
+  async setMinHeightMm(minHeightMm: number): Promise<void> {
+    await this.writeAndRefresh('/api/v1/desk/min-height', {
+      min_height_mm: minHeightMm,
+    });
+  }
+
   async setPresetHeightsMm(
     preset1HeightMm: number,
     preset4HeightMm: number,
@@ -437,6 +445,7 @@ export class DeskRestClient implements DeskClient {
 
   private async refreshStatus(): Promise<void> {
     const status = await this.request<RestStatus>('/api/v1/desk/status');
+    const minHeightMm = integerOr(status.min_height_mm, DESK_MIN_HEIGHT_MM);
     const maxHeightMm = integerOr(status.max_height_mm, DESK_MAX_HEIGHT_MM);
     const heightKnown = status.height_known === true &&
       typeof status.height_mm === 'number';
@@ -459,12 +468,13 @@ export class DeskRestClient implements DeskClient {
         maxHeightMm,
       },
       deskConfig: {
-        protocolVersion: 2,
+        protocolVersion: 3,
         childLock,
         childLockReason: parseChildLockReason(status.child_lock_reason, childLock),
         restAllowed: sources.rest !== false,
         bluetoothAllowed: sources.bluetooth !== false,
         panelAllowed: sources.panel !== false,
+        minHeightMm,
         maxHeightMm,
         preset1HeightMm: integerOr(
           status.preset1_height_mm,

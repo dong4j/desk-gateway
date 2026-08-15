@@ -235,6 +235,10 @@ export class DeskBleClient implements DeskClient {
     return this.writeConfig('max_height_mm', maxHeightMm);
   }
 
+  setMinHeightMm(minHeightMm: number): Promise<void> {
+    return this.writeConfig('min_height_mm', minHeightMm);
+  }
+
   setPresetHeightMm(preset: 1 | 4, heightMm: number): Promise<void> {
     return this.writeConfig(
       preset === 1 ? 'preset1_height_mm' : 'preset4_height_mm',
@@ -337,7 +341,11 @@ export class DeskBleClient implements DeskClient {
     }
     return this.enqueueWrite(
       DESK_CONFIG_UUID,
-      encodeDeskConfigWrite(field, value),
+      encodeDeskConfigWrite(
+        field,
+        value,
+        this.snapshot.deskConfig.protocolVersion as 1 | 2 | 3,
+      ),
       async (peripheralId) => {
         const bytes = await this.adapter.read(
           peripheralId,

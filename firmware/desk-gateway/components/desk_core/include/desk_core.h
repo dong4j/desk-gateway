@@ -35,6 +35,7 @@ typedef struct {
     bool controller_reset_supported;
     bool controller_reset_active;
     bool controller_reset_recommended;
+    int min_height_mm;
     int max_height_mm;
     int preset1_height_mm;
     int preset4_height_mm;
@@ -115,6 +116,9 @@ esp_err_t desk_core_forget_auto_child_lock_device(const char *device_id);
 esp_err_t desk_core_set_source_enabled(desk_control_source_t source,
                                        bool enabled);
 bool desk_core_get_source_enabled(desk_control_source_t source);
+/** 最低高度只约束档位配置，不参与手动下降或 Jog 的停止判断。 */
+esp_err_t desk_core_set_min_height_mm(int min_height_mm);
+int desk_core_get_min_height_mm(void);
 esp_err_t desk_core_set_max_height_mm(int max_height_mm);
 int desk_core_get_max_height_mm(void);
 /** 两个档位作为一组校验和持久化，避免多入口观察到半更新状态。 */

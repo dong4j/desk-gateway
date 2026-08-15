@@ -11,13 +11,13 @@ static void test_reports_stall_once(void)
 {
     desk_motion_watch_t watch = {0};
     assert(desk_motion_watch_update(
-               &watch, DESK_MOTION_WATCH_UP, true, 700, 560, 940, 100) ==
+               &watch, DESK_MOTION_WATCH_UP, true, 700, 550, 940, 100) ==
            DESK_MOTION_WATCH_NO_CHANGE);
     assert(desk_motion_watch_update(
-               &watch, DESK_MOTION_WATCH_UP, true, 703, 560, 940, 2600) ==
+               &watch, DESK_MOTION_WATCH_UP, true, 703, 550, 940, 2600) ==
            DESK_MOTION_WATCH_STALLED);
     assert(desk_motion_watch_update(
-               &watch, DESK_MOTION_WATCH_UP, true, 703, 560, 940, 3000) ==
+               &watch, DESK_MOTION_WATCH_UP, true, 703, 550, 940, 3000) ==
            DESK_MOTION_WATCH_NO_CHANGE);
 }
 
@@ -25,17 +25,17 @@ static void test_progress_and_boundaries_do_not_stall(void)
 {
     desk_motion_watch_t watch = {0};
     (void)desk_motion_watch_update(
-        &watch, DESK_MOTION_WATCH_DOWN, true, 800, 560, 940, 0);
+        &watch, DESK_MOTION_WATCH_DOWN, true, 800, 550, 940, 0);
     assert(desk_motion_watch_update(
-               &watch, DESK_MOTION_WATCH_DOWN, true, 791, 560, 940, 500) ==
+               &watch, DESK_MOTION_WATCH_DOWN, true, 791, 550, 940, 500) ==
            DESK_MOTION_WATCH_PROGRESS);
     assert(desk_motion_watch_update(
-               &watch, DESK_MOTION_WATCH_DOWN, true, 791, 560, 940, 5000) ==
+               &watch, DESK_MOTION_WATCH_DOWN, true, 791, 550, 940, 5000) ==
            DESK_MOTION_WATCH_PROGRESS);
 
     desk_motion_watch_reset(&watch);
     assert(desk_motion_watch_update(
-               &watch, DESK_MOTION_WATCH_DOWN, true, 565, 560, 940, 0) ==
+               &watch, DESK_MOTION_WATCH_DOWN, true, 555, 550, 940, 0) ==
            DESK_MOTION_WATCH_NO_CHANGE);
     assert(!watch.tracking);
 }
@@ -44,9 +44,9 @@ static void test_unknown_height_cancels_tracking(void)
 {
     desk_motion_watch_t watch = {0};
     (void)desk_motion_watch_update(
-        &watch, DESK_MOTION_WATCH_TARGET, true, 700, 560, 940, 0);
+        &watch, DESK_MOTION_WATCH_TARGET, true, 700, 550, 940, 0);
     (void)desk_motion_watch_update(
-        &watch, DESK_MOTION_WATCH_TARGET, false, -1, 560, 940, 3000);
+        &watch, DESK_MOTION_WATCH_TARGET, false, -1, 550, 940, 3000);
     assert(!watch.tracking);
 }
 

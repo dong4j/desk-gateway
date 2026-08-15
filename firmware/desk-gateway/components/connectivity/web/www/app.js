@@ -21,6 +21,7 @@
   const stateHint = document.getElementById('stateHint');
   const maxHeightBadge = document.getElementById('maxHeightBadge');
   const firmwareBuildBadge = document.getElementById('firmwareBuildBadge');
+  const minHeightInput = document.getElementById('minHeight');
   const maxHeightInput = document.getElementById('maxHeight');
   const preset1HeightInput = document.getElementById('preset1Height');
   const preset4HeightInput = document.getElementById('preset4Height');
@@ -508,7 +509,7 @@
               type: 'number',
               value: (preset.height_mm / 10).toFixed(1),
               inputMode: 'decimal',
-              min: 56,
+              min: (lastStatus.min_height_mm ?? 550) / 10,
               max: 94,
               step: 0.1,
             },
@@ -516,7 +517,8 @@
           validate: ({ name, height: heightCm }) => {
             try {
               DeskHeightPresets.normalizeName(name);
-              DeskHeightPresets.heightMmFromCm(heightCm);
+              DeskHeightPresets.heightMmFromCm(
+                heightCm, lastStatus.min_height_mm ?? 550);
               return '';
             } catch (error) {
               return error.message;
@@ -528,7 +530,8 @@
           await api(`/api/v1/desk/height-presets/${encodeURIComponent(preset.id)}`,
             'POST', {
               name: DeskHeightPresets.normalizeName(values.name),
-              height_mm: DeskHeightPresets.heightMmFromCm(values.height),
+              height_mm: DeskHeightPresets.heightMmFromCm(
+                values.height, lastStatus.min_height_mm ?? 550),
             });
           customPresetMsg.textContent = '自定义档位已更新';
         } catch (error) {
@@ -766,7 +769,7 @@
     }
 
     if (displayHeightKnown) {
-      const t = Math.min(1, Math.max(0, (displayHeightMm - 560) / 380));
+      const t = Math.min(1, Math.max(0, (displayHeightMm - 550) / 390));
       railFill.style.height = (12 + t * 76).toFixed(1) + '%';
     } else {
       railFill.style.height = '12%';
@@ -788,6 +791,15 @@
     allowRest.checked = restEnabled;
     allowBluetooth.checked = sources.bluetooth !== false;
     allowPanel.checked = sources.panel !== false;
+    if (typeof s.min_height_mm === 'number') {
+      const minCm = (s.min_height_mm / 10).toFixed(1);
+      if (document.activeElement !== minHeightInput) {
+        minHeightInput.value = minCm;
+      }
+      maxHeightInput.min = String(s.min_height_mm / 10);
+      preset1HeightInput.min = String(s.min_height_mm / 10);
+      customPresetHeight.min = String(s.min_height_mm / 10);
+    }
     if (typeof s.max_height_mm === 'number') {
       const maxCm = (s.max_height_mm / 10).toFixed(1);
       maxHeightBadge.textContent = `最高 ${maxCm} cm`;
@@ -996,12 +1008,36 @@
     await refreshBondDevices(true);
   };
 
+  document.getElementById('minHeightForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const msg = document.getElementById('minHeightMsg');
+    const minHeightMm = Math.round(Number(minHeightInput.value) * 10);
+    const preset1HeightMm = Number(lastStatus.preset1_height_mm);
+    if (!Number.isInteger(minHeightMm) || minHeightMm < 550 ||
+        minHeightMm > 940 ||
+        (Number.isInteger(preset1HeightMm) && minHeightMm > preset1HeightMm)) {
+      msg.textContent = '请输入 55.0–94.0 cm，且不能高于当前最低档位';
+      return;
+    }
+    try {
+      await api('/api/v1/desk/min-height', 'POST', {
+        min_height_mm: minHeightMm,
+      });
+      msg.textContent = '最低档位高度已保存，不影响手动下降';
+      await tick();
+    } catch (_) {
+      msg.textContent = '保存失败，请先调整低于该值的档位';
+    }
+  };
+
   document.getElementById('maxHeightForm').onsubmit = async (e) => {
     e.preventDefault();
     const msg = document.getElementById('maxHeightMsg');
     const maxHeightMm = Math.round(Number(maxHeightInput.value) * 10);
-    if (!Number.isInteger(maxHeightMm) || maxHeightMm < 560 || maxHeightMm > 940) {
-      msg.textContent = '请输入 56.0–94.0 cm';
+    const minimumHeightMm = lastStatus.min_height_mm ?? 550;
+    if (!Number.isInteger(maxHeightMm) || maxHeightMm < minimumHeightMm ||
+        maxHeightMm > 940) {
+      msg.textContent = `请输入 ${(minimumHeightMm / 10).toFixed(1)}–94.0 cm`;
       return;
     }
     const requestedCm = (maxHeightMm / 10).toFixed(1);
@@ -1021,9 +1057,11 @@
     const preset4HeightMm = Math.round(Number(preset4HeightInput.value) * 10);
     if (!Number.isInteger(preset1HeightMm) ||
         !Number.isInteger(preset4HeightMm) ||
-        preset1HeightMm < 560 || preset1HeightMm >= preset4HeightMm ||
+        preset1HeightMm < (lastStatus.min_height_mm ?? 550) ||
+        preset1HeightMm >= preset4HeightMm ||
         preset4HeightMm > 940) {
-      msg.textContent = '请坐需低于站立，档位高度范围为 56–94 cm';
+      msg.textContent = `请坐需低于站立，档位高度范围为 ${
+        ((lastStatus.min_height_mm ?? 550) / 10).toFixed(1)}–94 cm`;
       return;
     }
     try {
@@ -1043,7 +1081,8 @@
     try {
       await api('/api/v1/desk/height-presets', 'POST', {
         name: DeskHeightPresets.normalizeName(customPresetName.value),
-        height_mm: DeskHeightPresets.heightMmFromCm(customPresetHeight.value),
+        height_mm: DeskHeightPresets.heightMmFromCm(
+          customPresetHeight.value, lastStatus.min_height_mm ?? 550),
       });
       customPresetName.value = '';
       customPresetHeight.value = '';

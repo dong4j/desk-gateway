@@ -16,9 +16,9 @@ extern "C" {
 #endif
 
 #define DESK_BLE_PROTOCOL_VERSION 0x01
-#define DESK_BLE_CONFIG_VERSION   0x02
+#define DESK_BLE_CONFIG_VERSION   0x03
 #define DESK_BLE_STATE_LENGTH     8
-#define DESK_BLE_CONFIG_LENGTH    8
+#define DESK_BLE_CONFIG_LENGTH    10
 #define DESK_BLE_CONFIG_WRITE_LENGTH 4
 #define DESK_BLE_CLIENT_INFO_VERSION 0x01
 #define DESK_BLE_CLIENT_INFO_LENGTH  2
@@ -47,6 +47,7 @@ typedef enum {
     DESK_BLE_CONFIG_FIELD_MAX_HEIGHT_MM = 0x05,
     DESK_BLE_CONFIG_FIELD_PRESET1_HEIGHT_MM = 0x06,
     DESK_BLE_CONFIG_FIELD_PRESET4_HEIGHT_MM = 0x07,
+    DESK_BLE_CONFIG_FIELD_MIN_HEIGHT_MM = 0x08,
 } desk_ble_config_field_t;
 
 typedef enum {
@@ -109,6 +110,7 @@ typedef struct {
     bool rest_enabled;
     bool bluetooth_enabled;
     bool panel_enabled;
+    int min_height_mm;
     int max_height_mm;
     int preset1_height_mm;
     int preset4_height_mm;
@@ -152,7 +154,7 @@ bool desk_ble_command_decode(const uint8_t *data, size_t len,
 size_t desk_ble_state_encode(const desk_ble_state_input_t *input,
                              uint8_t *out, size_t out_len);
 
-/** 将设备设置编码为固定 8 字节 Config v2 快照。 */
+/** 将设备设置编码为固定 10 字节 Config v3 快照；前 8 字节兼容 v2 布局。 */
 size_t desk_ble_config_encode(const desk_ble_config_input_t *input,
                               uint8_t *out, size_t out_len);
 

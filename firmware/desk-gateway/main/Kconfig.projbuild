@@ -161,7 +161,7 @@ menu "Desk Gateway"
 
     config DESK_MAX_HEIGHT_MM
         int "Default maximum safe height (mm)"
-        range 560 940
+        range 550 940
         default 940
         help
             直接使用 TOF400C 的防抖读数。Web 设置会将用户值保存到 NVS 并

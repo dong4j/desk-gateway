@@ -25,9 +25,10 @@ typedef enum {
 } desk_status_t;
 
 /* Product control values use the filtered TOF400C distance without calibration. */
-#define DESK_MAX_HEIGHT_MM_MIN             560
-#define DESK_MAX_HEIGHT_MM_MAX             940
-#define DESK_PRESET1_HEIGHT_MM_DEFAULT     560
+#define DESK_HEIGHT_MM_MIN                 550
+#define DESK_HEIGHT_MM_MAX                 940
+#define DESK_MIN_HEIGHT_MM_DEFAULT         DESK_HEIGHT_MM_MIN
+#define DESK_PRESET1_HEIGHT_MM_DEFAULT     550
 #define DESK_PRESET4_HEIGHT_MM_DEFAULT     870
 
 typedef struct {

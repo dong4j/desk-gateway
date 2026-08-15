@@ -135,6 +135,12 @@ size_t desk_ble_config_encode(const desk_ble_config_input_t *input,
         preset4_height = (uint16_t)input->preset4_height_mm;
     }
     put_u16_le(&out[6], preset4_height);
+    uint16_t min_height = 0;
+    if (input->min_height_mm > 0 &&
+        input->min_height_mm <= (int)UINT16_MAX) {
+        min_height = (uint16_t)input->min_height_mm;
+    }
+    put_u16_le(&out[8], min_height);
     return DESK_BLE_CONFIG_LENGTH;
 }
 
@@ -142,7 +148,7 @@ bool desk_ble_config_write_decode(const uint8_t *data, size_t len,
                                   desk_ble_config_write_t *out_write)
 {
     if (!data || !out_write || len != DESK_BLE_CONFIG_WRITE_LENGTH ||
-        (data[0] != DESK_BLE_PROTOCOL_VERSION &&
+        (data[0] != DESK_BLE_PROTOCOL_VERSION && data[0] != 0x02 &&
          data[0] != DESK_BLE_CONFIG_VERSION)) {
         return false;
     }
@@ -163,6 +169,11 @@ bool desk_ble_config_write_decode(const uint8_t *data, size_t len,
         break;
     case DESK_BLE_CONFIG_FIELD_PRESET1_HEIGHT_MM:
     case DESK_BLE_CONFIG_FIELD_PRESET4_HEIGHT_MM:
+        if (data[0] == DESK_BLE_PROTOCOL_VERSION) {
+            return false;
+        }
+        break;
+    case DESK_BLE_CONFIG_FIELD_MIN_HEIGHT_MM:
         if (data[0] != DESK_BLE_CONFIG_VERSION) {
             return false;
         }

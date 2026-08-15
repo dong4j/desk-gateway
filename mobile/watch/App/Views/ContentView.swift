@@ -356,7 +356,7 @@ struct ContentView<Controller: DeskControlling>: View {
     HStack(spacing: 6) {
       presetButton(
         title: "请坐",
-        height: desk.configuration?.sittingHeightMillimeters ?? 560,
+        height: desk.configuration?.sittingHeightMillimeters ?? 550,
         tint: .gray,
         command: .preset1
       )

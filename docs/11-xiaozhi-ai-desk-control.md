@@ -147,8 +147,9 @@ curl --fail --silent --show-error \
   "child_lock": false,
   "upward_blocked": false,
   "raise_to_max_supported": true,
+  "min_height_mm": 550,
   "max_height_mm": 940,
-  "preset1_height_mm": 560,
+  "preset1_height_mm": 550,
   "preset4_height_mm": 870,
   "control_sources": {
     "rest": true

@@ -41,9 +41,23 @@ func decodesConfigV2() throws {
     ]))
 
   #expect(config.maximumHeightMillimeters == 940)
+  #expect(config.minimumHeightMillimeters == 550)
   #expect(config.sittingHeightMillimeters == 560)
   #expect(config.standingHeightMillimeters == 870)
   #expect(config.bluetoothControlAllowed)
+}
+
+@Test("Config v3 exposes the configurable preset floor")
+func decodesConfigV3() throws {
+  let config = try DeskProtocol.decodeConfiguration(
+    Data([
+      0x03, 0x0F, 0xAC, 0x03, 0x26, 0x02, 0x66, 0x03, 0x26, 0x02,
+    ]))
+
+  #expect(config.minimumHeightMillimeters == 550)
+  #expect(config.maximumHeightMillimeters == 940)
+  #expect(config.sittingHeightMillimeters == 550)
+  #expect(config.standingHeightMillimeters == 870)
 }
 
 @Test("Commands retain the frozen one-byte values")

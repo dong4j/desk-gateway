@@ -1,17 +1,17 @@
 /**
  * 升降桌高度展示口径。
  *
- * 当前产品直接使用 TOF400C 的处理后距离，固定有效范围为 560–940 mm。用户设置的
+ * 当前产品直接使用 TOF400C 的处理后距离，固定有效范围为 550–940 mm。用户设置的
  * 最高安全高度只是运动限制，不能改变首页标尺的物理量程。
  */
 
 import type { DeskMotion } from './types';
 
-export const DESK_MIN_HEIGHT_MM = 560;
+export const DESK_MIN_HEIGHT_MM = 550;
 export const DESK_MAX_HEIGHT_MM = 940;
-export const DESK_DEFAULT_SIT_HEIGHT_MM = 560;
+export const DESK_DEFAULT_SIT_HEIGHT_MM = 550;
 export const DESK_DEFAULT_STAND_HEIGHT_MM = 870;
-export const DESK_RULER_LABELS_CM = [94, 85, 75, 65, 56] as const;
+export const DESK_RULER_LABELS_CM = [94, 85, 75, 65, 55] as const;
 
 /** 将设备高度映射到固定产品量程；安全上限变化不得改变这个结果。 */
 export function normalizeDeskHeight(heightMm: number | null): number {

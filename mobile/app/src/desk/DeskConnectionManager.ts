@@ -151,6 +151,10 @@ export class DeskConnectionManager implements DeskClient {
     return this.requireActive().setMaxHeightMm(maxHeightMm);
   }
 
+  setMinHeightMm(minHeightMm: number): Promise<void> {
+    return this.requireActive().setMinHeightMm(minHeightMm);
+  }
+
   setPresetHeightsMm(
     preset1HeightMm: number,
     preset4HeightMm: number,

@@ -30,6 +30,7 @@ export interface DeskConfig {
   restAllowed: boolean;
   bluetoothAllowed: boolean;
   panelAllowed: boolean;
+  minHeightMm: number;
   maxHeightMm: number;
   preset1HeightMm: number;
   preset4HeightMm: number;
@@ -40,6 +41,7 @@ export type DeskConfigField =
   | 'rest_allowed'
   | 'bluetooth_allowed'
   | 'panel_allowed'
+  | 'min_height_mm'
   | 'max_height_mm'
   | 'preset1_height_mm'
   | 'preset4_height_mm';
