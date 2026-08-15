@@ -16,6 +16,7 @@ import {
   DESK_CLIENT_INFO_UUID,
   DESK_COMMAND_UUID,
   DESK_CONFIG_UUID,
+  DESK_PRESENCE_UUID,
   DESK_SERVICE_UUID,
   DESK_STATE_UUID,
   DESK_SYSTEM_UUID,
@@ -27,6 +28,7 @@ import {
   decodeFirmwareRevision,
   encodeDeskClientInfo,
   encodeDeskConfigWrite,
+  encodeDeskPresence,
   encodeDeskSystemCommand,
 } from './protocol';
 import type {
@@ -199,6 +201,10 @@ export class DeskBleClient implements DeskClient {
 
   setChildLock(enabled: boolean): Promise<void> {
     return this.writeConfig('child_lock', enabled);
+  }
+
+  sendPresenceHeartbeat(deviceId: string): Promise<void> {
+    return this.enqueueWrite(DESK_PRESENCE_UUID, encodeDeskPresence(deviceId));
   }
 
   setSourceEnabled(

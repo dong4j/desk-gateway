@@ -190,6 +190,14 @@ static cJSON *ble_management_snapshot_json(
     cJSON_AddBoolToObject(pairing, "open", snapshot->pairing_window_open);
     cJSON_AddNumberToObject(pairing, "remaining_seconds",
                             snapshot->pairing_window_remaining_seconds);
+    desk_core_snapshot_t core = desk_core_snapshot();
+    cJSON *auto_lock = cJSON_AddObjectToObject(root, "auto_child_lock");
+    cJSON_AddBoolToObject(auto_lock, "enabled",
+                          core.auto_child_lock_enabled);
+    cJSON_AddStringToObject(auto_lock, "device_id",
+                            core.auto_child_lock_device_id);
+    cJSON_AddBoolToObject(auto_lock, "detector_online",
+                          core.auto_child_lock_detector_online);
     return root;
 }
 
@@ -261,6 +269,18 @@ static cJSON *snapshot_json(void)
     }
     cJSON_AddBoolToObject(o, "right_gap_known", tof.right_gap_known);
     cJSON_AddBoolToObject(o, "child_lock", s.child_lock);
+    cJSON_AddStringToObject(
+        o, "child_lock_reason",
+        desk_child_lock_reason_name(s.child_lock_reason));
+    cJSON *auto_lock = cJSON_AddObjectToObject(o, "auto_child_lock");
+    cJSON_AddBoolToObject(auto_lock, "enabled",
+                          s.auto_child_lock_enabled);
+    cJSON_AddStringToObject(auto_lock, "device_id",
+                            s.auto_child_lock_device_id);
+    cJSON_AddBoolToObject(auto_lock, "detector_online",
+                          s.auto_child_lock_detector_online);
+    cJSON_AddNumberToObject(auto_lock, "away_timeout_seconds",
+                            DESK_AUTO_LOCK_AWAY_TIMEOUT_MS / 1000U);
     cJSON_AddBoolToObject(o, "upward_blocked", s.upward_blocked);
     cJSON_AddBoolToObject(o, "raise_to_max_supported",
                           s.raise_to_max_supported);
@@ -471,6 +491,14 @@ static esp_err_t handler_bluetooth_delete(httpd_req_t *req)
     desk_ble_management_result_t result;
     if (strcmp(req->uri, "/api/v1/bluetooth/bonds") == 0) {
         result = desk_ble_delete_all_bonds();
+        if (result == DESK_BLE_MANAGEMENT_OK ||
+            result == DESK_BLE_MANAGEMENT_ACCEPTED) {
+            desk_core_snapshot_t core = desk_core_snapshot();
+            if (core.auto_child_lock_device_id[0]) {
+                (void)desk_core_forget_auto_child_lock_device(
+                    core.auto_child_lock_device_id);
+            }
+        }
     } else {
         char bond_id[DESK_BLE_MANAGEMENT_ID_LENGTH];
         if (!desk_web_ble_extract_bond_id(req->uri, bond_id,
@@ -478,6 +506,10 @@ static esp_err_t handler_bluetooth_delete(httpd_req_t *req)
             result = DESK_BLE_MANAGEMENT_NOT_FOUND;
         } else {
             result = desk_ble_delete_bond(bond_id);
+            if (result == DESK_BLE_MANAGEMENT_OK ||
+                result == DESK_BLE_MANAGEMENT_ACCEPTED) {
+                (void)desk_core_forget_auto_child_lock_device(bond_id);
+            }
         }
     }
     return send_ble_management_result(req, result);
@@ -727,6 +759,39 @@ static esp_err_t handler_cmd(httpd_req_t *req)
         ESP_LOGI(TAG, "motion ingress source=rest command=stop uri=%s", uri);
 #endif
         err = desk_core_stop();
+    } else if (strcmp(uri, "/api/v1/desk/auto-child-lock") == 0) {
+        char body[128];
+        if (read_body(req, body, sizeof(body)) == ESP_OK) {
+            cJSON *root = cJSON_Parse(body);
+            const cJSON *en = root ? cJSON_GetObjectItem(root, "enabled")
+                                   : NULL;
+            const cJSON *device = root
+                ? cJSON_GetObjectItem(root, "device_id") : NULL;
+            if (cJSON_IsBool(en) &&
+                (!cJSON_IsTrue(en) || cJSON_IsString(device))) {
+                err = desk_core_set_auto_child_lock(
+                    cJSON_IsTrue(en), cJSON_IsString(device)
+                        ? device->valuestring : NULL);
+            } else {
+                err = ESP_ERR_INVALID_ARG;
+            }
+            cJSON_Delete(root);
+        } else {
+            err = ESP_ERR_INVALID_ARG;
+        }
+    } else if (strcmp(uri, "/api/v1/desk/presence") == 0) {
+        char body[64];
+        if (read_body(req, body, sizeof(body)) == ESP_OK) {
+            cJSON *root = cJSON_Parse(body);
+            const cJSON *device = root
+                ? cJSON_GetObjectItem(root, "device_id") : NULL;
+            err = cJSON_IsString(device)
+                ? desk_core_auto_child_lock_heartbeat(device->valuestring)
+                : ESP_ERR_INVALID_ARG;
+            cJSON_Delete(root);
+        } else {
+            err = ESP_ERR_INVALID_ARG;
+        }
     } else if (strstr(uri, "/presets")) {
         char body[96];
         if (read_body(req, body, sizeof(body)) == ESP_OK) {
@@ -763,7 +828,7 @@ static esp_err_t handler_cmd(httpd_req_t *req)
         } else {
             err = ESP_ERR_INVALID_ARG;
         }
-    } else if (strstr(uri, "/child-lock")) {
+    } else if (strcmp(uri, "/api/v1/desk/child-lock") == 0) {
         char body[64];
         if (read_body(req, body, sizeof(body)) == ESP_OK) {
             cJSON *root = cJSON_Parse(body);

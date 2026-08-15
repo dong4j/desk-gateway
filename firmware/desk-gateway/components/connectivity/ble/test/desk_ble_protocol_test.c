@@ -132,12 +132,28 @@ static void test_client_info_decode(void)
     assert(!desk_ble_client_info_decode(watch, 1, &info));
 }
 
+static void test_presence_decode(void)
+{
+    const uint8_t valid[] = {
+        0x01, 'b', 'o', 'n', 'd', '_', '0', '0', '1', '1',
+        '2', '2', 'a', 'a', 'b', 'b', 'c', 'c',
+    };
+    desk_ble_presence_t presence;
+    assert(desk_ble_presence_decode(valid, sizeof(valid), &presence));
+    assert(strcmp(presence.device_id, "bond_001122aabbcc") == 0);
+    uint8_t invalid[sizeof(valid)];
+    memcpy(invalid, valid, sizeof(valid));
+    invalid[10] = 'G';
+    assert(!desk_ble_presence_decode(invalid, sizeof(invalid), &presence));
+}
+
 int main(void)
 {
     test_command_decode();
     test_state_encode();
     test_config_protocol();
     test_client_info_decode();
+    test_presence_decode();
     puts("desk_ble_protocol_test: OK");
     return 0;
 }

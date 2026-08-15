@@ -48,6 +48,8 @@ interface AppPreferences {
   connectionMode: DeskConnectionMode;
   restHost: string;
   restKey: string;
+  /** 仅保存在本机；其他已授权手机不会冒充选中的检测设备。 */
+  autoLockDeviceId: string;
 }
 
 const defaultPreferences: AppPreferences = {
@@ -57,6 +59,7 @@ const defaultPreferences: AppPreferences = {
   connectionMode: 'auto',
   restHost: 'desk-gateway.local',
   restKey: 'desk-gateway',
+  autoLockDeviceId: '',
 };
 
 export default function App() {
@@ -166,6 +169,11 @@ export default function App() {
             typeof parsed.restKey === 'string'
               ? parsed.restKey
               : defaultPreferences.restKey,
+          autoLockDeviceId:
+            typeof parsed.autoLockDeviceId === 'string' &&
+            /^bond_[0-9a-f]{12}$/.test(parsed.autoLockDeviceId)
+              ? parsed.autoLockDeviceId
+              : defaultPreferences.autoLockDeviceId,
         });
       })
       .catch(() => undefined)
@@ -228,6 +236,38 @@ export default function App() {
     runSafely(connect());
   }, [connect, preferences.autoConnect, preferencesLoaded, snapshot.phase]);
 
+  useEffect(() => {
+    const deviceId = preferences.autoLockDeviceId;
+    if (!deviceId || snapshot.phase !== 'ready') {
+      return;
+    }
+    const heartbeat = () => {
+      void clientRef.current!.sendPresenceHeartbeat(deviceId)
+        .catch(() => undefined);
+    };
+    heartbeat();
+    const timer = setInterval(heartbeat, 30_000);
+    return () => clearInterval(timer);
+  }, [preferences.autoLockDeviceId, snapshot.phase, snapshot.transport]);
+
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active') return;
+      if (snapshot.phase === 'ready' && preferences.autoLockDeviceId) {
+        void clientRef.current!.sendPresenceHeartbeat(
+          preferences.autoLockDeviceId,
+        ).catch(() => undefined);
+      } else if (preferences.autoConnect &&
+          snapshot.phase !== 'scanning' && snapshot.phase !== 'connecting' &&
+          snapshot.phase !== 'pairing') {
+        runSafely(connect());
+      }
+    });
+    return () => subscription.remove();
+  }, [connect, preferences.autoConnect, preferences.autoLockDeviceId,
+      preferencesLoaded, snapshot.phase]);
+
   const feedback = useCallback(() => {
     if (preferences.hapticFeedback) {
       void Haptics.impactAsync(
@@ -254,6 +294,14 @@ export default function App() {
     },
     [],
   );
+
+  const setAutoChildLock = useCallback(async (
+    deviceId: string,
+    enabled: boolean,
+  ) => {
+    await clientRef.current!.setAutoChildLock(enabled, deviceId);
+    updatePreferences({ autoLockDeviceId: deviceId });
+  }, [updatePreferences]);
 
   const runCommand = useCallback(
     (operation: Promise<void>) => {
@@ -289,14 +337,16 @@ export default function App() {
     (open: boolean) => clientRef.current!.setBluetoothPairingWindow(open),
     [],
   );
-  const deleteBluetoothBond = useCallback(
-    (id: string) => clientRef.current!.deleteBluetoothBond(id),
-    [],
-  );
-  const deleteAllBluetoothBonds = useCallback(
-    () => clientRef.current!.deleteAllBluetoothBonds(),
-    [],
-  );
+  const deleteBluetoothBond = useCallback(async (id: string) => {
+    await clientRef.current!.deleteBluetoothBond(id);
+    if (preferences.autoLockDeviceId === id) {
+      updatePreferences({ autoLockDeviceId: '' });
+    }
+  }, [preferences.autoLockDeviceId, updatePreferences]);
+  const deleteAllBluetoothBonds = useCallback(async () => {
+    await clientRef.current!.deleteAllBluetoothBonds();
+    updatePreferences({ autoLockDeviceId: '' });
+  }, [updatePreferences]);
   const renameBluetoothBond = useCallback(
     (id: string, alias: string) =>
       clientRef.current!.renameBluetoothBond(id, alias),
@@ -376,6 +426,7 @@ export default function App() {
           connectionMode={preferences.connectionMode}
           restHost={preferences.restHost}
           restKey={preferences.restKey}
+          autoLockDeviceId={preferences.autoLockDeviceId}
           onBack={() => {
             feedback();
             setScreen('home');
@@ -416,6 +467,7 @@ export default function App() {
           onDeleteBluetoothBond={deleteBluetoothBond}
           onDeleteAllBluetoothBonds={deleteAllBluetoothBonds}
           onRenameBluetoothBond={renameBluetoothBond}
+          onSetAutoChildLock={setAutoChildLock}
           onCreateHeightPreset={createHeightPreset}
           onUpdateHeightPreset={updateHeightPreset}
           onDeleteHeightPreset={deleteHeightPreset}

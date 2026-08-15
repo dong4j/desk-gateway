@@ -149,6 +149,7 @@ class FailingBleClient implements DeskClient {
   }
 
   async setChildLock(): Promise<void> {}
+  async sendPresenceHeartbeat(): Promise<void> {}
   async setSourceEnabled(): Promise<void> {}
   async setMaxHeightMm(): Promise<void> {}
   async setPresetHeightsMm(): Promise<void> {}
@@ -204,6 +205,7 @@ class ReadyBleClient implements DeskClient {
   }
 
   async setChildLock(): Promise<void> {}
+  async sendPresenceHeartbeat(): Promise<void> {}
   async setSourceEnabled(): Promise<void> {}
   async setMaxHeightMm(): Promise<void> {}
   async setPresetHeightsMm(): Promise<void> {}

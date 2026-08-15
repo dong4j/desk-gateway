@@ -26,6 +26,7 @@ export interface DeskState {
 export interface DeskConfig {
   protocolVersion: number;
   childLock: boolean;
+  childLockReason: 'none' | 'manual' | 'auto_away' | 'unknown';
   restAllowed: boolean;
   bluetoothAllowed: boolean;
   panelAllowed: boolean;

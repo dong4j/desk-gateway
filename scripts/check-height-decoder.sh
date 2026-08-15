@@ -77,6 +77,13 @@ cc -std=c11 -Wall -Wextra -Werror \
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${CORE_DIR}/include" \
+    "${CORE_DIR}/desk_auto_lock.c" \
+    "${CORE_DIR}/test/desk_auto_lock_test.c" \
+    -o "${TEST_DIR}/auto-lock-test"
+"${TEST_DIR}/auto-lock-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${CORE_DIR}/include" \
     "${CORE_DIR}/desk_height_presets.c" \
     "${CORE_DIR}/test/desk_height_presets_test.c" \
     -o "${TEST_DIR}/height-presets-test"

@@ -68,6 +68,7 @@ Client Info Characteristic 做向后兼容扩展；连接表、运动所有权�
 | Config | `7f4e0004-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Read, Notify, Write, Write Encrypted | 设备设置快照与单字段更新 |
 | System | `7f4e0005-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Write, Write Encrypted | 与运动命令隔离的管理指令 |
 | Client Info | `7f4e0006-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Write, Write Encrypted | 两字节客户端协议版本和平台类型；同时触发配对 |
+| Presence | `7f4e0007-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Write, Write Encrypted | 自动童锁检测设备的在家心跳；只接受当前连接自身的 Bond ID |
 | Device Information Service | `180A` | Primary Service | Bluetooth SIG 标准设备信息服务 |
 | Firmware Revision String | `2A26` | Read | ASCII：`构建日期 构建时间 @ Git版本` |
 
@@ -176,6 +177,21 @@ watchOS、`02` 为 iOS、`03` 为 Android。新 Watch 和手机客户端使用�
 握手，不能再用 STOP 作为正常连接握手。旧固件找不到该 Characteristic 时，客户端继续
 使用原 Command / State / Config，但不得假定多连接可用。
 
+### 4.6 Presence
+
+Presence 固定写入 18 字节：`[版本 01][17 字节 ASCII Bond ID]`。Bond ID 格式为
+`bond_<12位小写十六进制>`，与 Web Bond 管理接口返回的 `id` 完全一致。
+
+该 Characteristic 只用于选定手机的自动童锁在家心跳，并同时满足以下约束：
+
+- 必须通过加密且已 Bond 的连接写入；
+- 包内 Bond ID 必须等于当前 BLE 连接的真实 Bond 身份，禁止其他已授权手机代报；
+- 固件只接受自动童锁配置中唯一选中的 Bond ID，其他设备不会刷新离家倒计时；
+- 选中设备保持加密 BLE 连接时直接视为在线，不依赖 App 后台定时器持续运行。
+
+局域网通道使用同一个 Bond ID 调用 `POST /api/v1/desk/presence`。BLE 和局域网任一信号
+有效都表示选中手机在家；离线 3 分钟后才自动锁定。
+
 ## 5. 交互建议（给旋钮类配件的参考，非强制）
 
 | 操作 | 建议映射 |
@@ -245,7 +261,7 @@ watchOS、`02` 为 iOS、`03` 为 Android。新 Watch 和手机客户端使用�
 | 真机门禁 | LightBlue 核心控制和 iPhone Config v2 已通过；三客户端并发与 Bond 删除安全矩阵仍待执行 |
 | 后续 | 开源「参考旋钮+OLED」固件或对接指南；可选 Central 模式适配成品外设 |
 
-本能力不改变 Web/REST 协议。BLE 与 Wi-Fi 核心控制已通过真机验收；
+自动童锁新增已认证的 REST 配置与 Presence 接口；原有控制接口保持兼容。BLE 与 Wi-Fi 核心控制已通过真机验收；
 断连、权限拒绝、前后台切换和异常停止矩阵仍需继续补齐。
 
 ## 9. 修订记录
@@ -260,3 +276,4 @@ watchOS、`02` 为 iOS、`03` 为 Android。新 Watch 和手机客户端使用�
 | 1.4 | 2026-08-11 | 记录 LightBlue 核心控制和 iPhone Config v2 真机通过；断连、权限与异常停止矩阵仍待补齐 |
 | 1.5 | 2026-08-11 | Firmware Revision 改为构建时间与 Git 派生版本，移动端可确认烧录对应提交 |
 | 1.6 | 2026-08-13 | 实现三客户端并发、Client Info、运动所有权、配对窗口和 Bond 管理；自动化通过，三台真机待验收 |
+| 1.7 | 2026-08-15 | 增加 Presence v1，并冻结单一选中 Bond 的自动童锁身份校验 |

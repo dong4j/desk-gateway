@@ -53,6 +53,11 @@ BLE State / Config Characteristic 和 `GET /api/v1/desk/status` 都映射为同�
 - 最高安全高度、档位 1 和档位 4；
 - 固件构建信息。
 
+自动童锁另外绑定一部用户明确选择的已授权手机。该手机通过加密 BLE 连接或已认证
+REST 每 30 秒发送一次 Presence；固件只识别这一部手机，其他已授权手机在线不会影响
+离家倒计时。两种通道都不可用 3 分钟后，固件以 `auto_away` 来源锁定；选中手机重新
+上线时只解除 `auto_away` 锁定，用户手动开启的童锁始终需要手动关闭。
+
 因此 Home 和 Settings 不需要为两种连接方式维护两套业务状态。REST 空闲时每秒同步一次，
 运动时每 250ms 同步一次，以兼顾实时性和 ESP32 负载。
 
@@ -64,6 +69,8 @@ BLE State / Config Characteristic 和 `GET /api/v1/desk/status` 都映射为同�
 3. BLE 断开时 App 会立即取消本地 HOLD 续期；固件侧 BLE 租约/断连停止仍是最终保护。
 4. REST 长按继续复用同一 `DeskHoldController`：持续发送 HOLD，松手立即发送 STOP。
 5. REST 连续三次轮询失败后进入断开状态，不把旧高度伪装成实时状态。
+6. 自动童锁检测设备只能选择一部，并复用固件 Bond ID；BLE Presence 必须与当前加密
+   连接的真实 Bond 身份一致，REST Presence 必须通过 `X-Desk-Key` 认证。
 
 ## 原生平台要求
 
@@ -87,6 +94,8 @@ Development Build。
    之前的运动。
 5. 分别通过 Wi-Fi 验证 STOP、按住升降、档位、童锁、最高安全高度和档位配置同步。
 6. 关闭 ESP32 的 REST 来源权限，确认 Wi-Fi 控制被固件拒绝；重新允许后恢复。
+7. 选择常带手机并开启自动童锁：断开其 BLE 与局域网 3 分钟后应锁定；其他已授权手机
+   在线不得延长倒计时。选中手机回家后只应解除 `auto_away` 锁，不能解除手动童锁。
 
 自动化测试覆盖 REST 认证/接口映射和 BLE 失败后的 Wi-Fi 回退；断连时序、局域网权限弹窗
 及真实升降仍必须以真机验收为准。

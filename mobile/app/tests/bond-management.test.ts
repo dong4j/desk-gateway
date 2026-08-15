@@ -27,6 +27,11 @@ const snapshot: DeskBondSnapshot = {
   }],
   capacity: 3,
   pairing_window: { open: false, remaining_seconds: 0 },
+  auto_child_lock: {
+    enabled: false,
+    device_id: '',
+    detector_online: false,
+  },
 };
 
 test('shows connected, controlling and deletion states', () => {

@@ -4,6 +4,8 @@
  */
 #include "desk_ble_protocol.h"
 
+#include <string.h>
+
 static void put_u16_le(uint8_t *out, uint16_t value)
 {
     out[0] = (uint8_t)(value & UINT16_C(0x00FF));
@@ -186,5 +188,24 @@ bool desk_ble_client_info_decode(const uint8_t *data, size_t len,
         return false;
     }
     out_info->client_kind = data[1] <= 3 ? data[1] : 0;
+    return true;
+}
+
+bool desk_ble_presence_decode(const uint8_t *data, size_t len,
+                              desk_ble_presence_t *out_presence)
+{
+    if (!data || !out_presence || len != DESK_BLE_PRESENCE_LENGTH ||
+        data[0] != DESK_BLE_PRESENCE_VERSION ||
+        memcmp(&data[1], "bond_", 5) != 0) {
+        return false;
+    }
+    for (size_t i = 6; i < DESK_BLE_PRESENCE_LENGTH; ++i) {
+        uint8_t c = data[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) {
+            return false;
+        }
+    }
+    memcpy(out_presence->device_id, &data[1], 17);
+    out_presence->device_id[17] = '\0';
     return true;
 }

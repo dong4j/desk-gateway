@@ -110,6 +110,18 @@ export class DeskConnectionManager implements DeskClient {
     return this.requireActive().setChildLock(enabled);
   }
 
+  sendPresenceHeartbeat(deviceId: string): Promise<void> {
+    return this.requireActive().sendPresenceHeartbeat(deviceId);
+  }
+
+  async setAutoChildLock(enabled: boolean, deviceId: string): Promise<void> {
+    await this.restClient.setAutoChildLock(enabled, deviceId);
+    if (enabled) {
+      /* 配置已经持久化时，当前控制链路暂不可用不应把成功伪装成失败。 */
+      await this.sendPresenceHeartbeat(deviceId).catch(() => undefined);
+    }
+  }
+
   setSourceEnabled(
     source: 'rest' | 'bluetooth' | 'panel',
     enabled: boolean,

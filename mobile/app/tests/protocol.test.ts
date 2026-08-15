@@ -10,6 +10,7 @@ import {
   decodeDeskState,
   decodeFirmwareRevision,
   encodeDeskConfigWrite,
+  encodeDeskPresence,
   encodeDeskSystemCommand,
 } from '../src/desk/protocol';
 
@@ -116,4 +117,15 @@ test('keeps system management commands separate from motion commands', () => {
     [0x02],
   );
   assert.throws(() => encodeDeskSystemCommand(0x7f), /system command/);
+});
+
+test('encodes the selected Bond ID as a fixed presence packet', () => {
+  assert.deepEqual(
+    encodeDeskPresence('bond_001122aabbcc'),
+    [0x01, ...Array.from('bond_001122aabbcc', (value) => value.charCodeAt(0))],
+  );
+  assert.throws(
+    () => encodeDeskPresence('bond_001122AABBCC'),
+    /device ID/,
+  );
 });

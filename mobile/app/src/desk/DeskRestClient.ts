@@ -25,6 +25,7 @@ interface RestStatus {
   height_known?: boolean;
   height_sim?: boolean;
   child_lock?: boolean;
+  child_lock_reason?: string;
   upward_blocked?: boolean;
   controller_reset_supported?: boolean;
   controller_reset_active?: boolean;
@@ -64,6 +65,11 @@ export interface DeskBondSnapshot {
   pairing_window: {
     open: boolean;
     remaining_seconds: number;
+  };
+  auto_child_lock?: {
+    enabled: boolean;
+    device_id: string;
+    detector_online: boolean;
   };
 }
 
@@ -165,6 +171,22 @@ export class DeskRestClient implements DeskClient {
     await this.writeAndRefresh('/api/v1/desk/child-lock', { enabled });
   }
 
+  async sendPresenceHeartbeat(deviceId: string): Promise<void> {
+    this.ensureBondId(deviceId);
+    await this.operation(() => this.request('/api/v1/desk/presence', {
+      method: 'POST',
+      body: JSON.stringify({ device_id: deviceId }),
+    }));
+  }
+
+  async setAutoChildLock(enabled: boolean, deviceId: string): Promise<void> {
+    this.ensureBondId(deviceId);
+    await this.request('/api/v1/desk/auto-child-lock', {
+      method: 'POST',
+      body: JSON.stringify({ enabled, device_id: deviceId }),
+    });
+  }
+
   async setSourceEnabled(
     source: 'rest' | 'bluetooth' | 'panel',
     enabled: boolean,
@@ -258,9 +280,7 @@ export class DeskRestClient implements DeskClient {
 
   async deleteBluetoothBond(id: string): Promise<void> {
     this.ensureConfigured();
-    if (!/^bond_[0-9a-f]{12}$/.test(id)) {
-      throw new Error('无效的蓝牙配对设备 ID');
-    }
+    this.ensureBondId(id);
     await this.request(`/api/v1/bluetooth/bonds/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
@@ -341,6 +361,7 @@ export class DeskRestClient implements DeskClient {
       deskConfig: {
         protocolVersion: 2,
         childLock,
+        childLockReason: parseChildLockReason(status.child_lock_reason, childLock),
         restAllowed: sources.rest !== false,
         bluetoothAllowed: sources.bluetooth !== false,
         panelAllowed: sources.panel !== false,
@@ -459,12 +480,29 @@ export class DeskRestClient implements DeskClient {
     }
   }
 
+
+  private ensureBondId(id: string): void {
+    this.ensureConfigured();
+    if (!/^bond_[0-9a-f]{12}$/.test(id)) {
+      throw new Error('无效的蓝牙配对设备 ID');
+    }
+  }
+
   private update(patch: Partial<DeskClientSnapshot>): void {
     this.snapshot = { ...this.snapshot, ...patch };
     for (const listener of this.listeners) {
       listener(this.snapshot);
     }
   }
+}
+
+function parseChildLockReason(
+  value: string | undefined,
+  childLock: boolean,
+): 'none' | 'manual' | 'auto_away' | 'unknown' {
+  if (!childLock) return 'none';
+  if (value === 'manual' || value === 'auto_away') return value;
+  return 'unknown';
 }
 
 function parseMotion(status: string | undefined): DeskMotion {

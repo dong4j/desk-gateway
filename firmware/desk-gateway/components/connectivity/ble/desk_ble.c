@@ -102,6 +102,10 @@ static const ble_uuid128_t s_system_uuid = BLE_UUID128_INIT(
 static const ble_uuid128_t s_client_info_uuid = BLE_UUID128_INIT(
     0x10, 0x9b, 0x5a, 0x2e, 0x1d, 0x3c, 0x7a, 0x9f,
     0x4b, 0x4f, 0x4c, 0x6d, 0x06, 0x00, 0x4e, 0x7f);
+/* Canonical UUID: 7f4e0007-6d4c-4f4b-9f7a-3c1d2e5a9b10. */
+static const ble_uuid128_t s_presence_uuid = BLE_UUID128_INIT(
+    0x10, 0x9b, 0x5a, 0x2e, 0x1d, 0x3c, 0x7a, 0x9f,
+    0x4b, 0x4f, 0x4c, 0x6d, 0x07, 0x00, 0x4e, 0x7f);
 /* Bluetooth SIG Device Information Service / Firmware Revision String. */
 static const ble_uuid16_t s_device_information_service_uuid =
     BLE_UUID16_INIT(0x180a);
@@ -245,6 +249,18 @@ static void populate_slot_identity(desk_ble_connection_slot_t *slot,
     slot->peer_identity_valid = true;
     slot->peer_identity = identity;
     slot->client_kind = record->client_kind;
+}
+
+static void report_bond_presence(const desk_ble_peer_identity_t *identity,
+                                 bool present)
+{
+    const desk_ble_bond_record_t *record =
+        desk_ble_bond_registry_find_identity_const(&s_bond_registry,
+                                                   identity);
+    char bond_id[DESK_BLE_BOND_ID_TEXT_LENGTH];
+    if (record && desk_ble_bond_format_id(record, bond_id, sizeof(bond_id))) {
+        (void)desk_core_auto_child_lock_ble_presence(bond_id, present);
+    }
 }
 
 static desk_ble_connection_slot_t *find_slot_by_identity(
@@ -461,6 +477,8 @@ static bool delete_bond_from_store(
     if (!record) {
         return true;
     }
+    char bond_id[DESK_BLE_BOND_ID_TEXT_LENGTH] = {0};
+    (void)desk_ble_bond_format_id(record, bond_id, sizeof(bond_id));
     ble_addr_t address = ble_addr_from_identity(identity);
     int rc = ble_store_util_delete_peer(&address);
     if (rc != 0 && rc != BLE_HS_ENOENT) {
@@ -483,6 +501,9 @@ static bool delete_bond_from_store(
         return false;
     }
     s_bond_registry = candidate;
+    if (bond_id[0]) {
+        (void)desk_core_forget_auto_child_lock_device(bond_id);
+    }
     publish_management_snapshot();
     return true;
 }
@@ -1104,6 +1125,46 @@ static int client_info_access(uint16_t conn_handle, uint16_t attr_handle,
     return 0;
 }
 
+static int presence_access(uint16_t conn_handle, uint16_t attr_handle,
+                           struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)attr_handle;
+    (void)arg;
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_connection_slot_t *slot =
+        desk_ble_session_find(&s_session, conn_handle);
+    if (!slot || !slot->encrypted || !slot->peer_identity_valid ||
+        slot->delete_state == DESK_BLE_DELETE_PENDING) {
+        return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+    }
+    uint8_t raw[DESK_BLE_PRESENCE_LENGTH];
+    if (OS_MBUF_PKTLEN(ctxt->om) != sizeof(raw)) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    if (os_mbuf_copydata(ctxt->om, 0, sizeof(raw), raw) != 0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_presence_t presence;
+    if (!desk_ble_presence_decode(raw, sizeof(raw), &presence)) {
+        return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+    }
+    const desk_ble_bond_record_t *record =
+        desk_ble_bond_registry_find_identity_const(&s_bond_registry,
+                                                   &slot->peer_identity);
+    char connected_bond_id[DESK_BLE_BOND_ID_TEXT_LENGTH];
+    if (!record ||
+        !desk_ble_bond_format_id(record, connected_bond_id,
+                                 sizeof(connected_bond_id)) ||
+        strcmp(connected_bond_id, presence.device_id) != 0) {
+        /* 加密只证明连接已授权；这里还要阻止其他已授权手机代报选中设备。 */
+        return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+    }
+    esp_err_t err = desk_core_auto_child_lock_heartbeat(presence.device_id);
+    return err == ESP_OK ? 0 : command_error_to_att(err);
+}
+
 /** Expose build time and Git-derived app version without coupling clients to HTTP. */
 static int firmware_revision_access(uint16_t conn_handle, uint16_t attr_handle,
                                     struct ble_gatt_access_ctxt *ctxt,
@@ -1161,6 +1222,11 @@ static const struct ble_gatt_chr_def s_characteristics[] = {
     {
         .uuid = &s_client_info_uuid.u,
         .access_cb = client_info_access,
+        .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC,
+    },
+    {
+        .uuid = &s_presence_uuid.u,
+        .access_cb = presence_access,
         .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC,
     },
     {0},
@@ -1229,6 +1295,9 @@ static int gap_event(struct ble_gap_event *event, void *arg)
             uint32_t generation = slot->generation;
             desk_ble_peer_identity_t identity = slot->peer_identity;
             bool identity_valid = slot->peer_identity_valid;
+            if (identity_valid) {
+                report_bond_presence(&identity, false);
+            }
             desk_ble_bond_record_t *record =
                 identity_valid
                     ? desk_ble_bond_registry_find_identity(&s_bond_registry,
@@ -1351,6 +1420,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         slot->client_kind = record ? record->client_kind
                                    : DESK_BLE_CLIENT_UNKNOWN;
         slot->encrypted = true;
+        report_bond_presence(&identity, true);
         if (!existing &&
             desk_ble_bond_registry_count(&s_bond_registry) >=
                 DESK_BLE_BOND_CAPACITY) {

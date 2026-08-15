@@ -8,11 +8,13 @@
  * SIM 高度：驱动无 digit 时本地推算，仅演示，禁止当真实高度。
  */
 #include "desk_core.h"
+#include "desk_auto_lock.h"
 #include "desk_motion_watch.h"
 
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -25,6 +27,9 @@
 static const char *TAG = "desk_core";
 static const char *NVS_NS = "desk_core";
 static const char *NVS_KEY_LOCK = "child_lock";
+static const char *NVS_KEY_LOCK_REASON = "lock_reason";
+static const char *NVS_KEY_AUTO_LOCK = "auto_lock";
+static const char *NVS_KEY_AUTO_DEVICE = "auto_device";
 /* Old calibrated-height keys are intentionally not reused for raw ToF values. */
 static const char *NVS_KEY_MAX_HEIGHT = "tof_max_mm";
 static const char *NVS_KEY_SOURCES_LEGACY = "ctrl_sources";
@@ -78,10 +83,14 @@ typedef enum {
 } desk_jog_direction_t;
 
 static esp_timer_handle_t s_hold_timer;
+static SemaphoreHandle_t s_auto_lock_mutex;
 static desk_control_policy_t s_control_policy = {
     .child_lock = false,
     .enabled_sources = DESK_CONTROL_SOURCE_DEFAULT_MASK,
 };
+static desk_auto_lock_state_t s_auto_lock;
+static desk_child_lock_reason_t s_loaded_lock_reason =
+    DESK_CHILD_LOCK_REASON_NONE;
 static int s_max_height_mm = CONFIG_DESK_MAX_HEIGHT_MM;
 static int s_preset1_height_mm = DESK_PRESET1_HEIGHT_MM_DEFAULT;
 static int s_preset4_height_mm = DESK_PRESET4_HEIGHT_MM_DEFAULT;
@@ -92,6 +101,24 @@ static atomic_bool s_controller_reset_active;
 static atomic_bool s_controller_reset_recommended;
 static desk_core_event_listener_t s_event_listener;
 static void *s_event_listener_context;
+
+static esp_err_t set_child_lock_locked(bool enabled,
+                                       desk_child_lock_reason_t reason);
+
+static void auto_child_lock_tick(void)
+{
+    if (!s_auto_lock_mutex ||
+        xSemaphoreTake(s_auto_lock_mutex, pdMS_TO_TICKS(20)) != pdTRUE) {
+        return;
+    }
+    desk_auto_lock_action_t action = desk_auto_lock_tick(
+        &s_auto_lock, (uint32_t)(esp_timer_get_time() / 1000ULL));
+    if (action == DESK_AUTO_LOCK_ACTION_LOCK) {
+        (void)set_child_lock_locked(true,
+                                    DESK_CHILD_LOCK_REASON_AUTO_AWAY);
+    }
+    xSemaphoreGive(s_auto_lock_mutex);
+}
 
 static void notify_event(desk_core_event_kind_t kind,
                          desk_control_source_t source)
@@ -256,6 +283,7 @@ static esp_err_t load_child_lock(void)
     esp_err_t err = nvs_open(NVS_NS, NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         s_control_policy.child_lock = false;
+        s_loaded_lock_reason = DESK_CHILD_LOCK_REASON_NONE;
         return ESP_OK;
     }
     if (err != ESP_OK) {
@@ -263,15 +291,27 @@ static esp_err_t load_child_lock(void)
     }
     uint8_t v = 0;
     err = nvs_get_u8(h, NVS_KEY_LOCK, &v);
-    nvs_close(h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
+        nvs_close(h);
         s_control_policy.child_lock = false;
+        s_loaded_lock_reason = DESK_CHILD_LOCK_REASON_NONE;
         return ESP_OK;
     }
     if (err != ESP_OK) {
+        nvs_close(h);
         return err;
     }
     s_control_policy.child_lock = (v != 0);
+    uint8_t reason = DESK_CHILD_LOCK_REASON_NONE;
+    if (nvs_get_u8(h, NVS_KEY_LOCK_REASON, &reason) == ESP_OK &&
+        reason <= DESK_CHILD_LOCK_REASON_AUTO_AWAY) {
+        s_loaded_lock_reason = (desk_child_lock_reason_t)reason;
+    } else {
+        s_loaded_lock_reason = s_control_policy.child_lock
+            ? DESK_CHILD_LOCK_REASON_MANUAL
+            : DESK_CHILD_LOCK_REASON_NONE;
+    }
+    nvs_close(h);
     return ESP_OK;
 }
 
@@ -284,6 +324,50 @@ static esp_err_t save_child_lock(void)
     }
     err = nvs_set_u8(h, NVS_KEY_LOCK,
                      s_control_policy.child_lock ? 1 : 0);
+    if (err == ESP_OK) {
+        err = nvs_set_u8(h, NVS_KEY_LOCK_REASON,
+                         (uint8_t)s_auto_lock.lock_reason);
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    return err;
+}
+
+static void load_auto_child_lock(void)
+{
+    bool enabled = false;
+    char device_id[DESK_AUTO_LOCK_DEVICE_ID_LENGTH] = {0};
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+        uint8_t stored_enabled = 0;
+        size_t device_id_size = sizeof(device_id);
+        enabled = nvs_get_u8(h, NVS_KEY_AUTO_LOCK, &stored_enabled) == ESP_OK &&
+                  stored_enabled != 0;
+        if (nvs_get_str(h, NVS_KEY_AUTO_DEVICE, device_id,
+                        &device_id_size) != ESP_OK) {
+            device_id[0] = '\0';
+        }
+        nvs_close(h);
+    }
+    desk_auto_lock_init(&s_auto_lock, enabled, device_id,
+                        s_control_policy.child_lock, s_loaded_lock_reason,
+                        (uint32_t)(esp_timer_get_time() / 1000ULL));
+}
+
+static esp_err_t save_auto_child_lock(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = nvs_set_u8(h, NVS_KEY_AUTO_LOCK, s_auto_lock.enabled ? 1 : 0);
+    if (err == ESP_OK) {
+        err = nvs_set_str(h, NVS_KEY_AUTO_DEVICE,
+                          s_auto_lock.selected_device_id);
+    }
     if (err == ESP_OK) {
         err = nvs_commit(h);
     }
@@ -614,6 +698,7 @@ static void motion_watch_task(void *arg)
         if (!drv || !drv->get_status || !drv->get_height_mm ||
             atomic_load(&s_controller_reset_active)) {
             desk_motion_watch_reset(&watch);
+            auto_child_lock_tick();
             vTaskDelay(pdMS_TO_TICKS(DESK_MOTION_WATCH_POLL_MS));
             continue;
         }
@@ -633,6 +718,7 @@ static void motion_watch_task(void *arg)
                      height_mm);
             (void)desk_core_stop();
         }
+        auto_child_lock_tick();
         vTaskDelay(pdMS_TO_TICKS(DESK_MOTION_WATCH_POLL_MS));
     }
 }
@@ -644,9 +730,14 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
         .name = "desk_hold",
     };
     ESP_ERROR_CHECK(esp_timer_create(&args, &s_hold_timer));
+    s_auto_lock_mutex = xSemaphoreCreateMutex();
+    if (!s_auto_lock_mutex) {
+        return ESP_ERR_NO_MEM;
+    }
     atomic_store(&s_controller_reset_active, false);
     atomic_store(&s_controller_reset_recommended, false);
     (void)load_child_lock();
+    load_auto_child_lock();
     (void)load_control_sources();
     (void)load_max_height();
     (void)load_preset_heights();
@@ -688,9 +779,12 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
         return ESP_ERR_NO_MEM;
     }
     ESP_LOGI(TAG,
-             "init ok; child_lock=%d; sources=0x%08lx; max_height=%d mm; "
+             "init ok; child_lock=%d reason=%s auto_lock=%d device=%s; "
+             "sources=0x%08lx; max_height=%d mm; "
              "preset1=%d mm; preset4=%d mm; motion_timeout=%d ms",
              (int)s_control_policy.child_lock,
+             desk_child_lock_reason_name(s_auto_lock.lock_reason),
+             (int)s_auto_lock.enabled, s_auto_lock.selected_device_id,
              (unsigned long)s_control_policy.enabled_sources,
              s_max_height_mm, s_preset1_height_mm, s_preset4_height_mm,
              CONFIG_DESK_MOTION_TIMEOUT_MS);
@@ -1124,9 +1218,16 @@ esp_err_t desk_core_save_preset(desk_control_source_t source, uint8_t n)
     return err;
 }
 
-esp_err_t desk_core_set_child_lock(bool enabled)
+static esp_err_t set_child_lock_locked(bool enabled,
+                                       desk_child_lock_reason_t reason)
 {
     if (enabled == s_control_policy.child_lock) {
+        if (enabled && reason == DESK_CHILD_LOCK_REASON_MANUAL &&
+            s_auto_lock.lock_reason != DESK_CHILD_LOCK_REASON_MANUAL) {
+            desk_auto_lock_record_lock_state(
+                &s_auto_lock, true, DESK_CHILD_LOCK_REASON_MANUAL);
+            return save_child_lock();
+        }
         return ESP_OK;
     }
 
@@ -1134,20 +1235,26 @@ esp_err_t desk_core_set_child_lock(bool enabled)
     if (enabled) {
         /* Set the runtime lock first so no concurrent source can start again. */
         s_control_policy.child_lock = true;
+        desk_auto_lock_record_lock_state(&s_auto_lock, true, reason);
         esp_err_t stop_err = desk_core_stop();
         if (drv && drv->set_panel_enabled) {
             (void)drv->set_panel_enabled(false);
         }
         esp_err_t persist_err = save_child_lock();
-        ESP_LOGI(TAG, "child_lock -> 1");
+        ESP_LOGI(TAG, "child_lock -> 1 reason=%s",
+                 desk_child_lock_reason_name(reason));
         return persist_err != ESP_OK ? persist_err : stop_err;
     }
 
     /* Do not reopen any source until the unlocked state is durable. */
+    desk_child_lock_reason_t previous_reason = s_auto_lock.lock_reason;
     s_control_policy.child_lock = false;
+    desk_auto_lock_record_lock_state(
+        &s_auto_lock, false, DESK_CHILD_LOCK_REASON_NONE);
     esp_err_t err = save_child_lock();
     if (err != ESP_OK) {
         s_control_policy.child_lock = true;
+        desk_auto_lock_record_lock_state(&s_auto_lock, true, previous_reason);
         return err;
     }
     if (drv && drv->set_panel_enabled) {
@@ -1162,9 +1269,109 @@ esp_err_t desk_core_set_child_lock(bool enabled)
     return err;
 }
 
+esp_err_t desk_core_set_child_lock(bool enabled)
+{
+    if (!s_auto_lock_mutex) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(s_auto_lock_mutex, portMAX_DELAY);
+    esp_err_t err = set_child_lock_locked(
+        enabled, enabled ? DESK_CHILD_LOCK_REASON_MANUAL
+                         : DESK_CHILD_LOCK_REASON_NONE);
+    xSemaphoreGive(s_auto_lock_mutex);
+    return err;
+}
+
 bool desk_core_get_child_lock(void)
 {
     return s_control_policy.child_lock;
+}
+
+esp_err_t desk_core_set_auto_child_lock(bool enabled, const char *device_id)
+{
+    if (!s_auto_lock_mutex) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(s_auto_lock_mutex, portMAX_DELAY);
+    desk_auto_lock_state_t previous = s_auto_lock;
+    const char *effective_device = device_id ? device_id
+                                             : s_auto_lock.selected_device_id;
+    if (!desk_auto_lock_configure(&s_auto_lock, enabled, effective_device,
+                                  (uint32_t)(esp_timer_get_time() / 1000ULL))) {
+        xSemaphoreGive(s_auto_lock_mutex);
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_err_t err = save_auto_child_lock();
+    if (err != ESP_OK) {
+        s_auto_lock = previous;
+    }
+    xSemaphoreGive(s_auto_lock_mutex);
+    return err;
+}
+
+static esp_err_t apply_presence_action_locked(desk_auto_lock_action_t action)
+{
+    if (action == DESK_AUTO_LOCK_ACTION_UNLOCK) {
+        return set_child_lock_locked(false, DESK_CHILD_LOCK_REASON_NONE);
+    }
+    return ESP_OK;
+}
+
+esp_err_t desk_core_auto_child_lock_heartbeat(const char *device_id)
+{
+    if (!desk_auto_lock_device_id_valid(device_id)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_auto_lock_mutex) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(s_auto_lock_mutex, portMAX_DELAY);
+    desk_auto_lock_action_t action = desk_auto_lock_heartbeat(
+        &s_auto_lock, device_id,
+        (uint32_t)(esp_timer_get_time() / 1000ULL));
+    esp_err_t err = apply_presence_action_locked(action);
+    xSemaphoreGive(s_auto_lock_mutex);
+    return err;
+}
+
+esp_err_t desk_core_auto_child_lock_ble_presence(const char *device_id,
+                                                 bool present)
+{
+    if (!desk_auto_lock_device_id_valid(device_id)) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (!s_auto_lock_mutex) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(s_auto_lock_mutex, portMAX_DELAY);
+    desk_auto_lock_action_t action = desk_auto_lock_set_ble_presence(
+        &s_auto_lock, device_id, present,
+        (uint32_t)(esp_timer_get_time() / 1000ULL));
+    esp_err_t err = apply_presence_action_locked(action);
+    xSemaphoreGive(s_auto_lock_mutex);
+    return err;
+}
+
+esp_err_t desk_core_forget_auto_child_lock_device(const char *device_id)
+{
+    if (!device_id || !s_auto_lock_mutex) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    xSemaphoreTake(s_auto_lock_mutex, portMAX_DELAY);
+    if (strcmp(s_auto_lock.selected_device_id, device_id) != 0) {
+        xSemaphoreGive(s_auto_lock_mutex);
+        return ESP_OK;
+    }
+    desk_auto_lock_state_t previous = s_auto_lock;
+    (void)desk_auto_lock_configure(
+        &s_auto_lock, false, "",
+        (uint32_t)(esp_timer_get_time() / 1000ULL));
+    esp_err_t err = save_auto_child_lock();
+    if (err != ESP_OK) {
+        s_auto_lock = previous;
+    }
+    xSemaphoreGive(s_auto_lock_mutex);
+    return err;
 }
 
 esp_err_t desk_core_set_source_enabled(desk_control_source_t source,
@@ -1408,6 +1615,10 @@ desk_core_snapshot_t desk_core_snapshot(void)
         .height_known = false,
         .height_sim = false,
         .child_lock = s_control_policy.child_lock,
+        .child_lock_reason = DESK_CHILD_LOCK_REASON_NONE,
+        .auto_child_lock_enabled = false,
+        .auto_child_lock_detector_online = false,
+        .auto_child_lock_device_id = {0},
         .upward_blocked = false,
         .raise_to_max_supported = false,
         .controller_reset_supported = false,
@@ -1421,6 +1632,16 @@ desk_core_snapshot_t desk_core_snapshot(void)
         .enabled_sources = s_control_policy.enabled_sources,
         .driver = "none",
     };
+    if (s_auto_lock_mutex &&
+        xSemaphoreTake(s_auto_lock_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+        s.child_lock_reason = s_auto_lock.lock_reason;
+        s.auto_child_lock_enabled = s_auto_lock.enabled;
+        s.auto_child_lock_detector_online = desk_auto_lock_detector_online(
+            &s_auto_lock, (uint32_t)(esp_timer_get_time() / 1000ULL));
+        memcpy(s.auto_child_lock_device_id, s_auto_lock.selected_device_id,
+               sizeof(s.auto_child_lock_device_id));
+        xSemaphoreGive(s_auto_lock_mutex);
+    }
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv) {
         return s;

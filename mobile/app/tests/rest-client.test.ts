@@ -98,6 +98,32 @@ test('maps shared commands and configuration writes to existing REST endpoints',
   client.dispose();
 });
 
+test('configures one automatic-lock device and renews its LAN presence', async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const client = new DeskRestClient(async (url, init) => {
+    requests.push({ url, init });
+    return jsonResponse({ ok: true });
+  });
+  client.configure('desk-gateway.local', 'secret');
+
+  await client.setAutoChildLock(true, 'bond_001122aabbcc');
+  await client.sendPresenceHeartbeat('bond_001122aabbcc');
+
+  assert.deepEqual(
+    requests.map((request) => new URL(request.url).pathname),
+    ['/api/v1/desk/auto-child-lock', '/api/v1/desk/presence'],
+  );
+  assert.equal(
+    requests[0].init?.body,
+    JSON.stringify({ enabled: true, device_id: 'bond_001122aabbcc' }),
+  );
+  assert.equal(
+    requests[1].init?.body,
+    JSON.stringify({ device_id: 'bond_001122aabbcc' }),
+  );
+  client.dispose();
+});
+
 test('queries and manages Bluetooth bonds through authenticated REST endpoints', async () => {
   const requests: Array<{ url: string; init?: RequestInit }> = [];
   const bonds = {

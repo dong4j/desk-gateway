@@ -22,6 +22,9 @@ extern "C" {
 #define DESK_BLE_CONFIG_WRITE_LENGTH 4
 #define DESK_BLE_CLIENT_INFO_VERSION 0x01
 #define DESK_BLE_CLIENT_INFO_LENGTH  2
+#define DESK_BLE_PRESENCE_VERSION    0x01
+#define DESK_BLE_PRESENCE_LENGTH     18
+#define DESK_BLE_PRESENCE_DEVICE_ID_LENGTH 18
 #define DESK_BLE_HEIGHT_UNKNOWN   UINT16_C(0xFFFF)
 
 typedef enum {
@@ -99,6 +102,10 @@ typedef struct {
     uint8_t client_kind;
 } desk_ble_client_info_t;
 
+typedef struct {
+    char device_id[DESK_BLE_PRESENCE_DEVICE_ID_LENGTH];
+} desk_ble_presence_t;
+
 /** 解析 Command characteristic 的单字节指令。 */
 bool desk_ble_command_decode(const uint8_t *data, size_t len,
                              desk_ble_command_t *out_command);
@@ -122,6 +129,10 @@ bool desk_ble_system_command_decode(const uint8_t *data, size_t len,
 /** 解析 Client Info v1；超出 0..3 的客户端类型按 unknown(0) 处理。 */
 bool desk_ble_client_info_decode(const uint8_t *data, size_t len,
                                  desk_ble_client_info_t *out_info);
+
+/** 解析 `[版本][bond_<12位小写十六进制>]` 的检测设备心跳。 */
+bool desk_ble_presence_decode(const uint8_t *data, size_t len,
+                              desk_ble_presence_t *out_presence);
 
 #ifdef __cplusplus
 }

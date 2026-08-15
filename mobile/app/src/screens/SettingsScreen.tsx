@@ -71,6 +71,7 @@ interface SettingsScreenProps {
   connectionMode: DeskConnectionMode;
   restHost: string;
   restKey: string;
+  autoLockDeviceId: string;
   onBack: () => void;
   onToggleAutoConnect: () => void;
   onToggleHapticFeedback: () => void;
@@ -82,6 +83,7 @@ interface SettingsScreenProps {
   onDeleteBluetoothBond: (id: string) => Promise<void>;
   onDeleteAllBluetoothBonds: () => Promise<void>;
   onRenameBluetoothBond: (id: string, alias: string) => Promise<void>;
+  onSetAutoChildLock: (deviceId: string, enabled: boolean) => Promise<void>;
   onCreateHeightPreset: (name: string, heightMm: number) => Promise<void>;
   onUpdateHeightPreset: (
     id: string,
@@ -112,6 +114,7 @@ export function SettingsScreen({
   connectionMode,
   restHost,
   restKey,
+  autoLockDeviceId,
   onBack,
   onToggleAutoConnect,
   onToggleHapticFeedback,
@@ -123,6 +126,7 @@ export function SettingsScreen({
   onDeleteBluetoothBond,
   onDeleteAllBluetoothBonds,
   onRenameBluetoothBond,
+  onSetAutoChildLock,
   onCreateHeightPreset,
   onUpdateHeightPreset,
   onDeleteHeightPreset,
@@ -170,6 +174,13 @@ export function SettingsScreen({
     isBondPairingCapacityBlocked(bondSnapshot);
   const bondDeleteAllDisabled = !bondManagementAvailable || bondBusy !== null ||
     !bondSnapshot?.devices.length || hasBondDeleteConflict(bondSnapshot);
+  const selectedAutoLockDeviceId =
+    bondSnapshot?.auto_child_lock?.device_id ?? '';
+  const autoChildLockEnabled =
+    bondSnapshot?.auto_child_lock?.enabled ?? false;
+  const selectedAutoLockDevice = bondSnapshot?.devices.find(
+    (device) => device.id === selectedAutoLockDeviceId,
+  );
 
   useEffect(() => {
     setMaxHeightDraft(String(maxHeightCm));
@@ -603,6 +614,39 @@ export function SettingsScreen({
                   {bondStatusText(device)}
                   {device.delete_error ? ` · ${device.delete_error}` : ''}
                 </Text>
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{
+                    checked: selectedAutoLockDeviceId === device.id,
+                    disabled: device.delete_state !== 'idle' || bondBusy !== null,
+                  }}
+                  disabled={device.delete_state !== 'idle' || bondBusy !== null}
+                  onPress={() => void runBondOperation(
+                    `auto-lock-${device.id}`,
+                    () => onSetAutoChildLock(device.id, autoChildLockEnabled),
+                    '已设置为自动童锁检测设备',
+                  )}
+                  style={({ pressed }) => [
+                    styles.autoLockDeviceChoice,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <View style={[
+                    styles.radioOuter,
+                    selectedAutoLockDeviceId === device.id && styles.radioOuterActive,
+                  ]}>
+                    {selectedAutoLockDeviceId === device.id ? (
+                      <View style={styles.radioInner} />
+                    ) : null}
+                  </View>
+                  <Text style={styles.autoLockDeviceChoiceText}>
+                    {selectedAutoLockDeviceId === device.id
+                      ? (autoLockDeviceId === device.id
+                          ? '本机检测设备'
+                          : '自动童锁检测设备')
+                      : '设为检测设备'}
+                  </Text>
+                </Pressable>
               </View>
               <View style={styles.bondDeviceActions}>
                 <Pressable
@@ -675,6 +719,9 @@ export function SettingsScreen({
           {bondMessage ? (
             <Text style={styles.bondMessage}>{bondMessage}</Text>
           ) : null}
+          <Text style={styles.bondDeviceHint}>
+            请在常带手机上选择其对应设备；只能选择一部。
+          </Text>
         </View>
 
         <SectionTitle>安全</SectionTitle>
@@ -974,6 +1021,46 @@ export function SettingsScreen({
             <PrototypeSwitch
               value={config?.childLock ?? false}
               muted={!deviceSettingsAvailable}
+            />
+          </Pressable>
+          <View style={styles.divider} />
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityLabel="自动童锁"
+            accessibilityState={{
+              checked: autoChildLockEnabled,
+              disabled: !selectedAutoLockDevice,
+            }}
+            disabled={!selectedAutoLockDevice || bondBusy !== null}
+            onPress={() => {
+              if (!selectedAutoLockDevice) return;
+              void runBondOperation(
+                'auto-lock-toggle',
+                () => onSetAutoChildLock(
+                  selectedAutoLockDevice.id,
+                  !autoChildLockEnabled,
+                ),
+                autoChildLockEnabled ? '自动童锁已关闭' : '自动童锁已开启',
+              );
+            }}
+            style={({ pressed }) => [
+              styles.securityRow,
+              (!selectedAutoLockDevice || bondBusy !== null) && styles.disabled,
+              pressed && selectedAutoLockDevice && styles.pressed,
+            ]}
+          >
+            <LockIcon size={30} color={palette.gold} />
+            <View style={styles.settingCopy}>
+              <Text style={styles.settingTitle}>自动童锁</Text>
+              <Text style={styles.settingDescription}>
+                {selectedAutoLockDevice
+                  ? `${selectedAutoLockDevice.label} 离线 3 分钟后锁定`
+                  : '请先选择一部检测设备'}
+              </Text>
+            </View>
+            <PrototypeSwitch
+              value={autoChildLockEnabled}
+              muted={!selectedAutoLockDevice || bondBusy !== null}
             />
           </Pressable>
         </View>
@@ -1286,6 +1373,11 @@ const styles = StyleSheet.create({
   bondDeviceLabel: { color: palette.ink, fontSize: 16, fontWeight: '500' },
   bondAliasInput: { minHeight: 36, paddingHorizontal: 10, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, color: palette.ink, backgroundColor: palette.surface },
   bondDeviceStatus: { marginTop: 3, color: palette.inkMuted, fontSize: 12 },
+  autoLockDeviceChoice: { marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  autoLockDeviceChoiceText: { color: palette.inkMuted, fontSize: 12, fontWeight: '600' },
+  radioOuter: { width: 16, height: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.inkMuted, borderRadius: 8 },
+  radioOuterActive: { borderColor: palette.gold },
+  radioInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.gold },
   bondDeviceError: { color: palette.danger },
   bondDeviceActions: { flexDirection: 'row', gap: 6 },
   bondRenameButton: { minWidth: 58, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.ink, borderRadius: radii.pill },
@@ -1296,6 +1388,7 @@ const styles = StyleSheet.create({
   bondDeleteAll: { minHeight: 48, marginHorizontal: 18, marginTop: 8, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: palette.line },
   bondDeleteAllText: { color: palette.danger, fontSize: 15, fontWeight: '600' },
   bondMessage: { paddingHorizontal: 18, paddingBottom: 14, color: palette.inkMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  bondDeviceHint: { paddingHorizontal: 18, paddingBottom: 14, color: palette.inkFaint, fontSize: 12, lineHeight: 18, textAlign: 'center' },
   heightSetting: { paddingHorizontal: 18, paddingTop: 18, paddingBottom: 17 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   settingTitle: { color: palette.ink, fontSize: 17, fontWeight: '500' },

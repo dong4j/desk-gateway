@@ -46,6 +46,8 @@ export interface DeskClient {
   connect(): Promise<void>;
   sendCommand(command: DeskCommandValue): Promise<void>;
   setChildLock(enabled: boolean): Promise<void>;
+  /** 上报本机对应的唯一 Bond ID；固件会忽略未选中的设备。 */
+  sendPresenceHeartbeat(deviceId: string): Promise<void>;
   setSourceEnabled(
     source: 'rest' | 'bluetooth' | 'panel',
     enabled: boolean,

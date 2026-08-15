@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "desk_auto_lock.h"
 #include "desk_control_policy.h"
 #include "desk_height_presets.h"
 #include "desk_driver.h"
@@ -25,6 +26,10 @@ typedef struct {
     bool height_known;
     bool height_sim; /* true = 本地模拟，非嗅探真值 */
     bool child_lock;
+    desk_child_lock_reason_t child_lock_reason;
+    bool auto_child_lock_enabled;
+    bool auto_child_lock_detector_online;
+    char auto_child_lock_device_id[DESK_AUTO_LOCK_DEVICE_ID_LENGTH];
     bool upward_blocked;
     bool raise_to_max_supported;
     bool controller_reset_supported;
@@ -98,6 +103,15 @@ esp_err_t desk_core_goto_height_preset(desk_control_source_t source,
 esp_err_t desk_core_save_preset(desk_control_source_t source, uint8_t n);
 esp_err_t desk_core_set_child_lock(bool enabled);
 bool desk_core_get_child_lock(void);
+/** 配置唯一检测设备；关闭功能时可保留设备 ID。 */
+esp_err_t desk_core_set_auto_child_lock(bool enabled, const char *device_id);
+/** 接受选中设备的局域网/App 心跳，其他设备 ID 不改变状态。 */
+esp_err_t desk_core_auto_child_lock_heartbeat(const char *device_id);
+/** BLE 层在完成加密并识别 Bond 后上报连接状态。 */
+esp_err_t desk_core_auto_child_lock_ble_presence(const char *device_id,
+                                                 bool present);
+/** 删除 Bond 时清除对应检测设备并停用自动童锁。 */
+esp_err_t desk_core_forget_auto_child_lock_device(const char *device_id);
 esp_err_t desk_core_set_source_enabled(desk_control_source_t source,
                                        bool enabled);
 bool desk_core_get_source_enabled(desk_control_source_t source);

@@ -13,6 +13,7 @@ export const DESK_STATE_UUID = '7f4e0003-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_CONFIG_UUID = '7f4e0004-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_SYSTEM_UUID = '7f4e0005-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_CLIENT_INFO_UUID = '7f4e0006-6d4c-4f4b-9f7a-3c1d2e5a9b10';
+export const DESK_PRESENCE_UUID = '7f4e0007-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DEVICE_INFORMATION_SERVICE_UUID = '180a';
 export const FIRMWARE_REVISION_UUID = '2a26';
 export const DESK_ADVERTISING_NAME = 'DeskGateway';
@@ -134,6 +135,7 @@ export function decodeDeskConfig(bytes: readonly number[]): DeskConfig {
   return {
     protocolVersion,
     childLock: (flags & (1 << 0)) !== 0,
+    childLockReason: (flags & (1 << 0)) !== 0 ? 'unknown' : 'none',
     restAllowed: (flags & (1 << 1)) !== 0,
     bluetoothAllowed: (flags & (1 << 2)) !== 0,
     panelAllowed: (flags & (1 << 3)) !== 0,
@@ -142,6 +144,14 @@ export function decodeDeskConfig(bytes: readonly number[]): DeskConfig {
     preset4HeightMm:
       protocolVersion === 2 ? readUint16LE(bytes, 6) : Math.min(1020, maxHeightMm),
   };
+}
+
+/** Presence v1 使用固定 Bond ID，避免不同传输方式产生两套设备身份。 */
+export function encodeDeskPresence(deviceId: string): readonly number[] {
+  if (!/^bond_[0-9a-f]{12}$/.test(deviceId)) {
+    throw new Error('Invalid automatic child-lock device ID');
+  }
+  return [0x01, ...Array.from(deviceId, (character) => character.charCodeAt(0))];
 }
 
 /**
