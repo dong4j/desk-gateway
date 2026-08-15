@@ -16,6 +16,7 @@
     @Published private(set) var phase: DeskConnectionPhase = .idle
     @Published private(set) var deskState: DeskState?
     @Published private(set) var configuration: DeskConfiguration?
+    @Published private(set) var reminder: ReminderSnapshot?
     @Published private(set) var errorMessage: String?
 
     let isMock = true
@@ -35,6 +36,7 @@
         standingHeightMillimeters: 1_020
       )
       publishState(motion: .idle)
+      publishReminder(state: .idle, phase: .focus, remainingSeconds: 25 * 60)
     }
 
     var isReady: Bool {
@@ -68,6 +70,33 @@
         startPresetMotion(to: configuration?.sittingHeightMillimeters ?? 640)
       case .preset4:
         startPresetMotion(to: configuration?.standingHeightMillimeters ?? 1_020)
+      }
+    }
+
+    /// Simulator 只模拟动作后的离散快照，不启动独立倒计时。
+    func perform(_ action: ReminderAction) {
+      guard isReady, let reminder else { return }
+      switch action {
+      case .startFocus:
+        publishReminder(state: .running, phase: .focus, remainingSeconds: 25 * 60)
+      case .startBreak:
+        let seconds: UInt32 = reminder.phase == .longBreak ? 15 * 60 : 5 * 60
+        publishReminder(state: .running, phase: reminder.phase, remainingSeconds: seconds)
+      case .pause:
+        publishReminder(state: .paused, phase: reminder.phase,
+                        remainingSeconds: reminder.remainingSeconds)
+      case .resume:
+        publishReminder(state: .running, phase: reminder.phase,
+                        remainingSeconds: reminder.remainingSeconds)
+      case .skip:
+        publishReminder(state: .waiting,
+                        phase: reminder.phase == .focus ? .shortBreak : .focus,
+                        remainingSeconds: 0)
+      case .stop:
+        publishReminder(state: .idle, phase: .focus, remainingSeconds: 25 * 60)
+      case .snooze:
+        publishReminder(state: .snoozed, phase: reminder.phase,
+                        remainingSeconds: 5 * 60)
       }
     }
 
@@ -152,6 +181,29 @@
         childLockEnabled: false,
         bluetoothControlAllowed: true,
         upwardMotionBlocked: currentHeightMillimeters >= maximum
+      )
+    }
+
+
+    private func publishReminder(
+      state: ReminderState,
+      phase: ReminderPhase,
+      remainingSeconds: UInt32
+    ) {
+      reminder = ReminderSnapshot(
+        state: state,
+        phase: phase,
+        remainingSeconds: remainingSeconds,
+        completedFocusCount: reminder?.completedFocusCount ?? 0,
+        available: true,
+        audioAvailable: true,
+        audioEnabled: true,
+        audioPlaying: false,
+        volumePercent: 60,
+        focusMinutes: 25,
+        shortBreakMinutes: 5,
+        longBreakMinutes: 15,
+        focusesPerLongBreak: 4
       )
     }
   }

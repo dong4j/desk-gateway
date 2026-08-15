@@ -53,6 +53,7 @@ typedef struct {
     desk_ble_client_kind_t client_kind;
     bool state_subscribed;
     bool config_subscribed;
+    bool reminder_subscribed;
     desk_ble_delete_state_t delete_state;
     char delete_error[DESK_BLE_DELETE_ERROR_MAX_LENGTH];
 } desk_ble_connection_slot_t;

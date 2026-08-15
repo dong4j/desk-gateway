@@ -44,11 +44,28 @@ func decodesConfigV2() throws {
 
 @Test("Commands retain the frozen one-byte values")
 func encodesCommands() {
-  #expect(DeskProtocol.encode(.stop) == Data([0x00]))
-  #expect(DeskProtocol.encode(.holdUp) == Data([0x01]))
-  #expect(DeskProtocol.encode(.holdDown) == Data([0x02]))
-  #expect(DeskProtocol.encode(.preset1) == Data([0x11]))
-  #expect(DeskProtocol.encode(.preset4) == Data([0x14]))
+  #expect(DeskProtocol.encode(DeskCommand.stop) == Data([0x00]))
+  #expect(DeskProtocol.encode(DeskCommand.holdUp) == Data([0x01]))
+  #expect(DeskProtocol.encode(DeskCommand.holdDown) == Data([0x02]))
+  #expect(DeskProtocol.encode(DeskCommand.preset1) == Data([0x11]))
+  #expect(DeskProtocol.encode(DeskCommand.preset4) == Data([0x14]))
+}
+
+@Test("Reminder v1 decodes ESP timer and audio state")
+func decodesReminderV1() throws {
+  let reminder = try DeskProtocol.decodeReminder(
+    Data([
+      0x01, 0x01, 0x00, 0x00, 0x07, 72, 25, 5, 15, 4,
+      0xDB, 0x05, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]))
+
+  #expect(reminder.state == .running)
+  #expect(reminder.phase == .focus)
+  #expect(reminder.remainingSeconds == 1_499)
+  #expect(reminder.completedFocusCount == 7)
+  #expect(reminder.audioEnabled)
+  #expect(reminder.volumePercent == 72)
+  #expect(DeskProtocol.encode(ReminderAction.pause) == Data([0x02]))
 }
 
 @Test("Watch Client Info uses version 1 and watchOS kind")

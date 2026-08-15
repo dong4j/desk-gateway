@@ -29,6 +29,28 @@ const status = {
   build_time: '21:05:03',
   build_id: '1234abcd',
   git_version: 'fc310ab',
+  reminder: {
+    available: true,
+    state: 'running',
+    phase: 'focus',
+    alarm_reason: 'none',
+    remaining_sec: 1499,
+    completed_focus_count: 2,
+    focus_minutes: 25,
+    short_break_minutes: 5,
+    long_break_minutes: 15,
+    focuses_per_long_break: 4,
+    last_error: null,
+  },
+  audio: {
+    available: true,
+    enabled: true,
+    playing: false,
+    volume_percent: 60,
+    voice_pack: 'zh-CN-default',
+    current_prompt: null,
+    last_error: null,
+  },
 };
 
 test('connects through X-Desk-Key and maps REST status to the shared snapshot', async () => {
@@ -42,12 +64,16 @@ test('connects through X-Desk-Key and maps REST status to the shared snapshot', 
   let latestPreset4 = 0;
   let latestFirmwareRevision: string | null = null;
   let resetRecommended = false;
+  let reminderRemaining = 0;
+  let audioEnabled = false;
   client.subscribe((snapshot) => {
     latestTransport = snapshot.transport;
     latestHeight = snapshot.deskState?.heightMm ?? null;
     latestPreset4 = snapshot.deskConfig?.preset4HeightMm ?? 0;
     latestFirmwareRevision = snapshot.firmwareRevision;
     resetRecommended = snapshot.deskState?.controllerResetRecommended ?? false;
+    reminderRemaining = snapshot.reminder?.remainingSec ?? 0;
+    audioEnabled = snapshot.audio?.enabled ?? false;
   });
 
   client.configure('desk-gateway.local/', 'secret');
@@ -59,11 +85,52 @@ test('connects through X-Desk-Key and maps REST status to the shared snapshot', 
   assert.equal(latestPreset4, 1020);
   assert.equal(latestFirmwareRevision, 'Aug 11 2026 21:05:03 @ fc310ab');
   assert.equal(resetRecommended, true);
+  assert.equal(reminderRemaining, 1499);
+  assert.equal(audioEnabled, true);
   assert.equal(requests[0].url, 'http://desk-gateway.local/api/v1/desk/status');
   assert.equal(
     (requests[0].init?.headers as Record<string, string>)['X-Desk-Key'],
     'secret',
   );
+  client.dispose();
+});
+
+test('controls reminder, configuration and voice preview through REST', async () => {
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const client = new DeskRestClient(async (url, init) => {
+    requests.push({ url, init });
+    return jsonResponse(url.endsWith('/status') ? status : { ok: true });
+  });
+  client.configure('desk-gateway.local', 'secret');
+
+  await client.performReminderAction('pause');
+  await client.updateReminderConfig({
+    focusMinutes: 30,
+    audioEnabled: true,
+    volumePercent: 75,
+  });
+  await client.previewReminderAudio('focus_done');
+  await client.stopReminderAudio();
+
+  assert.deepEqual(
+    requests.map((request) => new URL(request.url).pathname),
+    [
+      '/api/v1/reminder/action', '/api/v1/desk/status',
+      '/api/v1/reminder/config', '/api/v1/desk/status',
+      '/api/v1/audio/action', '/api/v1/desk/status',
+      '/api/v1/audio/action', '/api/v1/desk/status',
+    ],
+  );
+  assert.equal(requests[0].init?.body, JSON.stringify({ action: 'pause' }));
+  assert.equal(requests[2].init?.body, JSON.stringify({
+    focus_minutes: 30,
+    audio_enabled: true,
+    volume_percent: 75,
+  }));
+  assert.equal(requests[4].init?.body, JSON.stringify({
+    action: 'test_audio',
+    prompt_id: 'focus_done',
+  }));
   client.dispose();
 });
 

@@ -147,6 +147,41 @@ static void test_presence_decode(void)
     assert(!desk_ble_presence_decode(invalid, sizeof(invalid), &presence));
 }
 
+static void test_reminder_protocol(void)
+{
+    desk_ble_reminder_input_t input = {
+        .state = 1,
+        .phase = 0,
+        .alarm_reason = 0,
+        .available = true,
+        .audio_available = true,
+        .audio_enabled = true,
+        .audio_playing = false,
+        .volume_percent = 72,
+        .focus_minutes = 25,
+        .short_break_minutes = 5,
+        .long_break_minutes = 15,
+        .focuses_per_long_break = 4,
+        .remaining_sec = 1499,
+        .completed_focus_count = 7,
+    };
+    uint8_t reminder[DESK_BLE_REMINDER_LENGTH];
+    assert(desk_ble_reminder_encode(&input, reminder, sizeof(reminder)) ==
+           DESK_BLE_REMINDER_LENGTH);
+    const uint8_t expected[] = {
+        0x01, 0x01, 0x00, 0x00, 0x07, 72, 25, 5, 15, 4,
+        0xdb, 0x05, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
+    assert(memcmp(reminder, expected, sizeof(expected)) == 0);
+
+    const uint8_t pause = DESK_BLE_REMINDER_ACTION_PAUSE;
+    desk_ble_reminder_action_t action;
+    assert(desk_ble_reminder_action_decode(&pause, 1, &action));
+    assert(action == DESK_BLE_REMINDER_ACTION_PAUSE);
+    const uint8_t unknown = 0x7f;
+    assert(!desk_ble_reminder_action_decode(&unknown, 1, &action));
+}
+
 int main(void)
 {
     test_command_decode();
@@ -154,6 +189,7 @@ int main(void)
     test_config_protocol();
     test_client_info_decode();
     test_presence_decode();
+    test_reminder_protocol();
     puts("desk_ble_protocol_test: OK");
     return 0;
 }

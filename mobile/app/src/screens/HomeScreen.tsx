@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { DeskClientSnapshot } from '../desk/DeskClient';
 import type { DeskHeightPreset } from '../desk/DeskRestClient';
 import { formatFirmwareBuildTime } from '../desk/formatFirmwareBuildTime';
+import { formatRemaining, reminderPhaseLabel } from '../desk/reminderPresentation';
 import { DeskScene } from '../ui/DeskScene';
 import {
   ChairIcon,
@@ -37,6 +38,7 @@ interface HomeScreenProps {
   customPresets: DeskHeightPreset[];
   onConnect: () => void;
   onOpenSettings: () => void;
+  onOpenPomodoro: () => void;
   onHoldUpStart: () => void;
   onHoldDownStart: () => void;
   onHoldEnd: () => void;
@@ -62,6 +64,7 @@ export function HomeScreen({
   customPresets,
   onConnect,
   onOpenSettings,
+  onOpenPomodoro,
   onHoldUpStart,
   onHoldDownStart,
   onHoldEnd,
@@ -286,6 +289,23 @@ export function HomeScreen({
         ) : null}
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="打开番茄时钟"
+          onPress={onOpenPomodoro}
+          style={({ pressed }) => [styles.pomodoroCard, pressed && styles.pressed]}
+        >
+          <View>
+            <Text style={styles.pomodoroTitle}>番茄时钟</Text>
+            <Text style={styles.pomodoroStatus}>
+              {snapshot.reminder
+                ? `${reminderPhaseLabel(snapshot.reminder)} · ${formatRemaining(snapshot.reminder.remainingSec)}`
+                : '等待设备状态'}
+            </Text>
+          </View>
+          <Text style={styles.pomodoroChevron}>›</Text>
+        </Pressable>
+
+        <Pressable
           accessibilityRole="switch"
           accessibilityLabel="童锁"
           accessibilityState={{
@@ -501,6 +521,10 @@ const styles = StyleSheet.create({
   presetHeight: { color: palette.ink, fontSize: 24, fontWeight: '500' },
   presetUnit: { marginLeft: 4, color: palette.ink, fontSize: 13 },
   lockCard: { minHeight: 56, marginTop: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: palette.line, borderRadius: 16, backgroundColor: palette.surface },
+  pomodoroCard: { minHeight: 66, marginTop: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: palette.goldSoft, borderRadius: 16, backgroundColor: palette.surface },
+  pomodoroTitle: { color: palette.ink, fontSize: 17, fontWeight: '700' },
+  pomodoroStatus: { marginTop: 3, color: palette.inkMuted, fontSize: 13 },
+  pomodoroChevron: { color: palette.gold, fontSize: 30, fontWeight: '300' },
   lockLabel: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   lockText: { color: palette.ink, fontSize: 17, fontWeight: '500' },
   footer: { marginTop: 14, color: palette.inkMuted, fontSize: 12, textAlign: 'center' },

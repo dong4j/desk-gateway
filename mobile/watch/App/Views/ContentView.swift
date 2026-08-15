@@ -70,6 +70,14 @@ struct ContentView<Controller: DeskControlling>: View {
       ToolbarItem(placement: .topBarLeading) {
         connectionLabel
       }
+      ToolbarItem(placement: .topBarTrailing) {
+        NavigationLink {
+          PomodoroView(desk: desk)
+        } label: {
+          Image(systemName: "timer")
+        }
+        .accessibilityLabel("番茄时钟")
+      }
     }
     .focusable(controlsEnabled)
     .digitalCrownRotation(

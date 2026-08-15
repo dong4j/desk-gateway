@@ -12,6 +12,14 @@ static void put_u16_le(uint8_t *out, uint16_t value)
     out[1] = (uint8_t)(value >> 8);
 }
 
+static void put_u32_le(uint8_t *out, uint32_t value)
+{
+    out[0] = (uint8_t)(value & UINT32_C(0xff));
+    out[1] = (uint8_t)((value >> 8) & UINT32_C(0xff));
+    out[2] = (uint8_t)((value >> 16) & UINT32_C(0xff));
+    out[3] = (uint8_t)((value >> 24) & UINT32_C(0xff));
+}
+
 bool desk_ble_command_decode(const uint8_t *data, size_t len,
                              desk_ble_command_t *out_command)
 {
@@ -207,5 +215,49 @@ bool desk_ble_presence_decode(const uint8_t *data, size_t len,
     }
     memcpy(out_presence->device_id, &data[1], 17);
     out_presence->device_id[17] = '\0';
+    return true;
+}
+
+size_t desk_ble_reminder_encode(const desk_ble_reminder_input_t *input,
+                                uint8_t *out, size_t out_len)
+{
+    if (!input || !out || out_len < DESK_BLE_REMINDER_LENGTH) {
+        return 0;
+    }
+    uint8_t flags = 0;
+    if (input->available) flags |= DESK_BLE_REMINDER_FLAG_AVAILABLE;
+    if (input->audio_available) flags |= DESK_BLE_REMINDER_FLAG_AUDIO_AVAILABLE;
+    if (input->audio_enabled) flags |= DESK_BLE_REMINDER_FLAG_AUDIO_ENABLED;
+    if (input->audio_playing) flags |= DESK_BLE_REMINDER_FLAG_AUDIO_PLAYING;
+
+    out[0] = DESK_BLE_REMINDER_VERSION;
+    out[1] = input->state;
+    out[2] = input->phase;
+    out[3] = input->alarm_reason;
+    out[4] = flags;
+    out[5] = input->volume_percent;
+    out[6] = input->focus_minutes > UINT8_MAX
+                 ? UINT8_MAX : (uint8_t)input->focus_minutes;
+    out[7] = input->short_break_minutes > UINT8_MAX
+                 ? UINT8_MAX : (uint8_t)input->short_break_minutes;
+    out[8] = input->long_break_minutes > UINT8_MAX
+                 ? UINT8_MAX : (uint8_t)input->long_break_minutes;
+    out[9] = input->focuses_per_long_break;
+    put_u32_le(&out[10], input->remaining_sec);
+    put_u32_le(&out[14], input->completed_focus_count);
+    out[18] = 0;
+    out[19] = 0;
+    return DESK_BLE_REMINDER_LENGTH;
+}
+
+bool desk_ble_reminder_action_decode(
+    const uint8_t *data, size_t len,
+    desk_ble_reminder_action_t *out_action)
+{
+    if (!data || !out_action || len != 1 ||
+        data[0] > DESK_BLE_REMINDER_ACTION_SNOOZE) {
+        return false;
+    }
+    *out_action = (desk_ble_reminder_action_t)data[0];
     return true;
 }

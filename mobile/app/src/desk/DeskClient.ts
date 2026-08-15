@@ -6,7 +6,14 @@
  */
 
 import type { DeskCommandValue } from './commands';
-import type { DeskConfig, DeskPeripheral, DeskState } from './types';
+import type {
+  AudioSnapshot,
+  DeskConfig,
+  DeskPeripheral,
+  DeskState,
+  ReminderAction,
+  ReminderSnapshot,
+} from './types';
 
 export type DeskTransportKind = 'ble' | 'wifi';
 export type DeskConnectionMode = 'auto' | DeskTransportKind;
@@ -34,6 +41,8 @@ export interface DeskClientSnapshot {
   deskState: DeskState | null;
   deskConfig: DeskConfig | null;
   firmwareRevision: string | null;
+  reminder: ReminderSnapshot | null;
+  audio: AudioSnapshot | null;
   error: string | null;
 }
 
@@ -59,6 +68,7 @@ export interface DeskClient {
   ): Promise<void>;
   restartGateway(): Promise<void>;
   resetController(): Promise<void>;
+  performReminderAction(action: ReminderAction): Promise<void>;
   disconnect(): Promise<void>;
   dispose(): void;
 }

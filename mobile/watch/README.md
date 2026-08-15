@@ -1,7 +1,7 @@
 # Desk Gateway Watch
 
 独立 watchOS App 用于验证 Apple Watch 直连 Desk Gateway 的 BLE 控制闭环。产品交互、
-Digital Crown 停止时序和真机门禁见
+Digital Crown 停止时序、番茄时钟 Reminder v1 和真机门禁见
 [`docs/architecture/apple-watch-control.md`](../../docs/architecture/apple-watch-control.md)。
 
 ## 本地验证
@@ -28,6 +28,7 @@ Digital Crown、触感和真实升降验收。
 - Digital Crown 可以模拟持续上升/下降；watchdog 每 `250 ms` 续期，`500 ms` 无输入 STOP；
 - “请坐”模拟移动到 `64 cm`，“站立”模拟移动到 `102 cm`；
 - 运动期间显示的 STOP 可以立即中断模拟动作。
+- 顶部计时器按钮进入番茄时钟页；Simulator 只模拟离散动作状态，不运行本地倒计时。
 
 Mock 仅在 `DEBUG && targetEnvironment(simulator)` 条件下编译为活动控制器。Watch 真机
 Debug 和所有 Release 构建始终使用 `DeskBLECentral`，不存在蓝牙失败后自动切换 Mock 的
@@ -123,6 +124,8 @@ Apple 官方真机运行流程见
 6. 最后测试“请坐”档位 1、“站立”档位 4、童锁和 Bluetooth 来源拒绝。
 7. 与 iPhone、Android 同时在线，验证非所有者显示“另一台设备正在控制”但不掉线，
    任意客户端 STOP 都能立即停止。
+8. 打开番茄时钟页，验证剩余时间来自 ESP Notify，并依次测试开始、暂停、继续、跳过、
+   稍后提醒和停止；番茄操作不得触发桌体运动。
 
 自动化构建、Simulator 和 UI 截图都不能替代这一真机安全门禁。
 

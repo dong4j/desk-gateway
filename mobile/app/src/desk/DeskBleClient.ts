@@ -17,6 +17,7 @@ import {
   DESK_COMMAND_UUID,
   DESK_CONFIG_UUID,
   DESK_PRESENCE_UUID,
+  DESK_REMINDER_UUID,
   DESK_SERVICE_UUID,
   DESK_STATE_UUID,
   DESK_SYSTEM_UUID,
@@ -26,16 +27,19 @@ import {
   FIRMWARE_REVISION_UUID,
   decodeDeskState,
   decodeFirmwareRevision,
+  decodeReminder,
   encodeDeskClientInfo,
   encodeDeskConfigWrite,
   encodeDeskPresence,
   encodeDeskSystemCommand,
+  encodeReminderAction,
 } from './protocol';
 import type {
   DeskConfig,
   DeskConfigField,
   DeskPeripheral,
   DeskState,
+  ReminderAction,
 } from './types';
 import type {
   DeskClient,
@@ -77,11 +81,14 @@ export class DeskBleClient implements DeskClient {
     deskState: null,
     deskConfig: null,
     firmwareRevision: null,
+    reminder: null,
+    audio: null,
     error: null,
   };
   private listeners = new Set<DeskSnapshotListener>();
   private stateUnsubscribe: Unsubscribe | null = null;
   private configUnsubscribe: Unsubscribe | null = null;
+  private reminderUnsubscribe: Unsubscribe | null = null;
   private disconnectUnsubscribe: Unsubscribe | null = null;
   private writeQueue: Promise<void> = Promise.resolve();
 
@@ -133,13 +140,17 @@ export class DeskBleClient implements DeskClient {
         if (id === this.snapshot.peripheral?.id) {
           this.stateUnsubscribe?.();
           this.configUnsubscribe?.();
+          this.reminderUnsubscribe?.();
           this.stateUnsubscribe = null;
           this.configUnsubscribe = null;
+          this.reminderUnsubscribe = null;
           this.update({
             phase: 'disconnected',
             deskState: null,
             deskConfig: null,
             firmwareRevision: null,
+            reminder: null,
+            audio: null,
           });
         }
       });
@@ -161,6 +172,7 @@ export class DeskBleClient implements DeskClient {
 
       // Config 是向后兼容扩展：旧固件仍可控制，但设置页保持只读。
       await this.setupConfig(peripheral.id);
+      await this.setupReminder(peripheral.id);
 
       const firmwareRevision = await this.readFirmwareRevision(peripheral.id);
       this.update({ firmwareRevision });
@@ -274,6 +286,15 @@ export class DeskBleClient implements DeskClient {
     );
   }
 
+  performReminderAction(action: ReminderAction): Promise<void> {
+    if (!this.snapshot.reminder) {
+      return Promise.reject(
+        new Error('Connected firmware does not support BLE Reminder'),
+      );
+    }
+    return this.enqueueWrite(DESK_REMINDER_UUID, encodeReminderAction(action));
+  }
+
   private enqueueWrite(
     characteristicUuid: string,
     bytes: readonly number[],
@@ -342,9 +363,11 @@ export class DeskBleClient implements DeskClient {
   dispose(): void {
     this.stateUnsubscribe?.();
     this.configUnsubscribe?.();
+    this.reminderUnsubscribe?.();
     this.disconnectUnsubscribe?.();
     this.stateUnsubscribe = null;
     this.configUnsubscribe = null;
+    this.reminderUnsubscribe = null;
     this.disconnectUnsubscribe = null;
     this.listeners.clear();
   }
@@ -360,6 +383,15 @@ export class DeskBleClient implements DeskClient {
   private acceptConfig(bytes: readonly number[]): void {
     try {
       this.update({ deskConfig: decodeDeskConfig(bytes), error: null });
+    } catch (error) {
+      this.fail(error);
+    }
+  }
+
+  private acceptReminder(bytes: readonly number[]): void {
+    try {
+      const decoded = decodeReminder(bytes);
+      this.update({ ...decoded, error: null });
     } catch (error) {
       this.fail(error);
     }
@@ -385,6 +417,29 @@ export class DeskBleClient implements DeskClient {
       this.configUnsubscribe?.();
       this.configUnsubscribe = null;
       this.update({ deskConfig: null });
+    }
+  }
+
+  /** Reminder 是可选扩展；旧固件仍保持原有桌控能力。 */
+  private async setupReminder(peripheralId: string): Promise<void> {
+    try {
+      this.reminderUnsubscribe?.();
+      this.reminderUnsubscribe = await this.adapter.subscribe(
+        peripheralId,
+        DESK_SERVICE_UUID,
+        DESK_REMINDER_UUID,
+        (bytes) => this.acceptReminder(bytes),
+      );
+      const bytes = await this.adapter.read(
+        peripheralId,
+        DESK_SERVICE_UUID,
+        DESK_REMINDER_UUID,
+      );
+      this.acceptReminder(bytes);
+    } catch {
+      this.reminderUnsubscribe?.();
+      this.reminderUnsubscribe = null;
+      this.update({ reminder: null, audio: null });
     }
   }
 

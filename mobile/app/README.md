@@ -3,7 +3,7 @@
 Desk Gateway 的跨平台移动端工程，采用 React Native、Expo Development Build 和 TypeScript。
 
 当前状态是 **iOS 真机控制已完成、Android 与三客户端并发待验收**：已按确认原型实现
-Home / Settings，并通过统一客户端支持 BLE GATT 与局域网 REST。技术决策和真机门禁见
+Home / Pomodoro / Settings，并通过统一客户端支持 BLE GATT 与局域网 REST。技术决策和真机门禁见
 [`docs/architecture/mobile-app-technology-selection.md`](../../docs/architecture/mobile-app-technology-selection.md)。
 
 BLE 优先、Wi-Fi 回退、mDNS 和安全边界见
@@ -35,6 +35,9 @@ iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
   并支持系统确认的单删、全删、异步轮询与失败重试。
 - 收到 Desk Busy `0x80` 时显示“另一台设备正在控制”，保持 BLE 连接和状态订阅。
 - 旧固件未提供 Config 时仍可控制桌子，但设备设置会明确禁用。
+- Home 提供番茄时钟入口，Pomodoro 页面显示 ESP 剩余时间并发送七个固定动作，不在手机上另起 Timer。
+- BLE 读取/订阅 Reminder v1；Wi-Fi 从 `/api/v1/desk/status` 读取同一提醒快照。
+- 时长、语音开关、音量和试听通过已鉴权 REST 保存到 ESP；BLE 桌控模式下仍要求局域网管理通道可用。
 
 ## 开发命令
 
@@ -97,6 +100,7 @@ npm run doctor
 5. 断连、App 退后台和关闭蓝牙后的停止行为。
 6. ESP32 与 App 重启后的 bond 恢复。
 7. iPhone、Apple Watch 与 Android 同时在线时的运动所有权、任意 STOP 和删除安全矩阵。
+8. BLE/Wi-Fi 两种通道的番茄动作、前后台恢复，以及时长、静音、音量和语音试听。
 
 Command / State v1 保持不变；新增 Config / System characteristic 承载设备设置和重启。
 iOS 已完成真实 BLE 运动控制、两张正式页面和设备设置写入。Android 真机、BLE/Wi-Fi

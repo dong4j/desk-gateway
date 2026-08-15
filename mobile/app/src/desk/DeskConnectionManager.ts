@@ -13,10 +13,13 @@ import type {
   DeskSnapshotListener,
   DeskUnsubscribe,
 } from './DeskClient';
+import type { ReminderAction } from './types';
 import {
   DeskRestClient,
   type DeskBondSnapshot,
   type DeskHeightPresetSnapshot,
+  type ReminderConfigPatch,
+  type ReminderPromptId,
 } from './DeskRestClient';
 
 const initialSnapshot: DeskClientSnapshot = {
@@ -26,6 +29,8 @@ const initialSnapshot: DeskClientSnapshot = {
   deskState: null,
   deskConfig: null,
   firmwareRevision: null,
+  reminder: null,
+  audio: null,
   error: null,
 };
 
@@ -151,6 +156,23 @@ export class DeskConnectionManager implements DeskClient {
     return this.requireActive().resetController();
   }
 
+  performReminderAction(action: ReminderAction): Promise<void> {
+    return this.requireActive().performReminderAction(action);
+  }
+
+  /** 计时动作可走 BLE；配置与试听统一走已有鉴权 REST 管理通道。 */
+  updateReminderConfig(patch: ReminderConfigPatch): Promise<void> {
+    return this.restClient.updateReminderConfig(patch);
+  }
+
+  previewReminderAudio(promptId: ReminderPromptId): Promise<void> {
+    return this.restClient.previewReminderAudio(promptId);
+  }
+
+  stopReminderAudio(): Promise<void> {
+    return this.restClient.stopReminderAudio();
+  }
+
   getBluetoothBonds(): Promise<DeskBondSnapshot> {
     return this.restClient.getBluetoothBonds();
   }
@@ -201,6 +223,8 @@ export class DeskConnectionManager implements DeskClient {
       deskState: null,
       deskConfig: null,
       firmwareRevision: null,
+      reminder: null,
+      audio: null,
       error: null,
     });
   }

@@ -49,3 +49,45 @@ export interface DeskPeripheral {
   name: string | null;
   rssi: number;
 }
+
+export type ReminderState = 'idle' | 'running' | 'paused' | 'waiting' | 'snoozed';
+export type ReminderPhase = 'focus' | 'short_break' | 'long_break';
+export type ReminderAlarmReason = 'none' | 'focus_done' | 'break_done';
+export type ReminderAction =
+  | 'start_focus'
+  | 'start_break'
+  | 'pause'
+  | 'resume'
+  | 'skip'
+  | 'stop'
+  | 'snooze';
+
+export interface ReminderConfig {
+  focusMinutes: number;
+  shortBreakMinutes: number;
+  longBreakMinutes: number;
+  focusesPerLongBreak: number;
+}
+
+/** 计时值只来自 ESP 快照；移动端不得用本地 deadline 覆盖它。 */
+export interface ReminderSnapshot {
+  protocolVersion: number;
+  available: boolean;
+  state: ReminderState;
+  phase: ReminderPhase;
+  alarmReason: ReminderAlarmReason;
+  remainingSec: number;
+  completedFocusCount: number;
+  config: ReminderConfig;
+  lastError: string | null;
+}
+
+export interface AudioSnapshot {
+  available: boolean;
+  enabled: boolean;
+  playing: boolean;
+  volumePercent: number;
+  voicePack: string;
+  currentPrompt: string | null;
+  lastError: string | null;
+}

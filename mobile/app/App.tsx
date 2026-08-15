@@ -26,6 +26,7 @@ import { DeskHoldController } from './src/desk/DeskHoldController';
 import { DeskRestClient } from './src/desk/DeskRestClient';
 import type { DeskHeightPresetSnapshot } from './src/desk/DeskRestClient';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { PomodoroScreen } from './src/screens/PomodoroScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { HoldHapticController } from './src/ui/HoldHapticController';
 
@@ -38,6 +39,8 @@ const initialSnapshot: DeskClientSnapshot = {
   deskState: null,
   deskConfig: null,
   firmwareRevision: null,
+  reminder: null,
+  audio: null,
   error: null,
 };
 
@@ -70,7 +73,7 @@ export default function App() {
   const hapticStrengthRef = useRef(defaultPreferences.hapticStrength);
   const autoConnectAttemptedRef = useRef(false);
   const [snapshot, setSnapshot] = useState(initialSnapshot);
-  const [screen, setScreen] = useState<'home' | 'settings'>('home');
+  const [screen, setScreen] = useState<'home' | 'pomodoro' | 'settings'>('home');
   const [preferences, setPreferences] = useState(defaultPreferences);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [heightPresetSnapshot, setHeightPresetSnapshot] =
@@ -383,6 +386,10 @@ export default function App() {
             feedback();
             setScreen('settings');
           }}
+          onOpenPomodoro={() => {
+            feedback();
+            setScreen('pomodoro');
+          }}
           onHoldUpStart={() => startHold(DeskCommand.HoldUp)}
           onHoldDownStart={() => startHold(DeskCommand.HoldDown)}
           onHoldEnd={endHold}
@@ -415,6 +422,20 @@ export default function App() {
               ),
             )
           }
+        />
+      ) : screen === 'pomodoro' ? (
+        <PomodoroScreen
+          snapshot={snapshot}
+          onBack={() => {
+            feedback();
+            setScreen('home');
+          }}
+          onAction={(action) => clientRef.current!.performReminderAction(action)}
+          onUpdateConfig={(patch) => clientRef.current!.updateReminderConfig(patch)}
+          onPreviewAudio={(promptId) =>
+            clientRef.current!.previewReminderAudio(promptId)
+          }
+          onStopAudio={() => clientRef.current!.stopReminderAudio()}
         />
       ) : (
         <SettingsScreen

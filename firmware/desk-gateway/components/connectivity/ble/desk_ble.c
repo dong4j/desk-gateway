@@ -11,7 +11,9 @@
 #include "desk_ble_bond_storage.h"
 #include "desk_ble_protocol.h"
 #include "desk_ble_session.h"
+#include "desk_audio.h"
 #include "desk_core.h"
+#include "desk_reminder.h"
 
 #include "esp_app_desc.h"
 #include "esp_log.h"
@@ -106,6 +108,10 @@ static const ble_uuid128_t s_client_info_uuid = BLE_UUID128_INIT(
 static const ble_uuid128_t s_presence_uuid = BLE_UUID128_INIT(
     0x10, 0x9b, 0x5a, 0x2e, 0x1d, 0x3c, 0x7a, 0x9f,
     0x4b, 0x4f, 0x4c, 0x6d, 0x07, 0x00, 0x4e, 0x7f);
+/* Canonical UUID: 7f4e0008-6d4c-4f4b-9f7a-3c1d2e5a9b10. */
+static const ble_uuid128_t s_reminder_uuid = BLE_UUID128_INIT(
+    0x10, 0x9b, 0x5a, 0x2e, 0x1d, 0x3c, 0x7a, 0x9f,
+    0x4b, 0x4f, 0x4c, 0x6d, 0x08, 0x00, 0x4e, 0x7f);
 /* Bluetooth SIG Device Information Service / Firmware Revision String. */
 static const ble_uuid16_t s_device_information_service_uuid =
     BLE_UUID16_INIT(0x180a);
@@ -115,6 +121,7 @@ static const char *TAG = "desk_ble";
 static uint8_t s_own_addr_type;
 static uint16_t s_state_value_handle;
 static uint16_t s_config_value_handle;
+static uint16_t s_reminder_value_handle;
 static desk_ble_session_t s_session;
 static desk_ble_bond_registry_t s_bond_registry;
 static struct ble_npl_callout s_hold_lease_callout;
@@ -135,6 +142,7 @@ static volatile bool s_stack_synced;
 static volatile size_t s_connection_count;
 static volatile bool s_any_state_subscribed;
 static volatile bool s_any_config_subscribed;
+static volatile bool s_any_reminder_subscribed;
 static volatile bool s_motion_owner_active;
 static volatile bool s_restart_pending;
 
@@ -341,6 +349,7 @@ static void update_session_aggregates(void)
 {
     bool any_state = false;
     bool any_config = false;
+    bool any_reminder = false;
     for (size_t i = 0; i < DESK_BLE_MAX_CONNECTIONS; ++i) {
         const desk_ble_connection_slot_t *slot = &s_session.slots[i];
         if (!slot->in_use) {
@@ -348,10 +357,12 @@ static void update_session_aggregates(void)
         }
         any_state |= slot->state_subscribed;
         any_config |= slot->config_subscribed;
+        any_reminder |= slot->reminder_subscribed;
     }
     s_connection_count = desk_ble_session_connection_count(&s_session);
     s_any_state_subscribed = any_state;
     s_any_config_subscribed = any_config;
+    s_any_reminder_subscribed = any_reminder;
     s_motion_owner_active = s_session.motion_owner.valid;
     publish_management_snapshot();
 }
@@ -913,6 +924,98 @@ static size_t current_config(uint8_t out[DESK_BLE_CONFIG_LENGTH])
     return desk_ble_config_encode(&input, out, DESK_BLE_CONFIG_LENGTH);
 }
 
+/** Reminder characteristic 只投影提醒与语音组件快照，不维护 BLE 私有计时状态。 */
+static size_t current_reminder(uint8_t out[DESK_BLE_REMINDER_LENGTH])
+{
+    desk_reminder_snapshot_t reminder = desk_reminder_snapshot();
+    desk_audio_snapshot_t audio = desk_audio_snapshot();
+    desk_ble_reminder_input_t input = {
+        .state = (uint8_t)reminder.state,
+        .phase = (uint8_t)reminder.phase,
+        .alarm_reason = (uint8_t)reminder.alarm_reason,
+        .available = reminder.available,
+        .audio_available = audio.available,
+        .audio_enabled = audio.enabled,
+        .audio_playing = audio.playing,
+        .volume_percent = audio.volume_percent,
+        .focus_minutes = reminder.config.focus_minutes,
+        .short_break_minutes = reminder.config.short_break_minutes,
+        .long_break_minutes = reminder.config.long_break_minutes,
+        .focuses_per_long_break = reminder.config.focuses_per_long_break,
+        .remaining_sec = reminder.remaining_sec,
+        .completed_focus_count = reminder.completed_focus_count,
+    };
+    return desk_ble_reminder_encode(&input, out, DESK_BLE_REMINDER_LENGTH);
+}
+
+/** 同一特征 READ/NOTIFY 状态，WRITE 执行动作；写入仍要求加密连接。 */
+static int reminder_access(uint16_t conn_handle, uint16_t attr_handle,
+                           struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)attr_handle;
+    (void)arg;
+    if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
+        uint8_t reminder[DESK_BLE_REMINDER_LENGTH];
+        size_t len = current_reminder(reminder);
+        return os_mbuf_append(ctxt->om, reminder, len) == 0
+                   ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_connection_slot_t *slot =
+        desk_ble_session_find(&s_session, conn_handle);
+    if (!slot || !slot->encrypted ||
+        slot->delete_state == DESK_BLE_DELETE_PENDING) {
+        return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+    }
+    uint8_t raw = 0;
+    if (OS_MBUF_PKTLEN(ctxt->om) != sizeof(raw)) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+    if (os_mbuf_copydata(ctxt->om, 0, sizeof(raw), &raw) != 0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+    desk_ble_reminder_action_t action;
+    if (!desk_ble_reminder_action_decode(&raw, sizeof(raw), &action)) {
+        return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+    }
+    desk_reminder_action_t core_action;
+    switch (action) {
+    case DESK_BLE_REMINDER_ACTION_START_FOCUS:
+        core_action = DESK_REMINDER_ACTION_START_FOCUS;
+        break;
+    case DESK_BLE_REMINDER_ACTION_START_BREAK:
+        core_action = DESK_REMINDER_ACTION_START_BREAK;
+        break;
+    case DESK_BLE_REMINDER_ACTION_PAUSE:
+        core_action = DESK_REMINDER_ACTION_PAUSE;
+        break;
+    case DESK_BLE_REMINDER_ACTION_RESUME:
+        core_action = DESK_REMINDER_ACTION_RESUME;
+        break;
+    case DESK_BLE_REMINDER_ACTION_SKIP:
+        core_action = DESK_REMINDER_ACTION_SKIP;
+        break;
+    case DESK_BLE_REMINDER_ACTION_STOP:
+        core_action = DESK_REMINDER_ACTION_STOP;
+        break;
+    case DESK_BLE_REMINDER_ACTION_SNOOZE:
+        core_action = DESK_REMINDER_ACTION_SNOOZE;
+        break;
+    default:
+        return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+    }
+    esp_err_t err = desk_reminder_perform(core_action);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "reminder action=0x%02x rejected: %s", raw,
+                 esp_err_to_name(err));
+        return command_error_to_att(err);
+    }
+    ESP_LOGI(TAG, "reminder action=0x%02x accepted", raw);
+    return 0;
+}
+
 static int state_access(uint16_t conn_handle, uint16_t attr_handle,
                         struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -1229,6 +1332,13 @@ static const struct ble_gatt_chr_def s_characteristics[] = {
         .access_cb = presence_access,
         .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC,
     },
+    {
+        .uuid = &s_reminder_uuid.u,
+        .access_cb = reminder_access,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY |
+                 BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC,
+        .val_handle = &s_reminder_value_handle,
+    },
     {0},
 };
 
@@ -1358,6 +1468,13 @@ static int gap_event(struct ble_gap_event *event, void *arg)
                      slot->conn_handle, (int)slot->config_subscribed);
             if (slot->config_subscribed) {
                 ble_gatts_chr_updated(s_config_value_handle);
+            }
+        } else if (event->subscribe.attr_handle == s_reminder_value_handle) {
+            slot->reminder_subscribed = event->subscribe.cur_notify != 0;
+            ESP_LOGI(TAG, "reminder notify handle=%u -> %d",
+                     slot->conn_handle, (int)slot->reminder_subscribed);
+            if (slot->reminder_subscribed) {
+                ble_gatts_chr_updated(s_reminder_value_handle);
             }
         }
         update_session_aggregates();
@@ -1610,8 +1727,10 @@ static void state_notify_task(void *arg)
     (void)arg;
     uint8_t previous[DESK_BLE_STATE_LENGTH] = {0};
     uint8_t previous_config[DESK_BLE_CONFIG_LENGTH] = {0};
+    uint8_t previous_reminder[DESK_BLE_REMINDER_LENGTH] = {0};
     bool previous_valid = false;
     bool previous_config_valid = false;
+    bool previous_reminder_valid = false;
     uint32_t last_notify_ms = 0;
 
     for (;;) {
@@ -1619,6 +1738,8 @@ static void state_notify_task(void *arg)
         current_state(state);
         uint8_t config[DESK_BLE_CONFIG_LENGTH];
         current_config(config);
+        uint8_t reminder[DESK_BLE_REMINDER_LENGTH];
+        current_reminder(reminder);
         if (state[1] == DESK_STATUS_IDLE && s_motion_owner_active) {
             /* 清掉已闭环结束的档位所有权，避免之后断连误停其他入口。 */
             queue_owner_release();
@@ -1643,10 +1764,18 @@ static void state_notify_task(void *arg)
             config_changed) {
             ble_gatts_chr_updated(s_config_value_handle);
         }
+        bool reminder_changed = !previous_reminder_valid ||
+            memcmp(previous_reminder, reminder, sizeof(reminder)) != 0;
+        if (s_stack_synced && s_connection_count > 0 &&
+            s_any_reminder_subscribed && reminder_changed) {
+            ble_gatts_chr_updated(s_reminder_value_handle);
+        }
         memcpy(previous, state, sizeof(previous));
         memcpy(previous_config, config, sizeof(previous_config));
+        memcpy(previous_reminder, reminder, sizeof(previous_reminder));
         previous_valid = true;
         previous_config_valid = true;
+        previous_reminder_valid = true;
         vTaskDelay(pdMS_TO_TICKS(DESK_BLE_STATE_POLL_MS));
     }
 }

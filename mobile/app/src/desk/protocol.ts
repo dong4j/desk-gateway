@@ -5,6 +5,9 @@ import type {
   DeskConfigField,
   DeskMotion,
   DeskState,
+  ReminderAction,
+  ReminderSnapshot,
+  AudioSnapshot,
 } from './types';
 
 export const DESK_SERVICE_UUID = '7f4e0001-6d4c-4f4b-9f7a-3c1d2e5a9b10';
@@ -14,6 +17,7 @@ export const DESK_CONFIG_UUID = '7f4e0004-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_SYSTEM_UUID = '7f4e0005-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_CLIENT_INFO_UUID = '7f4e0006-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DESK_PRESENCE_UUID = '7f4e0007-6d4c-4f4b-9f7a-3c1d2e5a9b10';
+export const DESK_REMINDER_UUID = '7f4e0008-6d4c-4f4b-9f7a-3c1d2e5a9b10';
 export const DEVICE_INFORMATION_SERVICE_UUID = '180a';
 export const FIRMWARE_REVISION_UUID = '2a26';
 export const DESK_ADVERTISING_NAME = 'DeskGateway';
@@ -23,6 +27,20 @@ const CONFIG_V1_PACKET_LENGTH = 4;
 const CONFIG_V2_PACKET_LENGTH = 8;
 const CONFIG_WRITE_PACKET_LENGTH = 4;
 const UNKNOWN_HEIGHT = 0xffff;
+const REMINDER_PACKET_LENGTH = 20;
+
+const reminderStateByCode = ['idle', 'running', 'paused', 'waiting', 'snoozed'] as const;
+const reminderPhaseByCode = ['focus', 'short_break', 'long_break'] as const;
+const reminderAlarmByCode = ['none', 'focus_done', 'break_done'] as const;
+const reminderActionCode: Record<ReminderAction, number> = {
+  start_focus: 0x00,
+  start_break: 0x01,
+  pause: 0x02,
+  resume: 0x03,
+  skip: 0x04,
+  stop: 0x05,
+  snooze: 0x06,
+};
 
 const configFieldCode: Record<DeskConfigField, number> = {
   child_lock: 0x01,
@@ -192,6 +210,54 @@ export function encodeDeskSystemCommand(command: number): readonly number[] {
   return [command];
 }
 
+/** 解码默认 ATT MTU 下可一次送达的 Reminder v1 快照。 */
+export function decodeReminder(
+  bytes: readonly number[],
+): { reminder: ReminderSnapshot; audio: AudioSnapshot } {
+  validatePacket(bytes, REMINDER_PACKET_LENGTH, 'reminder');
+  if (bytes[0] !== 1) {
+    throw new Error(`Unsupported Desk Gateway reminder version: ${bytes[0]}`);
+  }
+  const state = reminderStateByCode[bytes[1]];
+  const phase = reminderPhaseByCode[bytes[2]];
+  const alarmReason = reminderAlarmByCode[bytes[3]];
+  if (!state || !phase || !alarmReason) {
+    throw new Error('Unknown Desk Gateway reminder state');
+  }
+  const flags = bytes[4];
+  return {
+    reminder: {
+      protocolVersion: 1,
+      available: (flags & 0x01) !== 0,
+      state,
+      phase,
+      alarmReason,
+      remainingSec: readUint32LE(bytes, 10),
+      completedFocusCount: readUint32LE(bytes, 14),
+      config: {
+        focusMinutes: bytes[6],
+        shortBreakMinutes: bytes[7],
+        longBreakMinutes: bytes[8],
+        focusesPerLongBreak: bytes[9],
+      },
+      lastError: null,
+    },
+    audio: {
+      available: (flags & 0x02) !== 0,
+      enabled: (flags & 0x04) !== 0,
+      playing: (flags & 0x08) !== 0,
+      volumePercent: bytes[5],
+      voicePack: 'zh-CN-default',
+      currentPrompt: null,
+      lastError: null,
+    },
+  };
+}
+
+export function encodeReminderAction(action: ReminderAction): readonly number[] {
+  return [reminderActionCode[action]];
+}
+
 function validatePacket(
   bytes: readonly number[],
   expectedLength: number,
@@ -213,4 +279,11 @@ function validateBytes(bytes: readonly number[], name: string): void {
 
 function readUint16LE(bytes: readonly number[], offset: number): number {
   return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function readUint32LE(bytes: readonly number[], offset: number): number {
+  return (bytes[offset] |
+    (bytes[offset + 1] << 8) |
+    (bytes[offset + 2] << 16) |
+    (bytes[offset + 3] << 24)) >>> 0;
 }

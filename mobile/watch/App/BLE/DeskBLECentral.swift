@@ -17,10 +17,12 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
   @Published private(set) var phase: DeskConnectionPhase = .idle
   @Published private(set) var deskState: DeskState?
   @Published private(set) var configuration: DeskConfiguration?
+  @Published private(set) var reminder: ReminderSnapshot?
   @Published private(set) var errorMessage: String?
 
-  private struct PendingWrite: Equatable {
-    let command: DeskCommand
+  private struct PendingWrite {
+    let deskCommand: DeskCommand?
+    let characteristic: CBCharacteristic
     let data: Data
   }
 
@@ -29,11 +31,13 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
   private let stateUUID = CBUUID(string: DeskProtocol.stateUUID)
   private let configUUID = CBUUID(string: DeskProtocol.configUUID)
   private let clientInfoUUID = CBUUID(string: DeskProtocol.clientInfoUUID)
+  private let reminderUUID = CBUUID(string: DeskProtocol.reminderUUID)
 
   private var centralManager: CBCentralManager!
   private var peripheral: CBPeripheral?
   private var commandCharacteristic: CBCharacteristic?
   private var clientInfoCharacteristic: CBCharacteristic?
+  private var reminderCharacteristic: CBCharacteristic?
   private var pendingWrites: [PendingWrite] = []
   private var writeInFlight = false
   private var awaitingClientInfo = false
@@ -64,19 +68,37 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
 
   /// 命令严格串行；STOP 清除尚未发送的运动续期，并排到当前 Write 之后的第一位。
   func send(_ command: DeskCommand) {
-    guard peripheral != nil, commandCharacteristic != nil else {
+    guard peripheral != nil, let commandCharacteristic else {
       errorMessage = "DeskGateway 尚未连接"
       return
     }
 
-    let write = PendingWrite(command: command, data: DeskProtocol.encode(command))
+    let write = PendingWrite(
+      deskCommand: command,
+      characteristic: commandCharacteristic,
+      data: DeskProtocol.encode(command)
+    )
     if command == .stop {
       pendingWrites.removeAll()
       pendingWrites.insert(write, at: 0)
-    } else if pendingWrites.last?.command != command {
+    } else if pendingWrites.last?.deskCommand != command {
       // 高频 Crown 事件不能把相同 HOLD 堆进 GATT 队列。
       pendingWrites.append(write)
     }
+    flushWriteQueue()
+  }
+
+  /// 番茄动作和桌体运动共用串行 GATT 队列，但写入独立 Reminder 特征。
+  func perform(_ action: ReminderAction) {
+    guard peripheral != nil, let reminderCharacteristic else {
+      errorMessage = "当前固件不支持番茄时钟"
+      return
+    }
+    pendingWrites.append(PendingWrite(
+      deskCommand: nil,
+      characteristic: reminderCharacteristic,
+      data: DeskProtocol.encode(action)
+    ))
     flushWriteQueue()
   }
 
@@ -93,15 +115,14 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
   private func flushWriteQueue() {
     guard !writeInFlight,
       !pendingWrites.isEmpty,
-      let peripheral,
-      let commandCharacteristic
+      let peripheral
     else {
       return
     }
 
     let write = pendingWrites.removeFirst()
     writeInFlight = true
-    peripheral.writeValue(write.data, for: commandCharacteristic, type: .withResponse)
+    peripheral.writeValue(write.data, for: write.characteristic, type: .withResponse)
   }
 
   /// Service 过滤已经足够精确，名称校验只用于避免错误广播配置混入。
@@ -123,11 +144,13 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
     peripheral = nil
     commandCharacteristic = nil
     clientInfoCharacteristic = nil
+    reminderCharacteristic = nil
     pendingWrites.removeAll()
     writeInFlight = false
     awaitingClientInfo = false
     deskState = nil
     configuration = nil
+    reminder = nil
     errorMessage = nil
     if !keepPhase {
       phase = .idle
@@ -211,7 +234,7 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
       return
     }
     peripheral.discoverCharacteristics(
-      [commandUUID, stateUUID, configUUID, clientInfoUUID],
+      [commandUUID, stateUUID, configUUID, clientInfoUUID, reminderUUID],
       for: service
     )
   }
@@ -238,6 +261,10 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
         peripheral.readValue(for: characteristic)
       case clientInfoUUID:
         clientInfoCharacteristic = characteristic
+      case reminderUUID:
+        reminderCharacteristic = characteristic
+        peripheral.setNotifyValue(true, for: characteristic)
+        peripheral.readValue(for: characteristic)
       default:
         break
       }
@@ -274,6 +301,10 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
         configuration = nil
         return
       }
+      if characteristic.uuid == reminderUUID {
+        reminder = nil
+        return
+      }
       fail(error)
       return
     }
@@ -287,6 +318,8 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
         deskState = try DeskProtocol.decodeState(data)
       case configUUID:
         configuration = try DeskProtocol.decodeConfiguration(data)
+      case reminderUUID:
+        reminder = try DeskProtocol.decodeReminder(data)
       default:
         break
       }
@@ -310,7 +343,7 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
           description: cocoaError.localizedDescription
         )
       {
-        pendingWrites.removeAll(where: { $0.command != .stop })
+        pendingWrites.removeAll(where: { $0.deskCommand != .stop })
         errorMessage = "另一台设备正在控制"
         phase = .ready
         flushWriteQueue()
@@ -329,6 +362,12 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
             ]
           )
         )
+        return
+      }
+      if characteristic.uuid == reminderUUID {
+        errorMessage = "当前番茄状态不接受该操作"
+        phase = .ready
+        flushWriteQueue()
         return
       }
       fail(error)

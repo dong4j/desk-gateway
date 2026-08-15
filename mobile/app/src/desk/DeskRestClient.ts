@@ -12,7 +12,15 @@ import type {
   DeskSnapshotListener,
   DeskUnsubscribe,
 } from './DeskClient';
-import type { DeskMotion } from './types';
+import type {
+  AudioSnapshot,
+  DeskMotion,
+  ReminderAction,
+  ReminderAlarmReason,
+  ReminderPhase,
+  ReminderSnapshot,
+  ReminderState,
+} from './types';
 
 type FetchLike = (
   input: string,
@@ -43,7 +51,44 @@ interface RestStatus {
   build_time?: string;
   build_id?: string;
   git_version?: string;
+  reminder?: {
+    available?: boolean;
+    state?: string;
+    phase?: string;
+    alarm_reason?: string;
+    remaining_sec?: number;
+    completed_focus_count?: number;
+    focus_minutes?: number;
+    short_break_minutes?: number;
+    long_break_minutes?: number;
+    focuses_per_long_break?: number;
+    last_error?: string | null;
+  };
+  audio?: {
+    available?: boolean;
+    enabled?: boolean;
+    playing?: boolean;
+    volume_percent?: number;
+    voice_pack?: string;
+    current_prompt?: string | null;
+    last_error?: string | null;
+  };
 }
+
+export interface ReminderConfigPatch {
+  focusMinutes?: number;
+  shortBreakMinutes?: number;
+  longBreakMinutes?: number;
+  focusesPerLongBreak?: number;
+  audioEnabled?: boolean;
+  volumePercent?: number;
+}
+
+export type ReminderPromptId =
+  | 'focus_done'
+  | 'break_done'
+  | 'snooze_done'
+  | 'attention_chime';
 
 export type DeskBondKind = 'unknown' | 'watchos' | 'ios' | 'android';
 export type DeskBondDeleteState = 'idle' | 'pending' | 'failed';
@@ -99,6 +144,8 @@ export class DeskRestClient implements DeskClient {
     deskState: null,
     deskConfig: null,
     firmwareRevision: null,
+    reminder: null,
+    audio: null,
     error: null,
   };
   private listeners = new Set<DeskSnapshotListener>();
@@ -225,6 +272,43 @@ export class DeskRestClient implements DeskClient {
     ));
   }
 
+  async performReminderAction(action: ReminderAction): Promise<void> {
+    await this.writeAndRefresh('/api/v1/reminder/action', { action });
+  }
+
+  async updateReminderConfig(patch: ReminderConfigPatch): Promise<void> {
+    const body: Record<string, unknown> = {};
+    if (patch.focusMinutes !== undefined) body.focus_minutes = patch.focusMinutes;
+    if (patch.shortBreakMinutes !== undefined) {
+      body.short_break_minutes = patch.shortBreakMinutes;
+    }
+    if (patch.longBreakMinutes !== undefined) {
+      body.long_break_minutes = patch.longBreakMinutes;
+    }
+    if (patch.focusesPerLongBreak !== undefined) {
+      body.focuses_per_long_break = patch.focusesPerLongBreak;
+    }
+    if (patch.audioEnabled !== undefined) body.audio_enabled = patch.audioEnabled;
+    if (patch.volumePercent !== undefined) body.volume_percent = patch.volumePercent;
+    await this.writeAndRefresh('/api/v1/reminder/config', body);
+  }
+
+  async previewReminderAudio(promptId: ReminderPromptId): Promise<void> {
+    await this.operation(() => this.request('/api/v1/audio/action', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'test_audio', prompt_id: promptId }),
+    }));
+    await this.refreshStatus();
+  }
+
+  async stopReminderAudio(): Promise<void> {
+    await this.operation(() => this.request('/api/v1/audio/action', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'stop_audio' }),
+    }));
+    await this.refreshStatus();
+  }
+
   async getHeightPresets(): Promise<DeskHeightPresetSnapshot> {
     this.ensureConfigured();
     return this.request<DeskHeightPresetSnapshot>('/api/v1/desk/height-presets');
@@ -315,6 +399,8 @@ export class DeskRestClient implements DeskClient {
       deskState: null,
       deskConfig: null,
       firmwareRevision: null,
+      reminder: null,
+      audio: null,
       error: null,
     });
   }
@@ -370,6 +456,8 @@ export class DeskRestClient implements DeskClient {
         preset4HeightMm: integerOr(status.preset4_height_mm, Math.min(1020, maxHeightMm)),
       },
       firmwareRevision: firmwareRevision(status),
+      reminder: parseReminder(status.reminder),
+      audio: parseAudio(status.audio),
       error: null,
     });
   }
@@ -536,4 +624,60 @@ function errorMessage(error: unknown): string {
     return '请求超时';
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+function parseReminder(value: RestStatus['reminder']): ReminderSnapshot | null {
+  if (!value) return null;
+  return {
+    protocolVersion: 1,
+    available: value.available === true,
+    state: oneOf<ReminderState>(
+      value.state,
+      ['idle', 'running', 'paused', 'waiting', 'snoozed'],
+      'idle',
+    ),
+    phase: oneOf<ReminderPhase>(
+      value.phase,
+      ['focus', 'short_break', 'long_break'],
+      'focus',
+    ),
+    alarmReason: oneOf<ReminderAlarmReason>(
+      value.alarm_reason,
+      ['none', 'focus_done', 'break_done'],
+      'none',
+    ),
+    remainingSec: integerOr(value.remaining_sec, 0),
+    completedFocusCount: integerOr(value.completed_focus_count, 0),
+    config: {
+      focusMinutes: integerOr(value.focus_minutes, 25),
+      shortBreakMinutes: integerOr(value.short_break_minutes, 5),
+      longBreakMinutes: integerOr(value.long_break_minutes, 15),
+      focusesPerLongBreak: integerOr(value.focuses_per_long_break, 4),
+    },
+    lastError: typeof value.last_error === 'string' ? value.last_error : null,
+  };
+}
+
+function parseAudio(value: RestStatus['audio']): AudioSnapshot | null {
+  if (!value) return null;
+  return {
+    available: value.available === true,
+    enabled: value.enabled === true,
+    playing: value.playing === true,
+    volumePercent: integerOr(value.volume_percent, 0),
+    voicePack: typeof value.voice_pack === 'string' ? value.voice_pack : '',
+    currentPrompt:
+      typeof value.current_prompt === 'string' ? value.current_prompt : null,
+    lastError: typeof value.last_error === 'string' ? value.last_error : null,
+  };
+}
+
+function oneOf<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  return typeof value === 'string' && allowed.includes(value as T)
+    ? value as T
+    : fallback;
 }

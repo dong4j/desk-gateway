@@ -125,6 +125,8 @@ class FailingBleClient implements DeskClient {
     deskState: null,
     deskConfig: null,
     firmwareRevision: null,
+    reminder: null,
+    audio: null,
     error: null,
   };
 
@@ -155,6 +157,7 @@ class FailingBleClient implements DeskClient {
   async setPresetHeightsMm(): Promise<void> {}
   async restartGateway(): Promise<void> {}
   async resetController(): Promise<void> {}
+  async performReminderAction(): Promise<void> {}
   async disconnect(): Promise<void> {}
   dispose(): void {}
 
@@ -176,6 +179,8 @@ class ReadyBleClient implements DeskClient {
     deskState: null,
     deskConfig: null,
     firmwareRevision: null,
+    reminder: null,
+    audio: null,
     error: null,
   };
 
@@ -211,6 +216,7 @@ class ReadyBleClient implements DeskClient {
   async setPresetHeightsMm(): Promise<void> {}
   async restartGateway(): Promise<void> {}
   async resetController(): Promise<void> {}
+  async performReminderAction(): Promise<void> {}
   async disconnect(): Promise<void> {}
   dispose(): void {}
 
