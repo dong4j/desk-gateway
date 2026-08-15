@@ -37,6 +37,7 @@ import {
   isBondManagementConfigured,
   isBondPairingCapacityBlocked,
   normalizeBondAlias,
+  recoverBluetoothConnection,
 } from '../desk/BondManagement';
 import type {
   DeskBondDevice,
@@ -158,6 +159,7 @@ export function SettingsScreen({
   const [bondLoading, setBondLoading] = useState(false);
   const [bondBusy, setBondBusy] = useState<string | null>(null);
   const [bondMessage, setBondMessage] = useState<string | null>(null);
+  const [recoveryDeviceLabel, setRecoveryDeviceLabel] = useState<string | null>(null);
   const [editingBondId, setEditingBondId] = useState<string | null>(null);
   const [bondAliasDraft, setBondAliasDraft] = useState('');
   const [customPresetNameDraft, setCustomPresetNameDraft] = useState('');
@@ -290,6 +292,39 @@ export function SettingsScreen({
         },
       ],
     );
+  };
+
+  const confirmRecoverBond = (device: DeskBondDevice) => {
+    const detectorWarning = selectedAutoLockDeviceId === device.id
+      ? '\n\n该设备是自动童锁检测设备，恢复后需要重新选择。'
+      : '';
+    Alert.alert(
+      `恢复 ${device.label} 的连接？`,
+      `将删除这条旧配对记录并开放 120 秒配对窗口。设备别名需要重新设置。${detectorWarning}`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '开始恢复',
+          onPress: () => void runBondOperation(
+            `recover-${device.id}`,
+            async () => {
+              await recoverBluetoothConnection(
+                () => onDeleteBluetoothBond(device.id),
+                () => onSetBluetoothPairingWindow(true),
+              );
+              setRecoveryDeviceLabel(device.label);
+            },
+            '旧配对信息已清除，已开放 120 秒配对窗口',
+          ),
+        },
+      ],
+    );
+  };
+
+  const reconnectBluetooth = () => {
+    setConnectionModeDraft('ble');
+    setBondMessage('正在重新连接蓝牙…');
+    onSetConnectionSettings({ mode: 'ble', restHost, restKey });
   };
 
   const confirmDeleteAllBonds = () => {
@@ -590,6 +625,13 @@ export function SettingsScreen({
               </Text>
             </Pressable>
           </View>
+          <View style={styles.bondRecoveryIntro}>
+            <Text style={styles.bondRecoveryTitle}>连接不上？</Text>
+            <Text style={styles.bondRecoveryCopy}>
+              找到这部手机的旧记录并点击“恢复”，网关会清除旧密钥并开放
+              120 秒配对窗口。
+            </Text>
+          </View>
           {bondSnapshot?.devices.map((device) => (
             <View key={device.id} style={styles.bondDeviceRow}>
               <View style={styles.bondDeviceCopy}>
@@ -673,6 +715,19 @@ export function SettingsScreen({
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
+                  disabled={device.delete_state !== 'idle' || bondBusy !== null}
+                  onPress={() => confirmRecoverBond(device)}
+                  style={({ pressed }) => [
+                    styles.bondRecoveryButton,
+                    (device.delete_state !== 'idle' || bondBusy !== null) &&
+                      styles.disabled,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.bondRecoveryButtonText}>恢复</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
                   disabled={device.delete_state === 'pending' || bondBusy !== null}
                   onPress={() => {
                     if (editingBondId === device.id) {
@@ -697,6 +752,36 @@ export function SettingsScreen({
               </View>
             </View>
           ))}
+          {recoveryDeviceLabel ? (
+            <View style={styles.bondRecoveryReady}>
+              <Text style={styles.bondRecoveryTitle}>连接恢复已准备好</Text>
+              <Text style={styles.bondRecoveryCopy}>
+                1. 在手机“设置 &gt; 蓝牙”中忽略 DeskGateway。{`\n`}
+                2. 回到这里，在配对窗口结束前重新连接。{`\n`}
+                3. 重新设置 {recoveryDeviceLabel} 的别名和自动童锁检测设备。
+              </Text>
+              <Text style={styles.bondRecoveryWindow}>
+                {bondSnapshot?.pairing_window.open
+                  ? `配对窗口剩余 ${bondSnapshot.pairing_window.remaining_seconds} 秒`
+                  : '配对窗口已关闭，请先点击“允许新设备配对”'}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                disabled={!bondSnapshot?.pairing_window.open || bondBusy !== null}
+                onPress={reconnectBluetooth}
+                style={({ pressed }) => [
+                  styles.bondReconnectButton,
+                  (!bondSnapshot?.pairing_window.open || bondBusy !== null) &&
+                    styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.bondReconnectButtonText}>
+                  我已忽略，重新连接
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
           {bondManagementAvailable && !bondLoading &&
               bondSnapshot?.devices.length === 0 ? (
             <Text style={styles.bondEmpty}>暂无蓝牙配对设备</Text>
@@ -1379,11 +1464,20 @@ const styles = StyleSheet.create({
   radioOuterActive: { borderColor: palette.gold },
   radioInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.gold },
   bondDeviceError: { color: palette.danger },
-  bondDeviceActions: { flexDirection: 'row', gap: 6 },
+  bondDeviceActions: { maxWidth: 190, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6 },
   bondRenameButton: { minWidth: 58, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.ink, borderRadius: radii.pill },
   bondRenameText: { color: palette.ink, fontSize: 13, fontWeight: '600' },
   bondDeleteButton: { minWidth: 58, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.danger, borderRadius: radii.pill },
   bondDeleteText: { color: palette.danger, fontSize: 13, fontWeight: '600' },
+  bondRecoveryIntro: { marginHorizontal: 18, marginBottom: 8, padding: 12, borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.surfaceMuted },
+  bondRecoveryReady: { marginHorizontal: 18, marginTop: 8, padding: 14, borderWidth: 1, borderColor: palette.gold, borderRadius: radii.small, backgroundColor: palette.surfaceMuted },
+  bondRecoveryTitle: { color: palette.ink, fontSize: 14, fontWeight: '700' },
+  bondRecoveryCopy: { marginTop: 4, color: palette.inkMuted, fontSize: 12, lineHeight: 19 },
+  bondRecoveryWindow: { marginTop: 8, color: palette.ink, fontSize: 12, fontWeight: '600' },
+  bondRecoveryButton: { minWidth: 58, minHeight: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.gold, borderRadius: radii.pill },
+  bondRecoveryButtonText: { color: palette.ink, fontSize: 13, fontWeight: '600' },
+  bondReconnectButton: { minHeight: 38, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: palette.ink },
+  bondReconnectButtonText: { color: palette.white, fontSize: 13, fontWeight: '600' },
   bondEmpty: { paddingHorizontal: 18, paddingVertical: 18, borderTopWidth: 1, borderTopColor: palette.line, color: palette.inkMuted, fontSize: 13, textAlign: 'center' },
   bondDeleteAll: { minHeight: 48, marginHorizontal: 18, marginTop: 8, alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: palette.line },
   bondDeleteAllText: { color: palette.danger, fontSize: 15, fontWeight: '600' },

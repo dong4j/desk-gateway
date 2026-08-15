@@ -40,6 +40,15 @@
     return alias;
   }
 
+  /**
+   * 连接恢复必须先移除网关端旧密钥，再开放新配对窗口。反过来执行会让
+   * 旧 Bond 继续占用容量，也可能让用户在 120 秒内重复遇到密钥不一致。
+   */
+  async function recoverConnection(deleteBond, openPairingWindow) {
+    await deleteBond();
+    await openPairingWindow();
+  }
+
   return { statusText, shouldPollFrequently, hasDeleteConflict,
-    normalizeAlias };
+    normalizeAlias, recoverConnection };
 }));

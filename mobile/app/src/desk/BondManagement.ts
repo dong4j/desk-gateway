@@ -83,3 +83,15 @@ export function normalizeBondAlias(value: string): string {
   }
   return alias;
 }
+
+/**
+ * 连接恢复先清除网关端旧 Bond，再开放配对窗口。只有删除成功后才允许
+ * 新配对，避免旧密钥仍在时继续引导用户重连。
+ */
+export async function recoverBluetoothConnection(
+  deleteBond: () => Promise<void>,
+  openPairingWindow: () => Promise<void>,
+): Promise<void> {
+  await deleteBond();
+  await openPairingWindow();
+}

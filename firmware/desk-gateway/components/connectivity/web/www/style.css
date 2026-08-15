@@ -622,6 +622,8 @@ body.is-moving .height { color: #5c4a28; }
 .bond-row-actions {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.45rem;
 }
 .bond-rename-button {
@@ -638,7 +640,50 @@ body.is-moving .height { color: #5c4a28; }
   border: 1px solid var(--danger) !important;
   color: var(--danger) !important;
 }
+.bond-recovery-button {
+  flex: none;
+  padding: 0.5rem 0.8rem !important;
+  background: transparent !important;
+  border: 1px solid var(--oak) !important;
+  color: var(--fg) !important;
+}
+.bond-recovery-intro,
+.bond-recovery-ready {
+  margin-top: 0.8rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.bond-recovery-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.bond-recovery-ready {
+  border-color: var(--oak);
+}
+.bond-recovery-ready strong,
+.bond-recovery-intro strong { color: var(--fg); }
+.bond-recovery-ready ol {
+  margin: 0.45rem 0 0;
+  padding-left: 1.25rem;
+}
+@media (max-width: 520px) {
+  .bond-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .bond-row-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
 .bond-delete-button:disabled,
+.bond-recovery-button:disabled,
 .bond-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.45;

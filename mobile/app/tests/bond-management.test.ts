@@ -11,6 +11,7 @@ import {
   isBondManagementConfigured,
   isBondPairingCapacityBlocked,
   normalizeBondAlias,
+  recoverBluetoothConnection,
 } from '../src/desk/BondManagement';
 import type { DeskBondSnapshot } from '../src/desk/DeskRestClient';
 
@@ -105,4 +106,22 @@ test('normalizes aliases with the firmware UTF-8 byte limit', () => {
   assert.equal(normalizeBondAlias('   '), '');
   assert.throws(() => normalizeBondAlias('a'.repeat(49)), /48/);
   assert.throws(() => normalizeBondAlias('坏\n名称'), /控制字符/);
+});
+
+test('clears the selected bond before opening the recovery window', async () => {
+  const calls: string[] = [];
+  await recoverBluetoothConnection(
+    async () => { calls.push('delete'); },
+    async () => { calls.push('open'); },
+  );
+  assert.deepEqual(calls, ['delete', 'open']);
+});
+
+test('does not open a recovery window when deleting the old bond fails', async () => {
+  let pairingWindowOpened = false;
+  await assert.rejects(recoverBluetoothConnection(
+    async () => { throw new Error('delete failed'); },
+    async () => { pairingWindowOpened = true; },
+  ), /delete failed/);
+  assert.equal(pairingWindowOpened, false);
 });

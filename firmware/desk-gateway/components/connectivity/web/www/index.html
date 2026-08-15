@@ -215,6 +215,19 @@
               </button>
             </div>
             <p id="pairingWindowHint" class="settings-note">配对窗口默认关闭。</p>
+            <div class="bond-recovery-intro">
+              <strong>连接不上？</strong>
+              <span>找到这部手机的旧记录并点击“恢复连接”，网关会清除旧密钥并开放 120 秒配对窗口。</span>
+            </div>
+            <div id="bondRecoveryReady" class="bond-recovery-ready" hidden>
+              <strong>连接恢复已准备好</strong>
+              <ol>
+                <li>在手机“设置 &gt; 蓝牙”中忽略 DeskGateway。</li>
+                <li id="bondRecoveryWindow">在配对窗口结束前操作。</li>
+                <li>返回 Desk Gateway App，重新连接蓝牙。</li>
+              </ol>
+              <p class="settings-note">设备别名和自动童锁检测设备需要在重新配对后再次设置。</p>
+            </div>
             <div id="bondList" class="bond-list" aria-live="polite"></div>
             <p id="bondMsg" class="hint"></p>
           </section>

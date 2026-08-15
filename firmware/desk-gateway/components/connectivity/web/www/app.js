@@ -40,6 +40,8 @@
   const bondMsg = document.getElementById('bondMsg');
   const pairingWindowButton = document.getElementById('pairingWindowButton');
   const pairingWindowHint = document.getElementById('pairingWindowHint');
+  const bondRecoveryReady = document.getElementById('bondRecoveryReady');
+  const bondRecoveryWindow = document.getElementById('bondRecoveryWindow');
   const deleteAllBondsButton = document.getElementById('deleteAllBondsButton');
   const customPresetControls = document.getElementById('customPresetControls');
   const customPresetCount = document.getElementById('customPresetCount');
@@ -138,6 +140,11 @@
       : snapshot.devices.length >= snapshot.capacity
         ? '已达到 3 台上限，请先删除旧设备。'
         : '配对窗口默认关闭；开启后固定持续 120 秒。';
+    if (!bondRecoveryReady.hidden) {
+      bondRecoveryWindow.textContent = pairingOpen
+        ? `配对窗口剩余 ${seconds} 秒，请返回 App 重新连接。`
+        : '配对窗口已关闭，请先点击“允许新设备配对”。';
+    }
 
     const conflict = DeskBondManagement.hasDeleteConflict(snapshot);
     deleteAllBondsButton.disabled = snapshot.devices.length === 0 || conflict;
@@ -223,7 +230,39 @@
         }
         await refreshBondDevices(true);
       };
-      actions.append(rename, remove);
+
+      const recover = document.createElement('button');
+      recover.type = 'button';
+      recover.className = 'bond-recovery-button';
+      recover.textContent = '恢复连接';
+      recover.disabled = device.delete_state !== 'idle';
+      recover.onclick = async () => {
+        const detectorWarning = snapshot.auto_child_lock?.device_id === device.id
+          ? '\n\n该设备是自动童锁检测设备，恢复后需要重新选择。'
+          : '';
+        if (!window.confirm(
+          `恢复“${device.label}”的连接吗？网关会删除这条旧配对记录并开放 120 秒配对窗口。${detectorWarning}`)) {
+          return;
+        }
+        recover.disabled = true;
+        bondMsg.textContent = '正在清除旧配对信息…';
+        try {
+          await DeskBondManagement.recoverConnection(
+            () => api(
+              `/api/v1/bluetooth/bonds/${encodeURIComponent(device.id)}`,
+              'DELETE'),
+            () => api('/api/v1/bluetooth/pairing-window', 'POST'),
+          );
+          bondRecoveryReady.hidden = false;
+          bondMsg.textContent = '旧配对信息已清除，已开放 120 秒配对窗口';
+        } catch (error) {
+          bondMsg.textContent = error.httpStatus === 409
+            ? '旧设备仍在删除中，请稍后刷新后再开放配对窗口'
+            : '连接恢复失败，请刷新后重试';
+        }
+        await refreshBondDevices(true);
+      };
+      actions.append(rename, recover, remove);
       row.append(main, actions);
       bondList.appendChild(row);
     });
