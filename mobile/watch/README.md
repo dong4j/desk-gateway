@@ -24,9 +24,9 @@ Digital Crown、触感和真实升降验收。
 在 Xcode 中使用 Watch Simulator 运行 `DeskGatewayWatch` 的 Debug 构建时，App 会自动
 使用本地 Mock，不再扫描 BLE。页面顶部的橙色“模拟”标识表示当前没有连接真实升降桌：
 
-- 初始高度为 `72.4 cm`；
+- 初始高度为 `72.0 cm`，安全上限为 `94.0 cm`；
 - Digital Crown 可以模拟持续上升/下降；watchdog 每 `250 ms` 续期，`500 ms` 无输入 STOP；
-- “请坐”模拟移动到 `64 cm`，“站立”模拟移动到 `102 cm`；
+- “请坐”模拟移动到 `56 cm`，“站立”模拟移动到 `87 cm`；
 - 运动期间显示的 STOP 可以立即中断模拟动作。
 - 顶部计时器按钮进入番茄时钟页；Simulator 只模拟离散动作状态，不运行本地倒计时。
 
@@ -36,7 +36,7 @@ Debug 和所有 Release 构建始终使用 `DeskBLECentral`，不存在蓝牙失
 
 模拟器建议按以下顺序测试：
 
-1. 确认顶部显示“已连接”和橙色“模拟”，高度为 `72.4 cm`；
+1. 确认顶部显示“已连接”和橙色“模拟”，高度为 `72.0 cm`、安全上限为 `94.0 cm`；
 2. 旋转 Digital Crown，确认高度连续变化，停止旋转后状态回到“已连接”；
 3. 点击“请坐”或“站立”，确认高度向对应档位变化且界面出现 STOP；
 4. 在运动过程中点击 STOP，确认高度立即停止变化。
@@ -126,6 +126,8 @@ Apple 官方真机运行流程见
    任意客户端 STOP 都能立即停止。
 8. 打开番茄时钟页，验证剩余时间来自 ESP Notify，并依次测试开始、暂停、继续、跳过、
    稍后提醒和停止；番茄操作不得触发桌体运动。
+9. 模拟或触发 B12 无位移提示，确认 Watch 只提示一次；确认桌下无遮挡后执行重置，验证
+   重置期间所有运动入口禁用，约 8 秒后恢复。
 
 自动化构建、Simulator 和 UI 截图都不能替代这一真机安全门禁。
 
@@ -137,6 +139,7 @@ Apple 官方真机运行流程见
 | Preparing 长时间不结束 | 保持 iPhone 有线连接、Watch 解锁，确认 Xcode 支持当前 watchOS 版本 |
 | Signing 或 provisioning 失败 | 检查 Xcode 登录账号、Team、自动签名和 Bundle ID；持久修改必须写回 `project.yml` |
 | Watch 显示蓝牙不可用 | 在 Watch 的隐私与安全性设置中检查蓝牙授权；确认当前运行目标确实是物理 Watch |
-| 一直扫描不到 Desk Gateway | 确认网关正在广播，并断开手机 App、LightBlue 等其他 BLE Central |
+| 一直扫描不到 Desk Gateway | 确认网关正在广播、连接数未达到 3 台上限；首次绑定还需在手机 App 或 Web 开放 120 秒配对窗口 |
+| 配对或加密失败 | 按 Watch 弹窗操作：在手机 App 或 Web 删除此 Watch 的旧记录并开放配对窗口，在 Watch 蓝牙设置忽略 DeskGateway 后重连 |
 | 显示另一台设备正在控制 | 当前 Watch 不是 BLE 运动所有者；可继续查看状态或发送 STOP，等待所有者释放后再控制 |
 | 仍提示同时定义 `WKWatchOnly` 和 `WKRunsIndependentlyOfCompanionApp` | 删除 Watch 上的旧 App，确认生成配置只保留 `WKWatchOnly`，再执行 Product → Clean Build Folder 后重装 |

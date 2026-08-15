@@ -41,12 +41,14 @@ protocol DeskControlling: ObservableObject {
   var configuration: DeskConfiguration? { get }
   var reminder: ReminderSnapshot? { get }
   var errorMessage: String? { get }
+  var needsPairingRecovery: Bool { get }
   var isReady: Bool { get }
   var isMock: Bool { get }
 
   func connect()
   func send(_ command: DeskCommand)
   func perform(_ action: ReminderAction)
+  func resetController()
   func reconnect()
 }
 

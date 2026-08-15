@@ -1,13 +1,25 @@
 /**
  已确认 Apple Watch 原型的 SwiftUI 实现。
 
- 待机时展示两个固定高度按钮，运动时用红色 STOP 替换；Crown 只在连接、童锁和
- Bluetooth 来源权限允许时产生运动命令。
+ 待机时展示两个固定高度按钮，运动时用红色 STOP 替换；Crown 只在连接、童锁、
+ Bluetooth 来源权限、真实高度和方向安全限制允许时产生运动命令。
  */
 
 import DeskGatewayWatchCore
 import SwiftUI
 import WatchKit
+
+private enum DeskContentAlert: Identifiable {
+  case controllerReset(supported: Bool)
+  case pairingRecovery
+
+  var id: String {
+    switch self {
+    case .controllerReset: "controller-reset"
+    case .pairingRecovery: "pairing-recovery"
+    }
+  }
+}
 
 /// 单页高频控制界面，不引入需要精细滚动的设置层级。
 struct ContentView<Controller: DeskControlling>: View {
@@ -18,12 +30,24 @@ struct ContentView<Controller: DeskControlling>: View {
   @Environment(\.scenePhase) private var scenePhase
   @State private var arrowDriftActive = false
   @State private var crownPosition = 0.0
+  @State private var activeAlert: DeskContentAlert?
 
-  private var controlsEnabled: Bool {
+  private var baseControlsEnabled: Bool {
     desk.isReady
       && desk.deskState != nil
       && desk.deskState?.childLockEnabled == false
       && desk.deskState?.bluetoothControlAllowed == true
+      && desk.deskState?.controllerResetActive == false
+  }
+
+  private var canMoveUp: Bool {
+    baseControlsEnabled
+      && desk.deskState?.heightMillimeters != nil
+      && desk.deskState?.upwardMotionBlocked == false
+  }
+
+  private var canMoveDown: Bool {
+    baseControlsEnabled
   }
 
   private var effectiveDirection: CrownDirection? {
@@ -44,7 +68,8 @@ struct ContentView<Controller: DeskControlling>: View {
   }
 
   private var isMoving: Bool {
-    crown.activeDirection != nil
+    desk.deskState?.controllerResetActive == true
+      || crown.activeDirection != nil
       || (desk.deskState?.motion != .idle
         && desk.deskState?.motion != .error
         && desk.deskState != nil)
@@ -79,7 +104,7 @@ struct ContentView<Controller: DeskControlling>: View {
         .accessibilityLabel("番茄时钟")
       }
     }
-    .focusable(controlsEnabled)
+    .focusable(canMoveUp || canMoveDown)
     .digitalCrownRotation(
       $crownPosition,
       from: -1_000,
@@ -90,11 +115,25 @@ struct ContentView<Controller: DeskControlling>: View {
       isHapticFeedbackEnabled: true
     )
     .onChange(of: crownPosition) { _, newValue in
-      crown.consume(position: newValue, controlsEnabled: controlsEnabled)
+      crown.consume(position: newValue, canMoveUp: canMoveUp, canMoveDown: canMoveDown)
     }
-    .onChange(of: controlsEnabled) { _, enabled in
+    .onChange(of: baseControlsEnabled) { _, enabled in
       if !enabled {
         crown.forceStop(sendEvenIfIdle: false)
+      }
+    }
+    .onChange(of: canMoveUp) { _, enabled in
+      if !enabled, crown.activeDirection == .up {
+        crown.forceStop(sendEvenIfIdle: false)
+      }
+    }
+    .onChange(of: desk.deskState?.controllerResetRecommended) { _, recommended in
+      guard recommended == true, let state = desk.deskState else { return }
+      activeAlert = .controllerReset(supported: state.controllerResetSupported)
+    }
+    .onChange(of: desk.needsPairingRecovery) { _, required in
+      if required {
+        activeAlert = .pairingRecovery
       }
     }
     .onChange(of: desk.isReady) { _, ready in
@@ -114,42 +153,78 @@ struct ContentView<Controller: DeskControlling>: View {
     .onDisappear {
       crown.forceStop(sendEvenIfIdle: true)
     }
+    .alert(item: $activeAlert) { alert in
+      switch alert {
+      case .controllerReset(let supported):
+        if supported {
+          return Alert(
+            title: Text("可能需要重置控制盒"),
+            message: Text(
+              "连续操作后高度没有正常变化，可能是 B12。请确认桌下无遮挡并在桌旁操作；重置会持续向下约 8 秒。"
+            ),
+            primaryButton: .default(Text("开始重置")) {
+              desk.resetController()
+            },
+            secondaryButton: .cancel(Text("稍后处理"))
+          )
+        }
+        return Alert(
+          title: Text("可能需要重置控制盒"),
+          message: Text("当前固件不支持由 Watch 重置，请在手机 App 或 Web 中处理。"),
+          dismissButton: .default(Text("知道了"))
+        )
+      case .pairingRecovery:
+        return Alert(
+          title: Text("恢复蓝牙连接"),
+          message: Text(
+            "1. 在手机 App 或 Web 删除此 Watch 的旧配对记录并开放 120 秒配对窗口。\n2. 在 Watch 设置 > 蓝牙中忽略 DeskGateway。\n3. 返回本 App 点击重连。"
+          ),
+          dismissButton: .default(Text("知道了"))
+        )
+      }
+    }
   }
 
   /// 箭头、数字和单位共用一行；固定箭头槽位避免运动状态切换时数字左右跳动。
   private var heightDisplay: some View {
-    HStack(alignment: .center, spacing: 6) {
-      ZStack {
-        if let direction = effectiveDirection {
-          Image(systemName: direction == .up ? "arrow.up" : "arrow.down")
-            .font(.system(size: 22, weight: .semibold))
-            .foregroundStyle(direction == .up ? .cyan : .orange)
-            .offset(y: arrowOffset(for: direction))
-            .opacity(arrowOpacity)
-            .id(direction)
-            .transition(directionTransition(for: direction))
-            .onAppear {
-              startArrowAnimation(for: direction)
-            }
-            .onDisappear {
-              arrowDriftActive = false
-            }
-            .accessibilityHidden(true)
+    VStack(spacing: 0) {
+      HStack(alignment: .center, spacing: 6) {
+        ZStack {
+          if let direction = effectiveDirection {
+            Image(systemName: direction == .up ? "arrow.up" : "arrow.down")
+              .font(.system(size: 22, weight: .semibold))
+              .foregroundStyle(direction == .up ? .cyan : .orange)
+              .offset(y: arrowOffset(for: direction))
+              .opacity(arrowOpacity)
+              .id(direction)
+              .transition(directionTransition(for: direction))
+              .onAppear {
+                startArrowAnimation(for: direction)
+              }
+              .onDisappear {
+                arrowDriftActive = false
+              }
+              .accessibilityHidden(true)
+          }
+        }
+        .frame(width: 22, height: 30)
+
+        HStack(alignment: .lastTextBaseline, spacing: 4) {
+          Text(heightText)
+            .font(.system(size: 52, weight: .medium, design: .rounded))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+
+          Text("cm")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
       }
-      .frame(width: 22, height: 30)
 
-      HStack(alignment: .lastTextBaseline, spacing: 4) {
-        Text(heightText)
-          .font(.system(size: 52, weight: .medium, design: .rounded))
-          .monospacedDigit()
-          .lineLimit(1)
-          .minimumScaleFactor(0.75)
-
-        Text("cm")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-      }
+      Text(maximumHeightText)
+        .font(.system(size: 9))
+        .foregroundStyle(.secondary)
     }
   }
 
@@ -276,18 +351,18 @@ struct ContentView<Controller: DeskControlling>: View {
     return .asymmetric(insertion: insertion, removal: removal)
   }
 
-  /// 待机态固定高度使用设备 Config 回读值，旧固件才回退到 64/102 cm。
+  /// 待机态优先使用设备 Config；尚未回读时显示当前产品默认值，旧固件兼容值由解码器提供。
   private var presetControls: some View {
     HStack(spacing: 6) {
       presetButton(
         title: "请坐",
-        height: desk.configuration?.sittingHeightMillimeters ?? 640,
+        height: desk.configuration?.sittingHeightMillimeters ?? 560,
         tint: .gray,
         command: .preset1
       )
       presetButton(
         title: "站立",
-        height: desk.configuration?.standingHeightMillimeters ?? 1020,
+        height: desk.configuration?.standingHeightMillimeters ?? 870,
         tint: .cyan,
         command: .preset4
       )
@@ -317,7 +392,7 @@ struct ContentView<Controller: DeskControlling>: View {
     .buttonStyle(.bordered)
     .tint(tint)
     .frame(height: 44)
-    .disabled(!controlsEnabled)
+    .disabled(!presetEnabled(height: height))
     .accessibilityLabel("\(title)，\(format(height: height))")
   }
 
@@ -328,8 +403,26 @@ struct ContentView<Controller: DeskControlling>: View {
     return String(format: "%.1f", Double(height) / 10)
   }
 
+  private var maximumHeightText: String {
+    guard let maximum = desk.deskState?.maximumHeightMillimeters, maximum > 0 else {
+      return "安全上限 --"
+    }
+    return "安全上限 \(format(height: maximum))"
+  }
+
+  /// 高度未知时不能判断档位方向；上升被限制时仍允许移动到更低档位。
+  private func presetEnabled(height target: UInt16) -> Bool {
+    guard baseControlsEnabled, let current = desk.deskState?.heightMillimeters else {
+      return false
+    }
+    return target <= current || canMoveUp
+  }
+
   private var motionText: String {
-    switch effectiveDirection {
+    if desk.deskState?.controllerResetActive == true {
+      return "重置中"
+    }
+    return switch effectiveDirection {
     case .up: "上升中"
     case .down: "下降中"
     case nil: "移动中"
@@ -337,11 +430,29 @@ struct ContentView<Controller: DeskControlling>: View {
   }
 
   private var restrictionText: String? {
+    if desk.needsPairingRecovery {
+      return "需要恢复蓝牙配对"
+    }
+    if desk.deskState?.controllerResetActive == true {
+      return "控制盒重置中，请保持桌下无遮挡"
+    }
     if desk.deskState?.childLockEnabled == true {
       return "童锁已开启"
     }
     if desk.deskState?.bluetoothControlAllowed == false {
       return "蓝牙控制已关闭"
+    }
+    if desk.deskState != nil && desk.deskState?.heightMillimeters == nil {
+      return "高度未知，仅允许下降或停止"
+    }
+    if desk.deskState?.upwardMotionBlocked == true {
+      if let state = desk.deskState,
+        let height = state.heightMillimeters,
+        height >= state.maximumHeightMillimeters
+      {
+        return "已达到安全高度上限"
+      }
+      return "安全传感器暂时限制上升"
     }
     return desk.errorMessage
   }

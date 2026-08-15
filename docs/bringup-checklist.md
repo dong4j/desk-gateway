@@ -42,7 +42,7 @@
 - [x] Web Bond 管理 JavaScript 语法与策略测试通过
 - [x] 手机端 `npm run typecheck` 与 40 项测试通过
 - [x] 手机端通用 iOS 无签名构建通过
-- [x] Watch `swift test` 14 项与通用 watchOS 无签名构建通过
+- [x] Watch `swift test` 17 项与通用 watchOS 无签名构建通过
 - [x] `git diff --check` 通过
 
 三台真机门禁（固定使用 iPhone、Apple Watch、Android，测试运动时必须有人在桌旁）：
@@ -264,6 +264,8 @@ I (...) yourdesk_v1: control-box height input disabled; waiting for external TOF
 - [ ] Web/App 持续操作升降 2.5 秒且真实高度变化不足 8 mm 时，仅提示一次“可能是 B12”并先停止输出
 - [ ] 桌子处于最低/最高边界或操作时间不足 2.5 秒时，不出现 B12 误提示
 - [ ] Web/App 接受提示后可分别通过 REST/BLE 启动同一条 8 秒重置序列
+- [ ] Watch 收到 B12 建议状态后仅提示一次；确认后通过 BLE System Characteristic 启动
+  同一条 8 秒重置序列，重置期间上升、下降和档位入口均禁用
 - [ ] 控制盒 B12 错误清除，随后原厂面板和 Web 均可正常升降
 
 首轮不要按原厂面板档位 1/4。先完成基础透传，再按上述短行程步骤验证童锁和 Panel 权限；

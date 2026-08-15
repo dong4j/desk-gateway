@@ -43,7 +43,12 @@ public struct CrownMotionEngine: Sendable {
   }
 
   /// 消费一次 Crown 位置变化；首次采样只建立基线，不允许意外启动桌面。
-  public mutating func consume(position: Double, at time: TimeInterval) -> [CrownMotionAction] {
+  public mutating func consume(
+    position: Double,
+    at time: TimeInterval,
+    canMoveUp: Bool = true,
+    canMoveDown: Bool = true
+  ) -> [CrownMotionAction] {
     guard let previousPosition else {
       self.previousPosition = position
       return []
@@ -56,6 +61,11 @@ public struct CrownMotionEngine: Sendable {
     }
 
     let direction: CrownDirection = delta > 0 ? .up : .down
+    let directionAllowed = direction == .up ? canMoveUp : canMoveDown
+    guard directionAllowed else {
+      // 如果限制在运动期间出现，必须先结束原方向，不能让 watchdog 继续续租。
+      return forceStop()
+    }
     lastInputTime = time
     if activeDirection != direction {
       let mustStopPreviousDirection = activeDirection != nil

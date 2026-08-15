@@ -79,3 +79,28 @@ func forceStopIsIdempotent() {
   #expect(engine.forceStop() == [.stop])
   #expect(engine.forceStop().isEmpty)
 }
+
+@Test("Blocked upward input is ignored while downward input remains available")
+func blocksOnlyRestrictedDirection() {
+  var engine = CrownMotionEngine()
+  _ = engine.consume(position: 0, at: 0)
+
+  #expect(engine.consume(
+    position: 0.1, at: 0.01, canMoveUp: false, canMoveDown: true
+  ).isEmpty)
+  #expect(engine.consume(
+    position: 0.0, at: 0.02, canMoveUp: false, canMoveDown: true
+  ) == [.start(.down)])
+}
+
+@Test("A newly blocked direction stops the active crown lease")
+func stopsWhenDirectionBecomesBlocked() {
+  var engine = CrownMotionEngine()
+  _ = engine.consume(position: 0, at: 0)
+  _ = engine.consume(position: 0.1, at: 0.01)
+
+  #expect(engine.consume(
+    position: 0.2, at: 0.02, canMoveUp: false, canMoveDown: true
+  ) == [.stop])
+  #expect(engine.activeDirection == nil)
+}

@@ -18,11 +18,12 @@
     @Published private(set) var configuration: DeskConfiguration?
     @Published private(set) var reminder: ReminderSnapshot?
     @Published private(set) var errorMessage: String?
+    @Published private(set) var needsPairingRecovery = false
 
     let isMock = true
 
-    private let minimumHeightMillimeters: UInt16 = 600
-    private var currentHeightMillimeters: UInt16 = 724
+    private let minimumHeightMillimeters: UInt16 = 560
+    private var currentHeightMillimeters: UInt16 = 720
     private var motionTask: Task<Void, Never>?
     private var connectionTask: Task<Void, Never>?
 
@@ -31,9 +32,9 @@
         protocolVersion: 2,
         childLockEnabled: false,
         bluetoothControlAllowed: true,
-        maximumHeightMillimeters: 1_020,
-        sittingHeightMillimeters: 640,
-        standingHeightMillimeters: 1_020
+        maximumHeightMillimeters: 940,
+        sittingHeightMillimeters: 560,
+        standingHeightMillimeters: 870
       )
       publishState(motion: .idle)
       publishReminder(state: .idle, phase: .focus, remainingSeconds: 25 * 60)
@@ -67,9 +68,9 @@
       case .holdDown:
         startContinuousMotion(.movingDown)
       case .preset1:
-        startPresetMotion(to: configuration?.sittingHeightMillimeters ?? 640)
+        startPresetMotion(to: configuration?.sittingHeightMillimeters ?? 560)
       case .preset4:
-        startPresetMotion(to: configuration?.standingHeightMillimeters ?? 1_020)
+        startPresetMotion(to: configuration?.standingHeightMillimeters ?? 870)
       }
     }
 
@@ -97,6 +98,31 @@
       case .snooze:
         publishReminder(state: .snoozed, phase: reminder.phase,
                         remainingSeconds: 5 * 60)
+      }
+    }
+
+    /// 用短动画模拟真实 8 秒控制盒重置，避免 Simulator 调试等待过久。
+    func resetController() {
+      guard isReady, deskState?.motion == .idle else { return }
+      motionTask?.cancel()
+      deskState = DeskState(
+        motion: .idle,
+        heightMillimeters: currentHeightMillimeters,
+        maximumHeightMillimeters: configuration?.maximumHeightMillimeters ?? 940,
+        heightIsSimulated: true,
+        childLockEnabled: false,
+        bluetoothControlAllowed: true,
+        upwardMotionBlocked: true,
+        controllerResetSupported: true,
+        controllerResetActive: true,
+        controllerResetRecommended: false
+      )
+      motionTask = Task { @MainActor [weak self] in
+        try? await Task.sleep(for: .milliseconds(800))
+        guard !Task.isCancelled, let self else { return }
+        self.currentHeightMillimeters = self.minimumHeightMillimeters
+        self.motionTask = nil
+        self.publishState(motion: .idle)
       }
     }
 
@@ -139,7 +165,7 @@
 
     /// 每个 tick 移动 3 mm，并严格限制在 Mock 的物理范围内。
     private func stepContinuousMotion(_ motion: DeskMotion) {
-      let maximum = configuration?.maximumHeightMillimeters ?? 1_020
+      let maximum = configuration?.maximumHeightMillimeters ?? 940
       switch motion {
       case .movingUp:
         currentHeightMillimeters = min(maximum, currentHeightMillimeters + 3)
@@ -172,7 +198,7 @@
 
     /// 所有状态都带 `heightIsSimulated`，避免调试数据被误认为真实测量。
     private func publishState(motion: DeskMotion) {
-      let maximum = configuration?.maximumHeightMillimeters ?? 1_020
+      let maximum = configuration?.maximumHeightMillimeters ?? 940
       deskState = DeskState(
         motion: motion,
         heightMillimeters: currentHeightMillimeters,
@@ -180,7 +206,10 @@
         heightIsSimulated: true,
         childLockEnabled: false,
         bluetoothControlAllowed: true,
-        upwardMotionBlocked: currentHeightMillimeters >= maximum
+        upwardMotionBlocked: currentHeightMillimeters >= maximum,
+        controllerResetSupported: true,
+        controllerResetActive: false,
+        controllerResetRecommended: false
       )
     }
 

@@ -16,6 +16,11 @@ public enum DeskCommand: UInt8, Sendable {
   case preset4 = 0x14
 }
 
+/// System Characteristic 支持的维护动作；控制盒重置必须由用户明确确认后发送。
+public enum DeskSystemCommand: UInt8, Sendable {
+  case resetController = 0x02
+}
+
 /// State Characteristic 暴露的桌面运动状态。
 public enum DeskMotion: UInt8, Sendable {
   case idle = 0x00
@@ -105,6 +110,9 @@ public struct DeskState: Equatable, Sendable {
   public let childLockEnabled: Bool
   public let bluetoothControlAllowed: Bool
   public let upwardMotionBlocked: Bool
+  public let controllerResetSupported: Bool
+  public let controllerResetActive: Bool
+  public let controllerResetRecommended: Bool
 
   public init(
     motion: DeskMotion,
@@ -113,7 +121,10 @@ public struct DeskState: Equatable, Sendable {
     heightIsSimulated: Bool,
     childLockEnabled: Bool,
     bluetoothControlAllowed: Bool,
-    upwardMotionBlocked: Bool
+    upwardMotionBlocked: Bool,
+    controllerResetSupported: Bool = false,
+    controllerResetActive: Bool = false,
+    controllerResetRecommended: Bool = false
   ) {
     self.motion = motion
     self.heightMillimeters = heightMillimeters
@@ -122,6 +133,9 @@ public struct DeskState: Equatable, Sendable {
     self.childLockEnabled = childLockEnabled
     self.bluetoothControlAllowed = bluetoothControlAllowed
     self.upwardMotionBlocked = upwardMotionBlocked
+    self.controllerResetSupported = controllerResetSupported
+    self.controllerResetActive = controllerResetActive
+    self.controllerResetRecommended = controllerResetRecommended
   }
 }
 
@@ -184,6 +198,7 @@ public enum DeskProtocol {
   public static let commandUUID = "7F4E0002-6D4C-4F4B-9F7A-3C1D2E5A9B10"
   public static let stateUUID = "7F4E0003-6D4C-4F4B-9F7A-3C1D2E5A9B10"
   public static let configUUID = "7F4E0004-6D4C-4F4B-9F7A-3C1D2E5A9B10"
+  public static let systemUUID = "7F4E0005-6D4C-4F4B-9F7A-3C1D2E5A9B10"
   public static let clientInfoUUID = "7F4E0006-6D4C-4F4B-9F7A-3C1D2E5A9B10"
   public static let reminderUUID = "7F4E0008-6D4C-4F4B-9F7A-3C1D2E5A9B10"
   public static let advertisingName = "DeskGateway"
@@ -192,6 +207,10 @@ public enum DeskProtocol {
 
   /// 编码单字节命令，不在 Watch 端扩展固件未定义的控制值。
   public static func encode(_ command: DeskCommand) -> Data {
+    Data([command.rawValue])
+  }
+
+  public static func encode(_ command: DeskSystemCommand) -> Data {
     Data([command.rawValue])
   }
 
@@ -232,7 +251,10 @@ public enum DeskProtocol {
       heightIsSimulated: flags & 0x02 != 0,
       childLockEnabled: flags & 0x04 != 0,
       bluetoothControlAllowed: flags & 0x08 != 0,
-      upwardMotionBlocked: flags & 0x10 != 0
+      upwardMotionBlocked: flags & 0x10 != 0,
+      controllerResetSupported: flags & 0x20 != 0,
+      controllerResetActive: flags & 0x40 != 0,
+      controllerResetRecommended: flags & 0x80 != 0
     )
   }
 

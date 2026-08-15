@@ -29,14 +29,16 @@ final class CrownMotionCoordinator: ObservableObject {
   }
 
   /// 将一次 Crown 位置更新送入状态机；权限不足时立即进入安全停止。
-  func consume(position: Double, controlsEnabled: Bool) {
-    guard controlsEnabled else {
+  func consume(position: Double, canMoveUp: Bool, canMoveDown: Bool) {
+    guard canMoveUp || canMoveDown else {
       forceStop(sendEvenIfIdle: false)
       return
     }
     let actions = engine.consume(
       position: position,
-      at: ProcessInfo.processInfo.systemUptime
+      at: ProcessInfo.processInfo.systemUptime,
+      canMoveUp: canMoveUp,
+      canMoveDown: canMoveDown
     )
     execute(actions)
     ensureWatchdog()

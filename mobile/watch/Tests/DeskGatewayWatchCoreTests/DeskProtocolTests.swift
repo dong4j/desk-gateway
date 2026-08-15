@@ -9,15 +9,18 @@ import Testing
 func decodesStateV1() throws {
   let state = try DeskProtocol.decodeState(
     Data([
-      0x01, 0x01, 0x19, 0x00, 0xD0, 0x02, 0xFC, 0x03,
+      0x01, 0x01, 0xF9, 0x00, 0xD0, 0x02, 0xAC, 0x03,
     ]))
 
   #expect(state.motion == .movingUp)
   #expect(state.heightMillimeters == 720)
-  #expect(state.maximumHeightMillimeters == 1020)
+  #expect(state.maximumHeightMillimeters == 940)
   #expect(state.childLockEnabled == false)
   #expect(state.bluetoothControlAllowed)
   #expect(state.upwardMotionBlocked)
+  #expect(state.controllerResetSupported)
+  #expect(state.controllerResetActive)
+  #expect(state.controllerResetRecommended)
 }
 
 @Test("Unknown height remains unknown")
@@ -34,11 +37,12 @@ func preservesUnknownHeight() throws {
 func decodesConfigV2() throws {
   let config = try DeskProtocol.decodeConfiguration(
     Data([
-      0x02, 0x0F, 0xFC, 0x03, 0x80, 0x02, 0xFC, 0x03,
+      0x02, 0x0F, 0xAC, 0x03, 0x30, 0x02, 0x66, 0x03,
     ]))
 
-  #expect(config.sittingHeightMillimeters == 640)
-  #expect(config.standingHeightMillimeters == 1020)
+  #expect(config.maximumHeightMillimeters == 940)
+  #expect(config.sittingHeightMillimeters == 560)
+  #expect(config.standingHeightMillimeters == 870)
   #expect(config.bluetoothControlAllowed)
 }
 
@@ -49,6 +53,7 @@ func encodesCommands() {
   #expect(DeskProtocol.encode(DeskCommand.holdDown) == Data([0x02]))
   #expect(DeskProtocol.encode(DeskCommand.preset1) == Data([0x11]))
   #expect(DeskProtocol.encode(DeskCommand.preset4) == Data([0x14]))
+  #expect(DeskProtocol.encode(DeskSystemCommand.resetController) == Data([0x02]))
 }
 
 @Test("Reminder v1 decodes ESP timer and audio state")

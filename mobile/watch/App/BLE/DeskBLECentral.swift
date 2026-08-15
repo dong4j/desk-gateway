@@ -19,6 +19,7 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
   @Published private(set) var configuration: DeskConfiguration?
   @Published private(set) var reminder: ReminderSnapshot?
   @Published private(set) var errorMessage: String?
+  @Published private(set) var needsPairingRecovery = false
 
   private struct PendingWrite {
     let deskCommand: DeskCommand?
@@ -30,12 +31,14 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
   private let commandUUID = CBUUID(string: DeskProtocol.commandUUID)
   private let stateUUID = CBUUID(string: DeskProtocol.stateUUID)
   private let configUUID = CBUUID(string: DeskProtocol.configUUID)
+  private let systemUUID = CBUUID(string: DeskProtocol.systemUUID)
   private let clientInfoUUID = CBUUID(string: DeskProtocol.clientInfoUUID)
   private let reminderUUID = CBUUID(string: DeskProtocol.reminderUUID)
 
   private var centralManager: CBCentralManager!
   private var peripheral: CBPeripheral?
   private var commandCharacteristic: CBCharacteristic?
+  private var systemCharacteristic: CBCharacteristic?
   private var clientInfoCharacteristic: CBCharacteristic?
   private var reminderCharacteristic: CBCharacteristic?
   private var pendingWrites: [PendingWrite] = []
@@ -102,6 +105,27 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
     flushWriteQueue()
   }
 
+  /// B12 建议出现后由用户确认触发；复用固件已有 System Characteristic，不绕过来源权限。
+  func resetController() {
+    guard peripheral != nil, let commandCharacteristic, let systemCharacteristic else {
+      errorMessage = "当前固件不支持控制盒重置"
+      return
+    }
+    // B12 恢复必须先清掉残留运动续期并发送 STOP，随后才允许进入 8 秒重置序列。
+    pendingWrites.removeAll()
+    pendingWrites.append(PendingWrite(
+      deskCommand: .stop,
+      characteristic: commandCharacteristic,
+      data: DeskProtocol.encode(DeskCommand.stop)
+    ))
+    pendingWrites.append(PendingWrite(
+      deskCommand: nil,
+      characteristic: systemCharacteristic,
+      data: DeskProtocol.encode(DeskSystemCommand.resetController)
+    ))
+    flushWriteQueue()
+  }
+
   /// 清除旧连接状态并重新扫描，不重放任何先前运动命令。
   func reconnect() {
     if let peripheral {
@@ -143,6 +167,7 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
     centralManager?.stopScan()
     peripheral = nil
     commandCharacteristic = nil
+    systemCharacteristic = nil
     clientInfoCharacteristic = nil
     reminderCharacteristic = nil
     pendingWrites.removeAll()
@@ -152,6 +177,7 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
     configuration = nil
     reminder = nil
     errorMessage = nil
+    needsPairingRecovery = false
     if !keepPhase {
       phase = .idle
     }
@@ -208,6 +234,7 @@ extension DeskBLECentral: @preconcurrency CBCentralManagerDelegate {
     didFailToConnect peripheral: CBPeripheral,
     error: Error?
   ) {
+    needsPairingRecovery = true
     fail(error ?? NSError(domain: "DeskGatewayWatch", code: 1))
   }
 
@@ -216,8 +243,18 @@ extension DeskBLECentral: @preconcurrency CBCentralManagerDelegate {
     didDisconnectPeripheral peripheral: CBPeripheral,
     error: Error?
   ) {
+    let wasReady = phase == .ready
     resetConnectionState()
-    phase = error == nil ? .disconnected : .failed(error!.localizedDescription)
+    if let error {
+      needsPairingRecovery = !wasReady
+      let message = needsPairingRecovery
+        ? "蓝牙配对信息可能已失效"
+        : error.localizedDescription
+      errorMessage = message
+      phase = .failed(message)
+    } else {
+      phase = .disconnected
+    }
   }
 }
 
@@ -234,7 +271,7 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
       return
     }
     peripheral.discoverCharacteristics(
-      [commandUUID, stateUUID, configUUID, clientInfoUUID, reminderUUID],
+      [commandUUID, stateUUID, configUUID, systemUUID, clientInfoUUID, reminderUUID],
       for: service
     )
   }
@@ -259,6 +296,8 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
       case configUUID:
         peripheral.setNotifyValue(true, for: characteristic)
         peripheral.readValue(for: characteristic)
+      case systemUUID:
+        systemCharacteristic = characteristic
       case clientInfoUUID:
         clientInfoCharacteristic = characteristic
       case reminderUUID:
@@ -351,13 +390,14 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
       }
       if awaitingClientInfo && characteristic.uuid == clientInfoUUID {
         awaitingClientInfo = false
+        needsPairingRecovery = true
         fail(
           NSError(
             domain: "DeskGatewayWatch",
             code: cocoaError.code,
             userInfo: [
               NSLocalizedDescriptionKey:
-                "BLE 配对失败，请在系统蓝牙设置中取消配对 DeskGateway，打开配对窗口后重试",
+                "蓝牙配对信息可能已失效",
               NSUnderlyingErrorKey: error,
             ]
           )
@@ -366,6 +406,12 @@ extension DeskBLECentral: @preconcurrency CBPeripheralDelegate {
       }
       if characteristic.uuid == reminderUUID {
         errorMessage = "当前番茄状态不接受该操作"
+        phase = .ready
+        flushWriteQueue()
+        return
+      }
+      if characteristic.uuid == systemUUID {
+        errorMessage = "控制盒重置失败，请确认桌面空闲后重试"
         phase = .ready
         flushWriteQueue()
         return

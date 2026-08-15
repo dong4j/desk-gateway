@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-WATCH-001 |
-| 版本 | 0.16 |
+| 版本 | 0.17 |
 | 日期 | 2026-08-15 |
 | 状态 | W0 与多客户端适配代码、测试和通用构建完成；Apple Watch 真机验收待完成 |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
@@ -86,6 +86,7 @@ Watch 不定义新协议，直接消费已冻结的 Service：
 | Service | `7f4e0001-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Desk Accessory Service |
 | Command | `7f4e0002-6d4c-4f4b-9f7a-3c1d2e5a9b10` | 加密 Write |
 | State | `7f4e0003-6d4c-4f4b-9f7a-3c1d2e5a9b10` | Read + Notify，固定 8 字节 |
+| System | `7f4e0005-6d4c-4f4b-9f7a-3c1d2e5a9b10` | 加密 Write，用户确认后执行控制盒重置 |
 | Client Info | `7f4e0006-6d4c-4f4b-9f7a-3c1d2e5a9b10` | 加密 Write：`01 01` 表示 v1 / watchOS |
 
 | Hex | Watch 操作 |
@@ -95,6 +96,9 @@ Watch 不定义新协议，直接消费已冻结的 Service：
 | `02` | HOLD_DOWN |
 | `11` | PRESET_1 |
 | `14` | PRESET_4 |
+
+System Characteristic 的 `02` 表示控制盒重置，只能在 State 建议重置且用户确认后发送；
+不能与 Command Characteristic 中同值的 `HOLD_DOWN` 混用。
 
 State Notify 用于显示真实高度、运动状态、童锁、Bluetooth 来源权限和安全上限。
 未知高度 `FF FF` 必须显示为未知，不能自行估算。
@@ -115,6 +119,8 @@ State Notify 用于显示真实高度、运动状态、童锁、Bluetooth 来源
 - 停止旋转后立即 STOP，运动状态提供独立 STOP；
 - “请坐”映射档位 1（默认 56 cm），“站立”映射档位 4（默认 87 cm）；
 - 显示童锁、Bluetooth 来源权限和安全高度上限；
+- 未知高度或上升受限时仅禁用上升方向，下降和 STOP 保持可用；
+- 检测到可能的 B12 时提示用户，并在确认后通过 System Characteristic 执行控制盒重置；
 - 连接失败、设备忙、蓝牙关闭和权限拒绝的明确状态；
 - 前台退出、页面消失和断连时执行安全停止。
 
@@ -144,6 +150,8 @@ Watch Crown 事件只表示“用户仍在旋转”，不能把 Crown 的累计�
 7. BLE 断连立即清除本地运动状态；
 8. 即使 Watch 的 STOP 丢失，ESP32 现有 `750 ms` HOLD 租约仍必须兜底停止；
 9. 全局童锁和 Bluetooth 来源权限继续由 ESP32 `desk_core` 最终裁决。
+10. 高度未知、达到安全上限或传感器限制上升时，Watch 不发送上升续期；下降和 STOP
+    仍然可用。
 
 档位命令是由真实高度闭环停止的离散动作，不通过 Watch 伪装成长按。Watch 断连时，
 ESP32 仍按现有协议执行停止。
@@ -238,14 +246,15 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
 ### 当前实现证据（2026-08-13）
 
 - `mobile/watch/Package.swift` 提供协议和 Crown 状态机的独立测试入口；
-- `swift test` 已通过 14 个测试，覆盖固定命令字节、State/Config 解码、Client Info、
-  Desk Busy、方向反转、250 ms watchdog 续期和 500 ms 无输入 STOP；
+- `swift test` 已通过 17 个测试，覆盖固定命令字节、State/Config/B12 解码、Client Info、
+  Desk Busy、方向限制、方向反转、250 ms watchdog 续期和 500 ms 无输入 STOP；
 - `xcodegen generate` 可重复生成独立 watchOS 工程；
 - `xcodebuild -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`
   已通过，App 使用 `WKWatchOnly` 表达 Watch-only 形态，并包含蓝牙用途声明；
 - Apple Watch Series 11（46 mm）watchOS 27 Simulator 已完成定向构建、安装和启动；
-- Simulator Debug 构建会自动使用本地 `MockDeskController`，以 `72.4 cm` 为初始高度，
-  支持 Crown 连续升降、250 ms watchdog 续期、500 ms 无输入 STOP、固定高度和手动
+- Simulator Debug 构建会自动使用本地 `MockDeskController`，以 `72.0 cm` 为初始高度，
+  `56 / 87 / 94 cm` 为坐姿、站姿和安全上限，支持 Crown 连续升降、250 ms watchdog
+  续期、500 ms 无输入 STOP、固定高度和手动
   STOP 的 UI 测试；页面必须
   显示橙色“模拟”标识；
 - Mock 的选择是 `DEBUG && targetEnvironment(simulator)` 编译期行为。真机 Debug 和所有
