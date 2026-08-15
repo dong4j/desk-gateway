@@ -104,6 +104,7 @@ NOTICE                        第三方声明
 |------|------|
 | [docs/0-requirements.md](./docs/0-requirements.md) | 需求 |
 | [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | 当前状态与剩余任务优先级 |
+| [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 发布验收门禁与签署记录 |
 | [docs/7-hardware-i2c-restoration-investigation.md](./docs/7-hardware-i2c-restoration-investigation.md) | 从软件 I²C 回退到硬件 I²C 的排查记录 |
 | [docs/4-tof-distance-sensor-plan.md](./docs/4-tof-distance-sensor-plan.md) | 双 ToF 接线、防抖、档位与上升安全策略 |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | 架构总览 |

@@ -10,6 +10,8 @@
 本文汇总当前代码状态和用户真机验证结果。协议细节、接线步骤和分层设计仍分别以
 [协议逆向笔记](./3-protocol-reverse-notes.md)、[真机验收清单](./bringup-checklist.md)和
 [架构总览](./architecture/overview.md)为准。
+V1 的执行顺序、证据记录和最终 GO/NO-GO 签署统一使用
+[V1 版本验收](./12-v1-release-acceptance.md)，本文不重复记录逐次验收结果。
 
 当前代码基线为 `23f1c7d1`。2026-08-15 已完成 ESP-IDF v6.0.2 隔离构建、完整烧录和
 启动检查；串口确认 Mxtark 硬件 I2C Slave `@0x24`、GPIO6/7 原厂面板代理、BLE、Wi-Fi、
@@ -118,3 +120,4 @@ Web、双 ToF、OLED 和音频组件均已启动。该记录只证明固件启�
 - 仅通过编译、单元测试或模拟器不能替代桌子、手机或传感器真机验收。
 - 任务优先级发生变化时先更新本文，再同步 README 和架构总览摘要。
 - 详细测试证据写入 `bringup-checklist.md`，本文只保留结论和下一步。
+- V1 发布只以 `12-v1-release-acceptance.md` 的必选门禁和最终签署为准。

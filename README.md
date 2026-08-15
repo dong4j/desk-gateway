@@ -109,6 +109,7 @@ NOTICE                     Third-party attributions
 |-----|-------------|
 | [docs/0-requirements.md](./docs/0-requirements.md) | Requirements (Chinese) |
 | [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | Current status and prioritized backlog (Chinese) |
+| [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 release acceptance gates and sign-off record (Chinese) |
 | [docs/7-hardware-i2c-restoration-investigation.md](./docs/7-hardware-i2c-restoration-investigation.md) | Why the default firmware returned from software to hardware I²C (Chinese) |
 | [docs/4-tof-distance-sensor-plan.md](./docs/4-tof-distance-sensor-plan.md) | Dual-ToF wiring, filtering, presets, and upward safety policy (Chinese) |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | Architecture overview |
