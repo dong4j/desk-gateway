@@ -1271,7 +1271,6 @@ export function SettingsScreen({
           <SettingRow
             icon={<PanelIcon size={27} />}
             title="原厂控制面板"
-            badge="待硬件验证"
             value={config?.panelAllowed ?? false}
             disabled={!deviceSettingsAvailable || deviceOperationBusy !== null}
             onPress={() => void runDeviceOperation(
