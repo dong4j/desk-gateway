@@ -21,6 +21,9 @@
     @Published private(set) var needsPairingRecovery = false
 
     let isMock = true
+    let transport: DeskTransport? = .mock
+
+    var controlAllowed: Bool { true }
 
     private let minimumHeightMillimeters: UInt16 = 550
     private var currentHeightMillimeters: UInt16 = 720
@@ -41,6 +44,11 @@
       publishReminder(state: .idle, phase: .focus, remainingSeconds: 25 * 60)
     }
 
+    /// 与真机连接管理器保持统一构造签名；Simulator 不读取真实网络凭据。
+    convenience init(settings _: DeskConnectionSettings) {
+      self.init()
+    }
+
     var isReady: Bool {
       phase == .ready
     }
@@ -59,6 +67,14 @@
         self.phase = .ready
         self.publishState(motion: .idle)
       }
+    }
+
+    /// Simulator 断开时清理全部本地任务，保持与真实控制器相同的生命周期语义。
+    func disconnect() {
+      connectionTask?.cancel()
+      connectionTask = nil
+      stopMotion()
+      phase = .disconnected
     }
 
     /// 执行与真实 GATT 相同的命令语义，但只更新本地模拟高度。

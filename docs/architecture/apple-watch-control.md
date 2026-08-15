@@ -3,15 +3,15 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ARCH-WATCH-001 |
-| 版本 | 0.17 |
-| 日期 | 2026-08-15 |
-| 状态 | W0 与多客户端适配代码、测试和通用构建完成；Apple Watch 真机验收待完成 |
+| 版本 | 0.18 |
+| 日期 | 2026-08-16 |
+| 状态 | BLE / REST 双通道代码、测试和通用构建完成；Apple Watch 真机验收待完成 |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
 | 移动端方案 | [移动端技术选型与 Phase 0 方案](./mobile-app-technology-selection.md) |
 | 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
 
 本文定义 Desk Gateway 的 Apple Watch 控制方案、已确认原型和实现验收边界。
-首版创建独立 watchOS App，直接复用 ESP32 GATT v1，不修改固件协议。
+首版创建独立 watchOS App，直接复用 ESP32 GATT v1 和现有鉴权 REST，不修改固件协议。
 
 当前 Watch 已写入加密 Client Info 代替正常连接时的配对 STOP；固件允许它与 iPhone、
 Android 同时保持连接，并以 Desk Busy `0x80` 拒绝非所有者的运动命令。三台真机并发
@@ -25,15 +25,14 @@ Android 同时保持连接，并以 Desk Busy `0x80` 拒绝非所有者的运动
 
 ## 1. 结论
 
-Apple Watch 首版采用原生 **SwiftUI + CoreBluetooth**，由 Watch 直接连接
-ESP32 暴露的 Desk Accessory Service：
+Apple Watch 采用原生 **SwiftUI + CoreBluetooth + URLSession**，提供自动、BLE、
+Wi-Fi 三种连接模式：
 
 ```text
 Apple Watch App（SwiftUI）
-           │
-    CoreBluetooth Central
-           │  BLE GATT v1
-           ▼
+     ├── CoreBluetooth ── BLE GATT v1 ──┐
+     └── URLSession ── 鉴权 REST ───────┤
+                                        ▼
 ESP32 DeskGateway（NimBLE Peripheral）
            │
        desk_core
@@ -41,12 +40,13 @@ ESP32 DeskGateway（NimBLE Peripheral）
         升降桌主机
 ```
 
-首版不把 WatchConnectivity 或 REST 作为实时控制主链路：
+双通道遵守以下边界：
 
 - WatchConnectivity 只适合以后同步设置和最近设备；即时消息依赖 iPhone App
   可达，异步消息又不允许承载可能延迟执行的运动命令。
-- REST 可作为诊断或降级通道，但依赖局域网、网关地址和 Watch 网络状态，不能
-  替代本地 BLE 主链路。
+- 自动模式优先 BLE，5 秒内未就绪时才切换 REST；切换不会恢复或重放先前运动。
+- REST Crown 只调用 `/api/v1/desk/jog/up|down`，由设备侧 500 ms 短租约兜底，禁止
+  使用最长 15 秒的 `/desk/up|down` 作为 Crown 主链路。
 - Expo / React Native 继续服务 iOS 和 Android 手机端；watchOS 使用原生 Target，
   不为复用少量 UI 而引入非正式 watchOS 运行层。
 
@@ -66,11 +66,13 @@ mobile/
 │   ├── Package.swift            # 平台无关协议/控制核心及单元测试
 │   ├── Sources/                 # DeskGatewayWatchCore
 │   ├── Tests/
-│   └── App/                     # SwiftUI + CoreBluetooth watchOS App
+│   └── App/                     # SwiftUI + BLE / REST watchOS App
 └── prototypes/
 ```
 
-独立 App 让 BLE、Digital Crown 和停止时序可以先在真机闭环，不依赖 iPhone 是否在场。
+独立 App 让 BLE、局域网 REST、Digital Crown 和停止时序可以直接在 Watch 闭环，不依赖
+iPhone App 是否安装。REST 密码保存在 Watch Keychain，网关默认使用
+`desk-gateway.local`。
 以后若决定与手机 App 联合分发，再将同一 `App/` 和 Core package 嵌入
 **Watch App for Existing iOS App** Target；届时必须选择“提交 iOS 原生工程”或
 “使用 Expo config plugin 生成 Target”之一，不能手工修改一次性生成物。
@@ -100,8 +102,8 @@ Watch 不定义新协议，直接消费已冻结的 Service：
 System Characteristic 的 `02` 表示控制盒重置，只能在 State 建议重置且用户确认后发送；
 不能与 Command Characteristic 中同值的 `HOLD_DOWN` 混用。
 
-State Notify 用于显示真实高度、运动状态、童锁、Bluetooth 来源权限和安全上限。
-未知高度 `FF FF` 必须显示为未知，不能自行估算。
+BLE State Notify 与 REST `/api/v1/desk/status` 都用于显示真实高度、运动状态、童锁、
+当前来源权限和安全上限。未知高度必须显示为未知，不能自行估算。
 
 协议文档继续作为 TypeScript 与 Swift 两端的唯一事实来源。首版常量数量很少，暂不
 引入代码生成；为 Swift 编解码器补充与 TypeScript 相同的固定字节测试，防止漂移。
@@ -113,15 +115,17 @@ State Notify 用于显示真实高度、运动状态、童锁、Bluetooth 来源
 ### 4.1 实现
 
 - 扫描并连接 `DeskGateway`；
+- 提供自动、BLE、Wi-Fi 三种连接模式，并显示当前实际通道；
+- 使用 Keychain 保存 REST 密码，通过 `X-Desk-Key` 调用现有鉴权接口；
 - 连接后写入 Client Info 触发系统配对，不发送 STOP 握手；
-- 订阅高度与状态 Notify；
+- BLE 订阅高度与状态 Notify；REST 根据运动状态按 250 ms / 1 s 轮询；
 - Digital Crown 正向旋转持续上升、反向旋转持续下降；
 - 停止旋转后立即 STOP，运动状态提供独立 STOP；
 - “请坐”映射档位 1（默认 55 cm），“站立”映射档位 4（默认 87 cm）；
-- 显示童锁、Bluetooth 来源权限和安全高度上限；
+- 显示童锁、当前 BLE / REST 来源权限和安全高度上限；
 - 未知高度或上升受限时仅禁用上升方向，下降和 STOP 保持可用；
 - 检测到可能的 B12 时提示用户，并在确认后通过 System Characteristic 执行控制盒重置；
-- 连接失败、设备忙、蓝牙关闭和权限拒绝的明确状态；
+- 连接失败、设备忙、蓝牙关闭、REST 鉴权失败和来源拒绝的明确状态；
 - 前台退出、页面消失和断连时执行安全停止。
 
 ### 4.2 暂不实现
@@ -145,11 +149,13 @@ Watch Crown 事件只表示“用户仍在旋转”，不能把 Crown 的累计�
 2. 运动意图有效期间由 watchdog 约每 `250 ms` 续期，不依赖真机 Crown 回调密度；
 3. 距离最后一次 Crown 增量约 `500 ms` 后立即发送 `STOP`；
 4. 方向切换先 STOP，再开始相反方向，避免命令交叉；
-5. 任一时刻最多保留一个未完成的 GATT Write；STOP 具有最高队列优先级；
+5. BLE 任一时刻最多保留一个未完成的 GATT Write；REST 合并未发送的 Jog 续期；
+   两种通道都必须保证 STOP 先于方向切换后的新动作；
 6. 点击停止、页面消失或 App 失去前台时取消续期并尽力发送 `STOP`；
-7. BLE 断连立即清除本地运动状态；
-8. 即使 Watch 的 STOP 丢失，ESP32 现有 `750 ms` HOLD 租约仍必须兜底停止；
-9. 全局童锁和 Bluetooth 来源权限继续由 ESP32 `desk_core` 最终裁决。
+7. 当前通道断连立即清除本地运动状态；自动回退只建立新会话，不重放旧动作；
+8. 即使 Watch 的 STOP 丢失，BLE 使用 ESP32 `750 ms` HOLD 租约，REST Jog 使用
+   `500 ms` 租约兜底停止；
+9. 全局童锁和当前 BLE / REST 来源权限继续由 ESP32 `desk_core` 最终裁决。
 10. 高度未知、达到安全上限或传感器限制上升时，Watch 不发送上升续期；下降和 STOP
     仍然可用。
 
@@ -174,7 +180,8 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
 - 若 iPhone 或 Android 正在控制，Watch 的 HOLD / PRESET 收到 `0x80` 后显示
   “另一台设备正在控制”，连接和状态订阅保持正常；
 - 任意客户端 STOP 都可立即停止并释放所有权；
-- 不自动通过 REST 或 WatchConnectivity 绕行，避免同一次操作走向不可预测的链路；
+- 自动模式只在 BLE 尚未就绪或已断开后切换 REST；切换前清理本地运动状态，且不重放
+  HOLD、PRESET 或番茄动作；
 - 手机 App 进入后台时仍按既有规则 STOP；它可以保持或释放连接，但不得隐式转移运动；
 - Watch 若是运动所有者，断连会先 STOP；非所有者断连不影响现有运动。
 
@@ -195,7 +202,7 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
 - 本地 Crown 控制或设备状态任一方表示正在运动时，都必须显示 STOP；
 - STOP 不能因为高度未知而置灰；
 - 高度未知时上升入口应显示设备保护原因；最终拒绝和停止仍由 ESP32 执行；
-- 童锁或 Bluetooth 来源关闭时，运动按钮禁用并显示准确原因；
+- 童锁或当前 BLE / REST 来源关闭时，运动按钮禁用并显示准确原因；
 - HOLD 开始、停止和连接成功使用轻量触感反馈；
 - 不使用需要精细滚动或多层导航的设置页面。
 
@@ -243,14 +250,16 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
 - 页面离开、锁屏、失联和杀进程测试；
 - 童锁和来源权限拒绝测试。
 
-### 当前实现证据（2026-08-13）
+### 当前实现证据（2026-08-16）
 
 - `mobile/watch/Package.swift` 提供协议和 Crown 状态机的独立测试入口；
-- `swift test` 已通过 17 个测试，覆盖固定命令字节、State/Config/B12 解码、Client Info、
-  Desk Busy、方向限制、方向反转、250 ms watchdog 续期和 500 ms 无输入 STOP；
+- `swift test` 已通过 23 个测试，覆盖固定命令字节、State/Config/B12/REST 解码、Client
+  Info、Desk Busy、Jog 路径、方向限制、方向反转、250 ms watchdog 续期和 500 ms
+  无输入 STOP；
 - `xcodegen generate` 可重复生成独立 watchOS 工程；
 - `xcodebuild -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`
-  已通过，App 使用 `WKWatchOnly` 表达 Watch-only 形态，并包含蓝牙用途声明；
+  已通过，App 使用 `WKWatchOnly` 表达 Watch-only 形态，并包含蓝牙用途声明和精确的
+  `NSAllowsLocalNetworking` ATS 配置；
 - Apple Watch Series 11（46 mm）watchOS 27 Simulator 已完成定向构建、安装和启动；
 - Simulator Debug 构建会自动使用本地 `MockDeskController`，以 `72.0 cm` 为初始高度，
   `56 / 87 / 94 cm` 为坐姿、站姿和安全上限，支持 Crown 连续升降、250 ms watchdog
@@ -258,7 +267,7 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
   STOP 的 UI 测试；页面必须
   显示橙色“模拟”标识；
 - Mock 的选择是 `DEBUG && targetEnvironment(simulator)` 编译期行为。真机 Debug 和所有
-  Release 构建仍使用 `DeskBLECentral`，蓝牙失败不会自动降级到 Mock；
+  Release 构建使用 `DeskConnectionManager` 管理真实 BLE / REST，连接失败不会降级到 Mock；
 - Simulator 不具备本项目所需的真实 BLE、物理 Digital Crown 和升降桌环境，因此扫描、
   系统配对弹窗、Crown 手感和真实 STOP 时序仍是开放门禁。
 - Apple Watch 配对、签名、安装、首次 BLE 验收和常见问题统一维护在
@@ -277,7 +286,8 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
 - Apple Watch 真机可稳定扫描、配对、重连和订阅状态；
 - 连续 20 次连接/断开不需要重启 Watch 或 ESP32；
 - 每次松手都立即停止，异常路径不超过固件租约窗口；
-- 童锁和 Bluetooth 来源权限无法被 Watch 绕过；
+- BLE 断连或 Wi-Fi 丢包时，运动分别不超过 750 ms / 500 ms 的设备租约窗口；
+- 童锁和当前 BLE / REST 来源权限无法被 Watch 绕过；
 - Watch、iPhone 与 Android 同时在线时，非所有者 Busy、任意 STOP 和所有者断连行为符合
   多客户端安全矩阵。
 
@@ -300,11 +310,12 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
 |---|---|---|
 | Watch UI | 原生 SwiftUI | 2026-08-11 |
 | 首版工程形态 | 独立 watchOS App；以后可嵌入手机 App | 2026-08-11 |
-| 实时控制链路 | Watch 通过 CoreBluetooth 直连 ESP32 | 2026-08-11 |
+| 实时控制链路 | Watch 提供 BLE 与鉴权 REST；自动模式优先 BLE，失败后切换 REST | 2026-08-16 |
 | Crown 语义 | 旋转建立短时意图；watchdog 每 250 ms 续期，500 ms 无增量即 STOP | 2026-08-12 |
 | 固定高度 | 请坐=档位 1；站立=档位 4 | 2026-08-11 |
 | WatchConnectivity | 仅作非实时设置同步，不承载运动命令 | 2026-08-11 |
-| REST | 仅作后续诊断或显式降级方案 | 2026-08-11 |
+| REST Crown | 使用 `/jog/up|down` 的 500 ms 设备租约，禁止映射到 15 秒 Hold | 2026-08-16 |
+| REST 密码 | 仅保存在 Watch Keychain；地址默认 `desk-gateway.local` | 2026-08-16 |
 | GATT | 复用 v1，不为 Watch 修改固件协议 | 2026-08-11 |
 | 连接模型 | 最多三个 Central 在线；单一运动所有者，Desk Busy 不断连 | 2026-08-13 |
 | 配对握手 | 写入 `01 01` Client Info，不使用 STOP 作为正常握手 | 2026-08-13 |

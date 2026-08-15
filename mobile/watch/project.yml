@@ -16,6 +16,16 @@ targets:
     platform: watchOS
     sources:
       - path: App
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Desk Gateway
+        NSBluetoothAlwaysUsageDescription: Desk Gateway 需要通过蓝牙连接升降桌网关。
+        NSAppTransportSecurity:
+          # 只允许 `.local` 和局域网 IP 的 HTTP，不关闭全局 ATS。
+          NSAllowsLocalNetworking: true
+        WKApplication: true
+        WKWatchOnly: true
     dependencies:
       - package: DeskGatewayWatchCore
         product: DeskGatewayWatchCore
@@ -27,11 +37,6 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: 6.0
         SWIFT_STRICT_CONCURRENCY: minimal
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Desk Gateway
-        INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription: Desk Gateway 需要通过蓝牙连接升降桌网关。
-        INFOPLIST_KEY_WKApplication: YES
-        INFOPLIST_KEY_WKWatchOnly: YES
 
 schemes:
   DeskGatewayWatch:

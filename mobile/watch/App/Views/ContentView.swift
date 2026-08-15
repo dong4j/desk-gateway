@@ -2,7 +2,7 @@
  已确认 Apple Watch 原型的 SwiftUI 实现。
 
  待机时展示两个固定高度按钮，运动时用红色 STOP 替换；Crown 只在连接、童锁、
- Bluetooth 来源权限、真实高度和方向安全限制允许时产生运动命令。
+ 当前通道来源权限、真实高度和方向安全限制允许时产生运动命令。
  */
 
 import DeskGatewayWatchCore
@@ -25,6 +25,7 @@ private enum DeskContentAlert: Identifiable {
 struct ContentView<Controller: DeskControlling>: View {
   @ObservedObject var desk: Controller
   @ObservedObject var crown: CrownMotionCoordinator
+  @ObservedObject var connectionSettings: DeskConnectionSettings
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.scenePhase) private var scenePhase
@@ -36,7 +37,7 @@ struct ContentView<Controller: DeskControlling>: View {
     desk.isReady
       && desk.deskState != nil
       && desk.deskState?.childLockEnabled == false
-      && desk.deskState?.bluetoothControlAllowed == true
+      && desk.controlAllowed
       && desk.deskState?.controllerResetActive == false
   }
 
@@ -96,12 +97,25 @@ struct ContentView<Controller: DeskControlling>: View {
         connectionLabel
       }
       ToolbarItem(placement: .topBarTrailing) {
-        NavigationLink {
-          PomodoroView(desk: desk)
-        } label: {
-          Image(systemName: "timer")
+        HStack(spacing: 8) {
+          NavigationLink {
+            PomodoroView(desk: desk)
+          } label: {
+            Image(systemName: "timer")
+          }
+          .accessibilityLabel("番茄时钟")
+
+          NavigationLink {
+            ConnectionSettingsView(settings: connectionSettings) {
+              crown.forceStop(sendEvenIfIdle: true, playHaptic: false)
+              desk.reconnect()
+            }
+          } label: {
+            Image(systemName: "gearshape")
+          }
+          .disabled(isMoving)
+          .accessibilityLabel("连接设置")
         }
-        .accessibilityLabel("番茄时钟")
       }
     }
     .focusable(canMoveUp || canMoveDown)
@@ -267,13 +281,16 @@ struct ContentView<Controller: DeskControlling>: View {
         .font(.caption2)
         .lineLimit(1)
 
-      if desk.isMock {
-        Text("模拟")
+      if let transport = desk.transport {
+        Text(transport.label)
           .font(.system(size: 8, weight: .semibold))
-          .foregroundStyle(.black)
+          .foregroundStyle(transport == .mock ? .black : .secondary)
           .padding(.horizontal, 4)
           .padding(.vertical, 1)
-          .background(.orange, in: Capsule())
+          .background(
+            transport == .mock ? Color.orange : Color.secondary.opacity(0.18),
+            in: Capsule()
+          )
       }
 
       if desk.phase == .disconnected || isFailure {
@@ -439,8 +456,8 @@ struct ContentView<Controller: DeskControlling>: View {
     if desk.deskState?.childLockEnabled == true {
       return "童锁已开启"
     }
-    if desk.deskState?.bluetoothControlAllowed == false {
-      return "蓝牙控制已关闭"
+    if desk.deskState != nil && !desk.controlAllowed {
+      return desk.transport == .wifi ? "REST 控制已关闭" : "蓝牙控制已关闭"
     }
     if desk.deskState != nil && desk.deskState?.heightMillimeters == nil {
       return "高度未知，仅允许下降或停止"

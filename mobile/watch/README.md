@@ -1,6 +1,6 @@
 # Desk Gateway Watch
 
-独立 watchOS App 用于验证 Apple Watch 直连 Desk Gateway 的 BLE 控制闭环。产品交互、
+独立 watchOS App 支持 Apple Watch 通过 BLE 或局域网 REST 直连 Desk Gateway。产品交互、
 Digital Crown 停止时序、番茄时钟 Reminder v1 和真机门禁见
 [`docs/architecture/apple-watch-control.md`](../../docs/architecture/apple-watch-control.md)。
 
@@ -15,9 +15,9 @@ xcodebuild -project DeskGatewayWatch.xcodeproj \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-`swift test` 覆盖平台无关的 GATT 字节协议和 Crown 状态机。通用 watchOS 构建只能证明
-SwiftUI / CoreBluetooth 代码可以编译，不能代替 Apple Watch 真机上的扫描、配对、
-Digital Crown、触感和真实升降验收。
+`swift test` 覆盖平台无关的 GATT、REST 状态映射和 Crown 状态机。通用 watchOS 构建
+只能证明 SwiftUI、CoreBluetooth 和 URLSession 代码可以编译，不能代替 Apple Watch
+真机上的扫描、配对、局域网连接、Digital Crown、触感和真实升降验收。
 
 ## Simulator Debug Mock
 
@@ -31,8 +31,8 @@ Digital Crown、触感和真实升降验收。
 - 顶部计时器按钮进入番茄时钟页；Simulator 只模拟离散动作状态，不运行本地倒计时。
 
 Mock 仅在 `DEBUG && targetEnvironment(simulator)` 条件下编译为活动控制器。Watch 真机
-Debug 和所有 Release 构建始终使用 `DeskBLECentral`，不存在蓝牙失败后自动切换 Mock 的
-运行时降级，避免把模拟成功误认为真实硬件验收。
+Debug 和所有 Release 构建始终使用真实的 `DeskConnectionManager`，不存在连接失败后
+自动切换 Mock 的运行时降级，避免把模拟成功误认为真实硬件验收。
 
 模拟器建议按以下顺序测试：
 
@@ -109,8 +109,8 @@ Apple 官方真机运行流程见
 3. 点击 Run 或按 `⌘R`；
 4. 等待 Xcode 完成签名、安装并启动 App。
 
-真机 Debug 构建始终使用 `DeskBLECentral`，不会启用 Simulator Mock，也不会显示橙色
-“模拟”标识。
+真机 Debug 构建始终使用 `DeskConnectionManager` 管理 BLE / REST，不会启用 Simulator
+Mock，也不会显示橙色“模拟”标识。
 
 ### 6. 首次 BLE 验收顺序
 
@@ -131,7 +131,23 @@ Apple 官方真机运行流程见
 
 自动化构建、Simulator 和 UI 截图都不能替代这一真机安全门禁。
 
-### 7. 常见问题
+### 7. 首次 Wi-Fi / REST 验收顺序
+
+1. 确认 Watch 与 Desk Gateway 可访问同一局域网，网关能通过
+   `http://desk-gateway.local/` 或固定 IP 访问；
+2. 在 Watch 连接设置中选择“Wi-Fi”，填写网关地址和当前 REST 密码；密码只保存到
+   Watch Keychain；
+3. 保存重连后确认顶部显示“Wi-Fi”，高度、档位和番茄状态来自真实网关；
+4. 分别测试上升、下降、方向切换和 STOP；Crown 必须使用 `/api/v1/desk/jog/up|down`；
+5. 运动期间断开 Watch 网络，确认最后一次 Jog 后约 500 ms 内由设备租约自动停止；
+6. 测试密码错误、REST 来源关闭、童锁、上升受限和网关重启后的错误与重连；
+7. 选择“自动”，分别验证 BLE 正常时保持 BLE，以及 BLE 不可用时切换到 Wi-Fi；切换后
+   不得恢复或重放切换前的运动。
+
+自动化构建只能证明 REST 路径、状态解析和工程配置可编译，不能替代上述真机断网和
+500 ms 租约验收。
+
+### 8. 常见问题
 
 | 现象 | 检查项 |
 |---|---|
@@ -142,4 +158,5 @@ Apple 官方真机运行流程见
 | 一直扫描不到 Desk Gateway | 确认网关正在广播、连接数未达到 3 台上限；首次绑定还需在手机 App 或 Web 开放 120 秒配对窗口 |
 | 配对或加密失败 | 按 Watch 弹窗操作：在手机 App 或 Web 删除此 Watch 的旧记录并开放配对窗口，在 Watch 蓝牙设置忽略 DeskGateway 后重连 |
 | 显示另一台设备正在控制 | 当前 Watch 不是 BLE 运动所有者；可继续查看状态或发送 STOP，等待所有者释放后再控制 |
+| Wi-Fi 连接失败 | 确认 Watch 能访问网关所在局域网；优先测试 `desk-gateway.local`，失败时填写网关 IP；检查 REST 密码和 REST 来源权限 |
 | 仍提示同时定义 `WKWatchOnly` 和 `WKRunsIndependentlyOfCompanionApp` | 删除 Watch 上的旧 App，确认生成配置只保留 `WKWatchOnly`，再执行 Product → Clean Build Folder 后重装 |

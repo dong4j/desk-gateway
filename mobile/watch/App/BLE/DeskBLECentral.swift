@@ -46,6 +46,8 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
   private var awaitingClientInfo = false
   private var connectionRequested = false
 
+  let transport: DeskTransport? = .ble
+
   override init() {
     super.init()
     // Main queue keeps CoreBluetooth delegate updates aligned with ObservableObject state.
@@ -54,6 +56,10 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
 
   var isReady: Bool {
     phase == .ready
+  }
+
+  var controlAllowed: Bool {
+    deskState?.bluetoothControlAllowed == true
   }
 
   /// App 请求连接时开始扫描；已有连接流程必须保持幂等，不能因页面切换清空 GATT 状态。
@@ -73,6 +79,17 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
       break
     }
     startScanning()
+  }
+
+  /// 显式切换通道时停止扫描或取消连接；不会重放先前的运动命令。
+  func disconnect() {
+    connectionRequested = false
+    centralManager.stopScan()
+    if let peripheral {
+      centralManager.cancelPeripheralConnection(peripheral)
+    }
+    resetConnectionState()
+    phase = .disconnected
   }
 
   /// 命令严格串行；STOP 清除尚未发送的运动续期，并排到当前 Write 之后的第一位。
