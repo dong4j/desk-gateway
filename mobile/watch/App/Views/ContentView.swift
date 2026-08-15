@@ -143,15 +143,15 @@ struct ContentView<Controller: DeskControlling>: View {
     }
     .onChange(of: scenePhase) { _, phase in
       if phase != .active {
-        crown.forceStop(sendEvenIfIdle: true)
+        crown.forceStop(sendEvenIfIdle: true, playHaptic: false)
       }
     }
     .onAppear {
       crown.prime(position: crownPosition)
-      desk.connect()
     }
     .onDisappear {
-      crown.forceStop(sendEvenIfIdle: true)
+      // 页面导航同样会触发 onDisappear；保留 STOP 安全边界，但不播放导航噪声。
+      crown.forceStop(sendEvenIfIdle: true, playHaptic: false)
     }
     .alert(item: $activeAlert) { alert in
       switch alert {

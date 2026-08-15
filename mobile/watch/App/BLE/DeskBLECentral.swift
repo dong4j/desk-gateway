@@ -56,7 +56,7 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
     phase == .ready
   }
 
-  /// 用户进入页面或点击重连时开始扫描；Bluetooth 状态未知时等待系统回调。
+  /// App 请求连接时开始扫描；已有连接流程必须保持幂等，不能因页面切换清空 GATT 状态。
   func connect() {
     connectionRequested = true
     guard centralManager.state == .poweredOn else {
@@ -65,6 +65,12 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
         ? .bluetoothUnavailable
         : .idle
       return
+    }
+    switch phase {
+    case .scanning, .connecting, .pairing, .ready:
+      return
+    default:
+      break
     }
     startScanning()
   }
@@ -151,7 +157,8 @@ final class DeskBLECentral: NSObject, ObservableObject, DeskControlling {
 
   /// Service 过滤已经足够精确，名称校验只用于避免错误广播配置混入。
   private func startScanning() {
-    guard !centralManager.isScanning else {
+    // CoreBluetooth 已持有 Peripheral 时不能重置本地引用，否则会留下无法管理的活动连接。
+    guard !centralManager.isScanning, peripheral == nil else {
       return
     }
     resetConnectionState(keepPhase: true)

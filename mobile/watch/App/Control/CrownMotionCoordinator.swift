@@ -45,15 +45,18 @@ final class CrownMotionCoordinator: ObservableObject {
   }
 
   /// 点击 STOP 或生命周期退出时清除 Crown 状态；必要时即使本地空闲也发送 STOP。
-  func forceStop(sendEvenIfIdle: Bool = true) {
+  /// 生命周期安全停止可以关闭触感，避免普通页面导航被误认为一次用户操作。
+  func forceStop(sendEvenIfIdle: Bool = true, playHaptic: Bool = true) {
     let actions = engine.forceStop()
     watchdogTask?.cancel()
     watchdogTask = nil
     if actions.isEmpty && sendEvenIfIdle {
       sendCommand(.stop)
-      WKInterfaceDevice.current().play(.stop)
+      if playHaptic {
+        WKInterfaceDevice.current().play(.stop)
+      }
     } else {
-      execute(actions)
+      execute(actions, playHaptic: playHaptic)
     }
   }
 
@@ -79,17 +82,21 @@ final class CrownMotionCoordinator: ObservableObject {
   }
 
   /// 保持动作顺序，方向切换时 STOP 必须先于相反方向 HOLD 入队。
-  private func execute(_ actions: [CrownMotionAction]) {
+  private func execute(_ actions: [CrownMotionAction], playHaptic: Bool = true) {
     for action in actions {
       switch action {
       case .start(let direction):
         sendCommand(command(for: direction))
-        WKInterfaceDevice.current().play(.start)
+        if playHaptic {
+          WKInterfaceDevice.current().play(.start)
+        }
       case .renew(let direction):
         sendCommand(command(for: direction))
       case .stop:
         sendCommand(.stop)
-        WKInterfaceDevice.current().play(.stop)
+        if playHaptic {
+          WKInterfaceDevice.current().play(.stop)
+        }
       }
     }
     activeDirection = engine.activeDirection

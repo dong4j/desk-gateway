@@ -47,6 +47,9 @@
 
     /// 模拟短暂连接过程，让连接态布局也能在 Simulator 中被观察。
     func connect() {
+      guard phase != .connecting, phase != .ready else {
+        return
+      }
       connectionTask?.cancel()
       phase = .connecting
       connectionTask = Task { @MainActor [weak self] in

@@ -35,6 +35,10 @@ struct DeskGatewayWatchApp: App {
       NavigationStack {
         ContentView(desk: desk, crown: crown)
       }
+      .onAppear {
+        // 连接属于 App 根生命周期，子页面 push/pop 不能重新发起 BLE 扫描。
+        desk.connect()
+      }
     }
   }
 }
