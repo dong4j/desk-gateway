@@ -71,7 +71,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | `desk.get_status` | “桌子现在多高” | `GET /api/v1/desk/status` | 查询当前高度、状态和安全配置 |
 | `desk.raise_to_max` | “升降桌升高到最高” | `POST /api/v1/desk/raise-to-max` | 设备侧有界上升，由 ESP32 在最高安全高度停止 |
-| `desk.goto_sit` | “切换到坐姿” | `POST /api/v1/desk/preset/1/goto` | 闭环前往档位 1，默认 `560 mm` |
+| `desk.goto_sit` | “切换到坐姿” | `POST /api/v1/desk/preset/1/goto` | 闭环前往档位 1，默认 `550 mm` |
 | `desk.goto_stand` | “切换到站姿” | `POST /api/v1/desk/preset/4/goto` | 闭环前往档位 4，默认 `870 mm` |
 | `desk.stop` | “停下桌子” | `POST /api/v1/desk/stop` | 立即停止当前运动 |
 
@@ -85,7 +85,8 @@ Desk Gateway 当前默认值为：
 
 ```text
 最高安全高度：940 mm
-档位 1：      560 mm
+最低档位：    550 mm
+档位 1：      550 mm
 档位 4：      870 mm
 ```
 
@@ -106,7 +107,7 @@ Desk Gateway 当前默认值为：
 - TOF400C 在运动中不可用时停止。
 - 高度低于 `800 mm` 时，TOF050C 右侧距离小于 `80 mm` 会停止；右侧传感器不可用也会
   阻止上升。
-- 默认最高安全高度是 `940 mm`，可配置范围是 `560..940 mm`。
+- 默认最高安全高度是 `940 mm`，可配置范围是 `min_height_mm..940 mm`；当前最低档位默认值是 `550 mm`。
 
 `POST /api/v1/desk/raise-to-max` 与 Web 长按使用的 `/api/v1/desk/up` 分开。前者只有在 Driver
 明确声明 `raise_to_max` 能力时才会执行，不支持的 Driver 会返回错误，不能退化成普通持续

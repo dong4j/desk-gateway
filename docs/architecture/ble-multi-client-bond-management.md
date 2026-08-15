@@ -424,8 +424,8 @@ State、Config、Command 和 System 的现有 UUID 与字节布局保持不变�
 - Watch `swift test` 和通用 watchOS 无签名构建通过；
 - `git diff --check` 通过。
 
-截至 2026-08-13，上述自动化与静态门禁均已通过：固件隔离构建使用 ESP-IDF v6.0.2；
-手机端 `npm run typecheck`、36 项测试和通用 iOS 无签名构建通过；Watch `swift test` 14 项
+截至 2026-08-15，上述自动化与静态门禁均已通过：固件隔离构建使用 ESP-IDF v6.0.2；
+手机端 `npm run typecheck`、55 项测试和通用 iOS 无签名构建通过；Watch `swift test` 18 项
 测试和通用 watchOS 无签名构建通过。详细命令与最终结果记录在仓库根目录完成结果报告中。
 
 ### 12.2 三台真机门禁

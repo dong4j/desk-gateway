@@ -12,15 +12,18 @@
 - **可插拔驱动：** `mxtark` 已实现；Loctek / Jiecang 为 stub
 - **desk_core：** 按住升/降与停止；全局童锁与 REST/蓝牙/面板来源权限使用 NVS 保存
 - **双 ToF 高度与侧距：** TOF400C 直接提供产品高度，TOF050C 提供桌面右侧间距；两路均完成防抖和失效检测
-- **高度闭环：** 坐姿、站姿和最高安全高度跨 Web/App 同步并持久化，档位运动与上升限高已接入统一安全裁决
+- **高度闭环：** 最低档位、坐姿、站姿和最高安全高度跨 Web/App 同步并持久化，当前默认值为 550 / 550 / 870 / 940 mm；最低档位只约束输入，不触发下行 STOP
 - **Wi‑Fi + SoftAP 配网** 与带密码的 **局域网 Web**
 - **BLE Accessory Profile：** 最多三个 Central 同时在线、单一运动所有者、加密 Client Info、显式配对窗口和 Bond 管理，并保留长按租约、断连停止、档位命令与状态 Notify
 - **高度状态一致：** Web/REST/BLE/OLED/原厂面板统一使用处理后的 TOF400C 距离；关闭 SIM 和控制盒 digit 高度解析
 
-> 当前主固件已通过 ESP-IDF 6.0.2 编译。2026-08-10 补回原厂面板上的两只外部上拉后，
+> 当前主固件已通过 ESP-IDF 6.0.2 编译。2026-08-15 已完整烧录当前 `23f1c7d1` 固件，
+> 串口确认 Mxtark `0x24`、面板代理、BLE、Wi-Fi、Web、双 ToF、OLED 和音频组件启动；
+> 这只证明固件启动，不代表运动验收。2026-08-10 补回原厂面板上的两只外部上拉后，
 > Web 按住升/降与松手停止已通过真机验证。后续软件多地址 I²C 高度方案造成连续运动回归，
-> 因此默认固件已回到提交 `3269faa` 验证过的硬件 `0x24` 路径。LightBlue 和 iPhone App
-> 核心控制路径保留；当前双 ToF 已接入高度闭环和上升保护，完整真机安全矩阵仍待验收。
+> 因此默认固件已回到提交 `3269faa` 验证过的硬件 `0x24` 路径。LightBlue 和较早的 iPhone App
+> 已通过核心控制，但当前 App BLE 长按修复与最新固件组合仍需真桌回归；当前双 ToF 已接入
+> 高度闭环和上升保护，完整真机安全矩阵仍待验收。
 > 三客户端固件、Web/手机 Bond 管理及 Watch/手机 Client Info 已通过自动化，但 iPhone、
 > Apple Watch、Android 三台真机矩阵仍未执行。还需完成异常停止矩阵、Android 验收，
 > 以及双 RJ45 原面板透传、仲裁和童锁真屏蔽；
@@ -115,14 +118,18 @@ NOTICE                        第三方声明
 - [x] 恢复硬件 I²C Slave `@0x24` 作为稳定运动链路
 - [x] LightBlue 和 iPhone App 已在真桌完成 BLE 核心控制
 - [x] 手机 App 已实现 BLE 优先、REST 回退和设备设置同步
+- [x] 固件、Web、App、Watch、REST 和 BLE Config v3 已支持可配置的 550 mm 最低档位
 - [x] 实现 BLE 三连接所有权、Client Info、配对窗口和 Web/手机 Bond 管理
-- [ ] Phase 2 双 RJ45 MITM 透传恢复 + 面板权限/童锁真机验收
+- [x] 实现 Phase 2 双 RJ45 原厂面板代理、仲裁和面板控制门禁
+- [ ] 完成 Phase 2 真桌透传、断线 STOP、仲裁和童锁真屏蔽验收
+- [ ] 在真桌复验当前 App BLE 长按升降与松手 STOP
 - [ ] 完成异常停止矩阵和 Android 真机验收
 - [x] 接入 TOF400C 高度与 TOF050C 右侧间距，恢复档位闭环和最高安全高度
 - [x] 实现 Apple Watch App 与多客户端握手（真机验收仍开放）
 - [ ] 完成 iPhone、Apple Watch、Android 三台真机并发矩阵
 - [ ] 完成双 ToF 档位、最高高度和右侧障碍物真机安全矩阵
 - [ ] Matter / Home Assistant
+- [ ] OTA 固件升级
 - [ ] 更多厂商 Driver
 
 ## 参与贡献
