@@ -59,11 +59,8 @@
         </div>
       </section>
 
-      <!-- 右：读数 + 控制 -->
+      <!-- 右：桌面控制与可折叠功能区；高度统一由左侧传感器卡片展示。 -->
       <section class="control">
-        <p class="label">Height</p>
-        <p id="height" class="height">—</p>
-        <p class="unit">centimetres</p>
         <p id="stateHint" class="hint">按住下方按钮升降，松手即停。</p>
 
         <div class="pads">
@@ -83,56 +80,69 @@
         <div id="customPresetControls" class="custom-preset-controls" aria-live="polite"></div>
 
         <section id="reminderCard" class="reminder-card" aria-labelledby="reminderTitle">
-          <div class="reminder-heading">
-            <div>
-              <p class="label">Pomodoro</p>
-              <h2 id="reminderTitle">番茄时钟</h2>
-            </div>
-            <span id="reminderPhase" class="pill">专注</span>
-          </div>
-          <p id="reminderTime" class="reminder-time">00:00</p>
-          <p id="reminderStatus" class="settings-note">还没有开始</p>
-          <p id="reminderCycle" class="settings-note">本轮已完成 0 / 4 次专注</p>
-          <div class="reminder-actions">
-            <button type="button" id="reminderPrimary" class="btn btn-fill">开始专注</button>
-            <button type="button" id="reminderPause" class="btn btn-outline" hidden>暂停</button>
-            <button type="button" id="reminderSkip" class="btn btn-ghost" disabled>跳过</button>
-            <button type="button" id="reminderSnooze" class="btn btn-ghost" hidden>延后 5 分钟</button>
-            <button type="button" id="reminderStop" class="btn btn-ghost" disabled>停止</button>
-          </div>
-
-          <div class="reminder-audio">
-            <label class="lock">
-              <input type="checkbox" id="audioEnabled" />
-              语音提醒
-            </label>
-            <label class="volume-field" for="audioVolume">
-              <span>音量 <strong id="audioVolumeLabel">60%</strong></span>
-              <input id="audioVolume" type="range" min="0" max="100" step="5" value="60" />
-            </label>
-            <div class="audio-preview-actions">
-              <button type="button" data-prompt="focus_done">试听专注结束</button>
-              <button type="button" data-prompt="break_done">试听休息结束</button>
-              <button type="button" data-prompt="attention_chime">试听提示音</button>
-              <button type="button" id="audioStop">停止声音</button>
-            </div>
-            <p id="audioStatus" class="settings-note">等待设备音频状态</p>
-          </div>
-
-          <details class="reminder-config">
-            <summary>时长设置</summary>
-            <form id="reminderConfigForm" class="settings-form">
-              <div class="reminder-config-grid">
-                <label class="compact-field">专注（分钟）<input id="focusMinutes" type="number" min="1" max="180" required /></label>
-                <label class="compact-field">短休息（分钟）<input id="shortBreakMinutes" type="number" min="1" max="60" required /></label>
-                <label class="compact-field">长休息（分钟）<input id="longBreakMinutes" type="number" min="1" max="120" required /></label>
-                <label class="compact-field">几次后长休息<input id="focusesPerLongBreak" type="number" min="1" max="12" required /></label>
+          <div class="reminder-compact">
+            <div class="reminder-heading">
+              <div>
+                <p class="label">Pomodoro</p>
+                <h2 id="reminderTitle">番茄时钟</h2>
+                <p id="reminderCompactStatus" class="reminder-compact-status">还没有开始 · 00:00</p>
               </div>
-              <button type="submit">保存提醒设置</button>
-              <p class="settings-note">新时长从下一阶段生效，不会重置当前倒计时。</p>
-            </form>
-          </details>
-          <p id="reminderMsg" class="hint"></p>
+              <span id="reminderPhase" class="pill">专注</span>
+            </div>
+            <div class="reminder-compact-actions">
+              <button type="button" id="reminderQuickStart" class="btn btn-fill">快速开始</button>
+              <button type="button" id="reminderExpandButton" class="reminder-expand-button"
+                      aria-expanded="false" aria-controls="reminderDetails">
+                <span id="reminderExpandLabel">展开</span>
+                <span class="reminder-chevron" aria-hidden="true">⌄</span>
+              </button>
+            </div>
+          </div>
+          <div id="reminderDetails" class="reminder-details" hidden>
+            <p id="reminderTime" class="reminder-time">00:00</p>
+            <p id="reminderStatus" class="settings-note">还没有开始</p>
+            <p id="reminderCycle" class="settings-note">本轮已完成 0 / 4 次专注</p>
+            <div class="reminder-actions">
+              <button type="button" id="reminderPrimary" class="btn btn-fill">开始专注</button>
+              <button type="button" id="reminderPause" class="btn btn-outline" hidden>暂停</button>
+              <button type="button" id="reminderSkip" class="btn btn-ghost" disabled>跳过</button>
+              <button type="button" id="reminderSnooze" class="btn btn-ghost" hidden>延后 5 分钟</button>
+              <button type="button" id="reminderStop" class="btn btn-ghost" disabled>停止</button>
+            </div>
+
+            <div class="reminder-audio">
+              <label class="lock">
+                <input type="checkbox" id="audioEnabled" />
+                语音提醒
+              </label>
+              <label class="volume-field" for="audioVolume">
+                <span>音量 <strong id="audioVolumeLabel">60%</strong></span>
+                <input id="audioVolume" type="range" min="0" max="100" step="5" value="60" />
+              </label>
+              <div class="audio-preview-actions">
+                <button type="button" data-prompt="focus_done">试听专注结束</button>
+                <button type="button" data-prompt="break_done">试听休息结束</button>
+                <button type="button" data-prompt="attention_chime">试听提示音</button>
+                <button type="button" id="audioStop">停止声音</button>
+              </div>
+              <p id="audioStatus" class="settings-note">等待设备音频状态</p>
+            </div>
+
+            <section class="reminder-config" aria-labelledby="reminderConfigTitle">
+              <h3 id="reminderConfigTitle">时长设置</h3>
+              <form id="reminderConfigForm" class="settings-form">
+                <div class="reminder-config-grid">
+                  <label class="compact-field">专注（分钟）<input id="focusMinutes" type="number" min="1" max="180" required /></label>
+                  <label class="compact-field">短休息（分钟）<input id="shortBreakMinutes" type="number" min="1" max="60" required /></label>
+                  <label class="compact-field">长休息（分钟）<input id="longBreakMinutes" type="number" min="1" max="120" required /></label>
+                  <label class="compact-field">几次后长休息<input id="focusesPerLongBreak" type="number" min="1" max="12" required /></label>
+                </div>
+                <button type="submit">保存提醒设置</button>
+                <p class="settings-note">新时长从下一阶段生效，不会重置当前倒计时。</p>
+              </form>
+            </section>
+          </div>
+          <p id="reminderMsg" class="hint" aria-live="polite"></p>
         </section>
 
         <details class="settings">
@@ -266,6 +276,24 @@
       </section>
     </div>
   </div>
+
+  <!-- 所有确认和输入操作共用该弹窗，避免浏览器原生 prompt/confirm 打断页面。 -->
+  <dialog id="appDialog" class="app-dialog" aria-labelledby="appDialogTitle"
+          aria-describedby="appDialogMessage">
+    <form id="appDialogForm" class="app-dialog-panel" novalidate>
+      <div class="app-dialog-heading">
+        <p id="appDialogEyebrow" class="label">Desk Gateway</p>
+        <h2 id="appDialogTitle">请确认操作</h2>
+      </div>
+      <p id="appDialogMessage" class="app-dialog-message"></p>
+      <div id="appDialogFields" class="app-dialog-fields"></div>
+      <p id="appDialogError" class="app-dialog-error" aria-live="polite"></p>
+      <div class="app-dialog-actions">
+        <button type="button" id="appDialogCancel" class="app-dialog-cancel">取消</button>
+        <button type="submit" id="appDialogConfirm" class="app-dialog-confirm">确定</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="/hold-control.js"></script>
   <script src="/bond-management.js"></script>

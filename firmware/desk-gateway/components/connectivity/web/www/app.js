@@ -9,7 +9,6 @@
     'Content-Type': 'application/json',
   };
   const railFill = document.getElementById('railFill');
-  const heightEl = document.getElementById('height');
   const tofHeightEl = document.getElementById('tofHeight');
   const rightGapEl = document.getElementById('rightGap');
   const tofHeightReadout = document.getElementById('tofHeightReadout');
@@ -52,6 +51,11 @@
   const customPresetAdd = document.getElementById('customPresetAdd');
   const reminderCard = document.getElementById('reminderCard');
   const reminderPhase = document.getElementById('reminderPhase');
+  const reminderCompactStatus = document.getElementById('reminderCompactStatus');
+  const reminderQuickStart = document.getElementById('reminderQuickStart');
+  const reminderExpandButton = document.getElementById('reminderExpandButton');
+  const reminderExpandLabel = document.getElementById('reminderExpandLabel');
+  const reminderDetails = document.getElementById('reminderDetails');
   const reminderTime = document.getElementById('reminderTime');
   const reminderStatus = document.getElementById('reminderStatus');
   const reminderCycle = document.getElementById('reminderCycle');
@@ -70,6 +74,15 @@
   const shortBreakMinutes = document.getElementById('shortBreakMinutes');
   const longBreakMinutes = document.getElementById('longBreakMinutes');
   const focusesPerLongBreak = document.getElementById('focusesPerLongBreak');
+  const appDialog = document.getElementById('appDialog');
+  const appDialogForm = document.getElementById('appDialogForm');
+  const appDialogEyebrow = document.getElementById('appDialogEyebrow');
+  const appDialogTitle = document.getElementById('appDialogTitle');
+  const appDialogMessage = document.getElementById('appDialogMessage');
+  const appDialogFields = document.getElementById('appDialogFields');
+  const appDialogError = document.getElementById('appDialogError');
+  const appDialogCancel = document.getElementById('appDialogCancel');
+  const appDialogConfirm = document.getElementById('appDialogConfirm');
   let failStreak = 0;
   let lastStatus = {};
   let controllerResetPending = false;
@@ -82,6 +95,8 @@
   let lastHeightPresetSnapshot = null;
   let lastHeightPresetRefreshAt = 0;
   let heightPresetRefreshInFlight = false;
+  let activeDialog = null;
+  let dialogQueue = Promise.resolve();
 
   const STATE_HINT = {
     idle: '按住下方按钮升降，松手即停。',
@@ -101,6 +116,102 @@
     banner.hidden = false;
     banner.textContent = text;
   }
+
+  /**
+   * 结束当前应用内弹窗，并恢复触发操作前的键盘焦点。
+   * 所有取消路径都返回 null，危险操作只有明确点击确认后才会继续。
+   */
+  function settleAppDialog(value) {
+    if (!activeDialog) return;
+    const { resolve, restoreFocus } = activeDialog;
+    activeDialog = null;
+    appDialog.close();
+    resolve(value);
+    if (restoreFocus?.isConnected) {
+      window.setTimeout(() => restoreFocus.focus(), 0);
+    }
+  }
+
+  /**
+   * 渲染一次自定义确认或输入弹窗。fields 为空时即为确认框；
+   * validate 返回错误文案时保持弹窗打开，避免依赖浏览器原生校验提示。
+   */
+  function presentAppDialog(options) {
+    return new Promise((resolve) => {
+      const fields = options.fields || [];
+      appDialogEyebrow.textContent = options.eyebrow || 'Desk Gateway';
+      appDialogTitle.textContent = options.title || '请确认操作';
+      appDialogMessage.textContent = options.message || '';
+      appDialogMessage.hidden = !options.message;
+      appDialogConfirm.textContent = options.confirmLabel || '确定';
+      appDialogCancel.textContent = options.cancelLabel || '取消';
+      appDialog.classList.toggle('is-danger', options.tone === 'danger');
+      appDialogFields.replaceChildren();
+      appDialogError.textContent = '';
+
+      fields.forEach((field) => {
+        const label = document.createElement('label');
+        label.className = 'app-dialog-field';
+        label.textContent = field.label;
+        const input = document.createElement('input');
+        input.name = field.name;
+        input.type = field.type || 'text';
+        input.value = field.value ?? '';
+        input.autocomplete = 'off';
+        if (field.inputMode) input.inputMode = field.inputMode;
+        if (field.placeholder) input.placeholder = field.placeholder;
+        if (field.min !== undefined) input.min = String(field.min);
+        if (field.max !== undefined) input.max = String(field.max);
+        if (field.step !== undefined) input.step = String(field.step);
+        if (field.maxLength !== undefined) input.maxLength = field.maxLength;
+        label.appendChild(input);
+        appDialogFields.appendChild(label);
+      });
+
+      activeDialog = {
+        resolve,
+        restoreFocus: document.activeElement,
+        validate: options.validate,
+      };
+      appDialog.showModal();
+      const firstInput = appDialogFields.querySelector('input');
+      window.setTimeout(() => (firstInput || appDialogConfirm).focus(), 0);
+    });
+  }
+
+  /**
+   * 串行打开弹窗，避免状态轮询触发的 B12 提示与用户正在操作的弹窗冲突。
+   */
+  function openAppDialog(options) {
+    const run = () => presentAppDialog(options);
+    const result = dialogQueue.then(run, run);
+    dialogQueue = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  async function confirmAction(options) {
+    return (await openAppDialog(options)) !== null;
+  }
+
+  appDialogForm.onsubmit = (event) => {
+    event.preventDefault();
+    if (!activeDialog) return;
+    const values = Object.fromEntries(new FormData(appDialogForm).entries());
+    const error = activeDialog.validate?.(values) || '';
+    if (error) {
+      appDialogError.textContent = error;
+      return;
+    }
+    settleAppDialog(values);
+  };
+  appDialogCancel.onclick = () => settleAppDialog(null);
+  appDialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    settleAppDialog(null);
+  });
+  appDialog.addEventListener('click', (event) => {
+    if (event.target === appDialog) settleAppDialog(null);
+  });
 
   async function api(path, method = 'GET', body) {
     const r = await fetch(path, {
@@ -184,12 +295,31 @@
       rename.textContent = '重命名';
       rename.disabled = device.delete_state !== 'idle';
       rename.onclick = async () => {
-        const draft = window.prompt(
-          '输入设备别名；留空可恢复默认名称。', device.alias || '');
-        if (draft === null) return;
+        const values = await openAppDialog({
+          eyebrow: '蓝牙设备',
+          title: '重命名设备',
+          message: `为“${device.label}”设置别名，留空可恢复默认名称。`,
+          confirmLabel: '保存名称',
+          fields: [{
+            name: 'alias',
+            label: '设备别名',
+            value: device.alias || '',
+            maxLength: 48,
+            placeholder: '例如：我的手机',
+          }],
+          validate: ({ alias: draft }) => {
+            try {
+              DeskBondManagement.normalizeAlias(draft);
+              return '';
+            } catch (error) {
+              return error.message;
+            }
+          },
+        });
+        if (values === null) return;
         let alias;
         try {
-          alias = DeskBondManagement.normalizeAlias(draft);
+          alias = DeskBondManagement.normalizeAlias(values.alias);
         } catch (error) {
           bondMsg.textContent = error.message;
           return;
@@ -213,7 +343,14 @@
       remove.textContent = device.delete_state === 'failed' ? '重试' : '删除';
       remove.disabled = device.delete_state === 'pending';
       remove.onclick = async () => {
-        if (!window.confirm(`确定删除“${device.label}”吗？在线设备会立即断开。`)) return;
+        const confirmed = await confirmAction({
+          eyebrow: '蓝牙设备',
+          title: '删除配对设备',
+          message: `确定删除“${device.label}”吗？在线设备会立即断开。`,
+          confirmLabel: '删除设备',
+          tone: 'danger',
+        });
+        if (!confirmed) return;
         remove.disabled = true;
         bondMsg.textContent = '正在提交删除请求…';
         try {
@@ -240,10 +377,14 @@
         const detectorWarning = snapshot.auto_child_lock?.device_id === device.id
           ? '\n\n该设备是自动童锁检测设备，恢复后需要重新选择。'
           : '';
-        if (!window.confirm(
-          `恢复“${device.label}”的连接吗？网关会删除这条旧配对记录并开放 120 秒配对窗口。${detectorWarning}`)) {
-          return;
-        }
+        const confirmed = await confirmAction({
+          eyebrow: '蓝牙设备',
+          title: '恢复设备连接',
+          message: `恢复“${device.label}”的连接吗？网关会删除这条旧配对记录并开放 120 秒配对窗口。${detectorWarning}`,
+          confirmLabel: '恢复连接',
+          tone: 'danger',
+        });
+        if (!confirmed) return;
         recover.disabled = true;
         bondMsg.textContent = '正在清除旧配对信息…';
         try {
@@ -349,16 +490,45 @@
       edit.className = 'bond-rename-button';
       edit.textContent = '修改';
       edit.onclick = async () => {
-        const nameDraft = window.prompt('档位名称', preset.name);
-        if (nameDraft === null) return;
-        const heightDraft = window.prompt(
-          '档位高度（cm）', (preset.height_mm / 10).toFixed(1));
-        if (heightDraft === null) return;
+        const values = await openAppDialog({
+          eyebrow: '自定义档位',
+          title: '修改档位',
+          message: '同时调整档位名称和目标高度。',
+          confirmLabel: '保存档位',
+          fields: [
+            {
+              name: 'name',
+              label: '档位名称',
+              value: preset.name,
+              maxLength: 48,
+            },
+            {
+              name: 'height',
+              label: '档位高度（cm）',
+              type: 'number',
+              value: (preset.height_mm / 10).toFixed(1),
+              inputMode: 'decimal',
+              min: 56,
+              max: 94,
+              step: 0.1,
+            },
+          ],
+          validate: ({ name, height: heightCm }) => {
+            try {
+              DeskHeightPresets.normalizeName(name);
+              DeskHeightPresets.heightMmFromCm(heightCm);
+              return '';
+            } catch (error) {
+              return error.message;
+            }
+          },
+        });
+        if (values === null) return;
         try {
           await api(`/api/v1/desk/height-presets/${encodeURIComponent(preset.id)}`,
             'POST', {
-              name: DeskHeightPresets.normalizeName(nameDraft),
-              height_mm: DeskHeightPresets.heightMmFromCm(heightDraft),
+              name: DeskHeightPresets.normalizeName(values.name),
+              height_mm: DeskHeightPresets.heightMmFromCm(values.height),
             });
           customPresetMsg.textContent = '自定义档位已更新';
         } catch (error) {
@@ -372,7 +542,14 @@
       remove.className = 'bond-delete-button';
       remove.textContent = '删除';
       remove.onclick = async () => {
-        if (!window.confirm(`确定删除“${preset.name}”档位吗？`)) return;
+        const confirmed = await confirmAction({
+          eyebrow: '自定义档位',
+          title: '删除档位',
+          message: `确定删除“${preset.name}”档位吗？`,
+          confirmLabel: '删除档位',
+          tone: 'danger',
+        });
+        if (!confirmed) return;
         try {
           await api(`/api/v1/desk/height-presets/${encodeURIComponent(preset.id)}`,
             'DELETE');
@@ -434,9 +611,15 @@
   }
 
   async function startControllerReset(requireConfirmation) {
-    if (requireConfirmation && !window.confirm(
-      '仅在控制盒显示 B12 等故障时执行。确定模拟同时按住升降键约 8 秒吗？')) {
-      return;
+    if (requireConfirmation) {
+      const confirmed = await confirmAction({
+        eyebrow: '控制盒维护',
+        title: '重置控制盒',
+        message: '仅在控制盒显示 B12 等故障时执行。确认桌子周围没有障碍物后，再模拟同时按住升降键约 8 秒。',
+        confirmLabel: '开始重置',
+        tone: 'danger',
+      });
+      if (!confirmed) return;
     }
     controllerResetButton.disabled = true;
     controllerResetMsg.textContent = '正在启动控制盒重置…';
@@ -457,6 +640,8 @@
     const view = DeskReminderControl.viewModel(reminder, audio);
     reminderCard.classList.toggle('is-unavailable', !view.available);
     reminderPhase.textContent = view.phaseLabel;
+    reminderCompactStatus.textContent = `${view.statusText} · ${view.timeText}`;
+    reminderQuickStart.disabled = !view.available || view.primaryAction !== 'start_focus';
     reminderTime.textContent = view.timeText;
     reminderStatus.textContent = view.available
       ? view.statusText : (reminder.last_error || '番茄时钟不可用');
@@ -514,10 +699,18 @@
     } else if (!controllerResetPromptShown) {
       controllerResetPromptShown = true;
       showBanner('升降后高度没有变化，控制盒可能出现 B12 错误');
-      if (window.confirm(
-        '升降指令发出后高度没有正常变化，控制盒可能出现 B12 错误。确认桌子周围无障碍物后，是否立即执行约 8 秒重置？')) {
-        void startControllerReset(false);
-      }
+      void confirmAction({
+        eyebrow: '检测到控制盒异常',
+        title: '可能出现 B12 错误',
+        message: '升降指令发出后高度没有正常变化。确认桌子周围没有障碍物后，可以立即执行约 8 秒控制盒重置。',
+        confirmLabel: '立即重置',
+        tone: 'danger',
+      }).then((confirmed) => {
+        if (confirmed && lastStatus.controller_reset_recommended &&
+            !lastStatus.controller_reset_active) {
+          void startControllerReset(false);
+        }
+      });
     }
     const st = resetting ? 'controller_resetting' : (s.status || 'idle');
     const moving = st === 'moving_up' || st === 'moving_down' ||
@@ -575,9 +768,7 @@
     if (displayHeightKnown) {
       const t = Math.min(1, Math.max(0, (displayHeightMm - 560) / 380));
       railFill.style.height = (12 + t * 76).toFixed(1) + '%';
-      heightEl.textContent = (displayHeightMm / 10).toFixed(1);
     } else {
-      heightEl.textContent = '—';
       railFill.style.height = '12%';
     }
     tofHeightEl.textContent = tofHeightKnown ? (s.tof_height_mm / 10).toFixed(1) : '—';
@@ -681,6 +872,15 @@
   bindSourceToggle(allowBluetooth, 'bluetooth');
   bindSourceToggle(allowPanel, 'panel');
 
+  function setReminderExpanded(expanded) {
+    reminderDetails.hidden = !expanded;
+    reminderExpandButton.setAttribute('aria-expanded', String(expanded));
+    reminderExpandLabel.textContent = expanded ? '收起' : '展开';
+  }
+  reminderExpandButton.onclick = () => {
+    setReminderExpanded(reminderExpandButton.getAttribute('aria-expanded') !== 'true');
+  };
+
   async function reminderAction(action) {
     if (!action) return;
     reminderMsg.textContent = '正在更新…';
@@ -694,6 +894,11 @@
         : '番茄时钟操作失败，请检查设备状态';
     }
   }
+  reminderQuickStart.onclick = async () => {
+    reminderQuickStart.disabled = true;
+    await reminderAction('start_focus');
+    applyReminderStatus(lastStatus.reminder || {}, lastStatus.audio || {});
+  };
   reminderPrimary.onclick = () => reminderAction(reminderPrimary.dataset.action);
   reminderPause.onclick = () => reminderAction(reminderPause.dataset.action);
   reminderSkip.onclick = () => reminderAction('skip');
@@ -770,9 +975,14 @@
   };
 
   deleteAllBondsButton.onclick = async () => {
-    if (!window.confirm('确定删除全部蓝牙配对设备吗？桌子会先停止，在线设备会立即断开。')) {
-      return;
-    }
+    const confirmed = await confirmAction({
+      eyebrow: '蓝牙设备',
+      title: '删除全部配对设备',
+      message: '桌子会先停止，所有在线蓝牙设备会立即断开。此操作需要各设备重新配对。',
+      confirmLabel: '删除全部',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     deleteAllBondsButton.disabled = true;
     bondMsg.textContent = '正在删除全部配对设备…';
     try {
@@ -859,9 +1069,14 @@
   };
 
   restartButton.onclick = async () => {
-    if (!window.confirm('确定要重启 ESP32 吗？桌子会先停止，重启后需要重新登录。')) {
-      return;
-    }
+    const confirmed = await confirmAction({
+      eyebrow: '设备维护',
+      title: '重启 ESP32',
+      message: '桌子会先停止。设备重新联网后，当前登录状态会失效，需要重新登录。',
+      confirmLabel: '确认重启',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     const msg = document.getElementById('restartMsg');
     restartButton.disabled = true;
     try {

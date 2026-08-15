@@ -90,7 +90,7 @@ body.is-moving #stateChip {
 .layout {
   display: grid;
   gap: 2.5rem;
-  align-items: center;
+  align-items: start;
 }
 @media (min-width: 900px) {
   .layout {
@@ -317,27 +317,13 @@ body.is-moving .rail-fill::before {
   text-transform: uppercase;
   color: var(--soft);
 }
-.height {
-  margin: 0.35rem 0 0;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(3.8rem, 10vw, 5.5rem);
-  line-height: 0.95;
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-body.is-moving .height { color: #5c4a28; }
-.unit {
-  margin: 0.4rem 0 0;
-  font-size: 1.1rem;
-  color: var(--soft);
-}
 .hint {
   margin: 1.25rem 0 0;
   color: var(--muted);
   font-size: 0.95rem;
   max-width: 22rem;
 }
+.control > .hint { margin-top: 0; }
 .pads {
   display: flex;
   flex-wrap: wrap;
@@ -435,6 +421,11 @@ body.is-moving .height { color: #5c4a28; }
   background: color-mix(in srgb, var(--card) 68%, white);
 }
 .reminder-card.is-unavailable { opacity: 0.72; }
+.reminder-compact,
+.reminder-details {
+  display: grid;
+  gap: 0.75rem;
+}
 .reminder-heading {
   display: flex;
   align-items: center;
@@ -445,6 +436,52 @@ body.is-moving .height { color: #5c4a28; }
   margin: 0.15rem 0 0;
   font-family: var(--font-display);
   font-size: 1.35rem;
+}
+.reminder-compact-status {
+  margin: 0.3rem 0 0;
+  color: var(--soft);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+.reminder-compact-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+}
+.reminder-compact-actions .btn {
+  min-width: 0;
+  padding: 0.72rem 1rem;
+  font-size: 0.9rem;
+}
+.reminder-expand-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 6.2rem;
+  padding: 0.72rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.reminder-expand-button:hover { background: #fff; }
+.reminder-chevron {
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+  transition: transform 0.18s ease;
+}
+.reminder-expand-button[aria-expanded="true"] .reminder-chevron {
+  transform: rotate(180deg);
+}
+.reminder-details {
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
 }
 .reminder-time {
   margin: 0;
@@ -484,8 +521,7 @@ body.is-moving .height { color: #5c4a28; }
   font-size: 0.86rem;
 }
 .volume-field input { width: 100%; accent-color: var(--fg); }
-.audio-preview-actions button,
-.reminder-config summary {
+.audio-preview-actions button {
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -494,7 +530,12 @@ body.is-moving .height { color: #5c4a28; }
   cursor: pointer;
 }
 .audio-preview-actions button:disabled { cursor: not-allowed; opacity: 0.45; }
-.reminder-config summary { width: fit-content; }
+.reminder-config h3 {
+  margin: 0;
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
 .reminder-config-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -505,6 +546,135 @@ body.is-moving .height { color: #5c4a28; }
   gap: 0.3rem;
   color: var(--muted);
   font-size: 0.78rem;
+}
+.reminder-card > .hint:empty { display: none; }
+
+@media (max-width: 430px) {
+  .reminder-compact-actions { grid-template-columns: 1fr; }
+  .reminder-expand-button { width: 100%; }
+}
+
+/* 统一的应用内弹窗：危险操作与输入操作共享结构，避免原生浏览器提示。 */
+.app-dialog {
+  width: min(31rem, calc(100vw - 2rem));
+  max-height: min(86vh, 42rem);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--oak) 46%, var(--line));
+  border-radius: 1.5rem;
+  background: color-mix(in srgb, var(--bg) 88%, white);
+  color: var(--fg);
+  box-shadow: 0 1.4rem 4rem color-mix(in srgb, var(--fg) 26%, transparent);
+}
+.app-dialog::backdrop {
+  background: color-mix(in srgb, var(--fg) 46%, transparent);
+  backdrop-filter: blur(5px);
+}
+.app-dialog[open] { animation: dialog-enter 0.18s ease-out; }
+@keyframes dialog-enter {
+  from { opacity: 0; transform: translateY(0.7rem) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.app-dialog-panel {
+  display: grid;
+  gap: 1rem;
+  max-height: inherit;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+.app-dialog-heading {
+  display: grid;
+  gap: 0.25rem;
+}
+.app-dialog-heading .label {
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.app-dialog-heading h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 5vw, 1.9rem);
+  line-height: 1.15;
+}
+.app-dialog-message {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+  white-space: pre-line;
+}
+.app-dialog-fields {
+  display: grid;
+  gap: 0.8rem;
+}
+.app-dialog-field {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.app-dialog-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.78rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  outline: none;
+  background: #fff;
+  color: var(--fg);
+  font: inherit;
+  font-size: 1rem;
+}
+.app-dialog-field input:focus {
+  border-color: var(--oak);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--oak) 20%, transparent);
+}
+.app-dialog-error {
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+.app-dialog-error:empty { min-height: 0; }
+.app-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding-top: 0.25rem;
+}
+.app-dialog-actions button {
+  min-width: 6rem;
+  padding: 0.72rem 1rem;
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  cursor: pointer;
+}
+.app-dialog-cancel {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+.app-dialog-confirm {
+  border: 1px solid var(--fg);
+  background: var(--fg);
+  color: var(--bg);
+}
+.app-dialog.is-danger .app-dialog-confirm {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+@media (max-width: 430px) {
+  .app-dialog-panel { padding: 1.2rem; }
+  .app-dialog-actions { flex-direction: column-reverse; }
+  .app-dialog-actions button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-dialog[open] { animation: none; }
+  .reminder-chevron { transition: none; }
 }
 
 .settings {
