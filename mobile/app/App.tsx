@@ -32,6 +32,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { PomodoroScreen } from './src/screens/PomodoroScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { HoldHapticController } from './src/ui/HoldHapticController';
+import { SwipeBackContainer } from './src/ui/SwipeBackContainer';
 
 const PREFERENCES_KEY = 'desk-gateway.mobile.preferences.v1';
 
@@ -287,6 +288,11 @@ export default function App() {
     }
   }, [preferences.hapticFeedback, preferences.hapticStrength]);
 
+  const returnHome = useCallback(() => {
+    feedback();
+    setScreen('home');
+  }, [feedback]);
+
   const selectionFeedback = useCallback((force = false) => {
     if (force || preferences.hapticFeedback) {
       void Haptics.selectionAsync().catch(() => undefined);
@@ -444,106 +450,104 @@ export default function App() {
           }
         />
       ) : screen === 'pomodoro' ? (
-        <PomodoroScreen
-          snapshot={snapshot}
-          onBack={() => {
-            feedback();
-            setScreen('home');
-          }}
-          onAction={(action) => clientRef.current!.performReminderAction(action)}
-          onUpdateConfig={(patch) => clientRef.current!.updateReminderConfig(patch)}
-          onPreviewAudio={(promptId) =>
-            clientRef.current!.previewReminderAudio(promptId)
-          }
-          onStopAudio={() => clientRef.current!.stopReminderAudio()}
-        />
-      ) : (
-        <SettingsScreen
-          snapshot={snapshot}
-          heightPresets={heightPresetSnapshot}
-          autoConnect={preferences.autoConnect}
-          hapticFeedback={preferences.hapticFeedback}
-          hapticStrength={preferences.hapticStrength}
-          connectionMode={preferences.connectionMode}
-          restHost={preferences.restHost}
-          restKey={preferences.restKey}
-          autoLockDeviceId={preferences.autoLockDeviceId}
-          onBack={() => {
-            feedback();
-            setScreen('home');
-          }}
-          onToggleAutoConnect={() => {
-            selectionFeedback();
-            updatePreferences({ autoConnect: !preferences.autoConnect });
-          }}
-          onToggleHapticFeedback={() => {
-            // 开启震动时旧状态仍为 false，因此强制反馈一次来确认设置已生效。
-            selectionFeedback(true);
-            updatePreferences({
-              hapticFeedback: !preferences.hapticFeedback,
-            });
-          }}
-          onSetHapticStrength={(hapticStrength) => {
-            const normalized = normalizeHapticStrength(hapticStrength);
-            updatePreferences({ hapticStrength: normalized });
-            if (preferences.hapticFeedback) {
-              void Haptics.impactAsync(
-                impactStyleForStrength(normalized),
-              ).catch(() => undefined);
+        <SwipeBackContainer onBack={returnHome}>
+          <PomodoroScreen
+            snapshot={snapshot}
+            onBack={returnHome}
+            onAction={(action) => clientRef.current!.performReminderAction(action)}
+            onUpdateConfig={(patch) => clientRef.current!.updateReminderConfig(patch)}
+            onPreviewAudio={(promptId) =>
+              clientRef.current!.previewReminderAudio(promptId)
             }
-          }}
-          onMaxHeightStep={feedback}
-          onSetConnectionSettings={(settings) => {
-            selectionFeedback();
-            updatePreferences({
-              connectionMode: settings.mode,
-              restHost: settings.restHost,
-              restKey: settings.restKey,
-            });
-            clientRef.current!.configure(settings);
-            runSafely(clientRef.current!.connect());
-          }}
-          onGetBluetoothBonds={getBluetoothBonds}
-          onSetBluetoothPairingWindow={setBluetoothPairingWindow}
-          onDeleteBluetoothBond={deleteBluetoothBond}
-          onDeleteAllBluetoothBonds={deleteAllBluetoothBonds}
-          onRenameBluetoothBond={renameBluetoothBond}
-          onSetAutoChildLock={setAutoChildLock}
-          onCreateHeightPreset={createHeightPreset}
-          onUpdateHeightPreset={updateHeightPreset}
-          onDeleteHeightPreset={deleteHeightPreset}
-          onSetChildLock={(enabled) => {
-            feedback();
-            return clientRef.current!.setChildLock(enabled);
-          }}
-          onSetSourceEnabled={(source, enabled) => {
-            feedback();
-            return clientRef.current!.setSourceEnabled(source, enabled);
-          }}
-          onSetMaxHeightMm={(maxHeightMm) => {
-            feedback();
-            return clientRef.current!.setMaxHeightMm(maxHeightMm);
-          }}
-          onSetPresetHeightsMm={(preset1HeightMm, preset4HeightMm) => {
-            feedback();
-            return clientRef.current!.setPresetHeightsMm(
-              preset1HeightMm,
-              preset4HeightMm,
-            );
-          }}
-          onResetController={() => {
-            feedback();
-            return clientRef.current!.resetController();
-          }}
-          onRestart={() => {
-            feedback();
-            return clientRef.current!.restartGateway();
-          }}
-          onDisconnect={() => {
-            feedback();
-            runSafely(clientRef.current!.disconnect());
-          }}
-        />
+            onStopAudio={() => clientRef.current!.stopReminderAudio()}
+          />
+        </SwipeBackContainer>
+      ) : (
+        <SwipeBackContainer onBack={returnHome}>
+          <SettingsScreen
+            snapshot={snapshot}
+            heightPresets={heightPresetSnapshot}
+            autoConnect={preferences.autoConnect}
+            hapticFeedback={preferences.hapticFeedback}
+            hapticStrength={preferences.hapticStrength}
+            connectionMode={preferences.connectionMode}
+            restHost={preferences.restHost}
+            restKey={preferences.restKey}
+            autoLockDeviceId={preferences.autoLockDeviceId}
+            onBack={returnHome}
+            onToggleAutoConnect={() => {
+              selectionFeedback();
+              updatePreferences({ autoConnect: !preferences.autoConnect });
+            }}
+            onToggleHapticFeedback={() => {
+              // 开启震动时旧状态仍为 false，因此强制反馈一次来确认设置已生效。
+              selectionFeedback(true);
+              updatePreferences({
+                hapticFeedback: !preferences.hapticFeedback,
+              });
+            }}
+            onSetHapticStrength={(hapticStrength) => {
+              const normalized = normalizeHapticStrength(hapticStrength);
+              updatePreferences({ hapticStrength: normalized });
+              if (preferences.hapticFeedback) {
+                void Haptics.impactAsync(
+                  impactStyleForStrength(normalized),
+                ).catch(() => undefined);
+              }
+            }}
+            onMaxHeightStep={feedback}
+            onSetConnectionSettings={(settings) => {
+              selectionFeedback();
+              updatePreferences({
+                connectionMode: settings.mode,
+                restHost: settings.restHost,
+                restKey: settings.restKey,
+              });
+              clientRef.current!.configure(settings);
+              runSafely(clientRef.current!.connect());
+            }}
+            onGetBluetoothBonds={getBluetoothBonds}
+            onSetBluetoothPairingWindow={setBluetoothPairingWindow}
+            onDeleteBluetoothBond={deleteBluetoothBond}
+            onDeleteAllBluetoothBonds={deleteAllBluetoothBonds}
+            onRenameBluetoothBond={renameBluetoothBond}
+            onSetAutoChildLock={setAutoChildLock}
+            onCreateHeightPreset={createHeightPreset}
+            onUpdateHeightPreset={updateHeightPreset}
+            onDeleteHeightPreset={deleteHeightPreset}
+            onSetChildLock={(enabled) => {
+              feedback();
+              return clientRef.current!.setChildLock(enabled);
+            }}
+            onSetSourceEnabled={(source, enabled) => {
+              feedback();
+              return clientRef.current!.setSourceEnabled(source, enabled);
+            }}
+            onSetMaxHeightMm={(maxHeightMm) => {
+              feedback();
+              return clientRef.current!.setMaxHeightMm(maxHeightMm);
+            }}
+            onSetPresetHeightsMm={(preset1HeightMm, preset4HeightMm) => {
+              feedback();
+              return clientRef.current!.setPresetHeightsMm(
+                preset1HeightMm,
+                preset4HeightMm,
+              );
+            }}
+            onResetController={() => {
+              feedback();
+              return clientRef.current!.resetController();
+            }}
+            onRestart={() => {
+              feedback();
+              return clientRef.current!.restartGateway();
+            }}
+            onDisconnect={() => {
+              feedback();
+              runSafely(clientRef.current!.disconnect());
+            }}
+          />
+        </SwipeBackContainer>
       )}
     </SafeAreaProvider>
   );
