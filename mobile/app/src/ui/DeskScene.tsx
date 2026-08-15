@@ -14,24 +14,27 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 
+import {
+  DESK_RULER_LABELS_CM,
+  normalizeDeskHeight,
+} from '../desk/heightPresentation';
 import { palette } from './theme';
 
 interface DeskSceneProps {
   heightMm: number | null;
-  minHeightMm?: number;
-  maxHeightMm?: number;
+  safetyMaxHeightMm: number;
 }
 
-const SCENE_MIN_MM = 560;
-const SCENE_MAX_MM = 940;
 const DESK_WORKSTATION_SOURCE = require('../../assets/desk-workstation.png');
+const RULER_TOP_Y = 78;
+const RULER_BOTTOM_Y = 272;
+const RULER_HEIGHT = RULER_BOTTOM_Y - RULER_TOP_Y;
 
 export function DeskScene({
   heightMm,
-  minHeightMm = SCENE_MIN_MM,
-  maxHeightMm = SCENE_MAX_MM,
+  safetyMaxHeightMm,
 }: DeskSceneProps) {
-  const target = normalizeHeight(heightMm, minHeightMm, maxHeightMm);
+  const target = normalizeDeskHeight(heightMm);
   const animated = useRef(new Animated.Value(target)).current;
   const [progress, setProgress] = useState(target);
 
@@ -48,7 +51,9 @@ export function DeskScene({
     }).start();
   }, [animated, target]);
 
-  const rulerY = 272 - progress * 194;
+  const rulerY = RULER_BOTTOM_Y - progress * RULER_HEIGHT;
+  const safetyLimitY = RULER_BOTTOM_Y -
+    normalizeDeskHeight(safetyMaxHeightMm) * RULER_HEIGHT;
   const rulerLine = palette.line;
   const rulerMuted = palette.inkMuted;
 
@@ -63,42 +68,44 @@ export function DeskScene({
       />
       <Svg pointerEvents="none" style={styles.ruler} width="100%" height="100%" viewBox="0 0 380 315" fill="none">
         <G>
-          <Line x1="346" y1="66" x2="346" y2="272" stroke={rulerLine} strokeWidth="1.4" />
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map((tick) => (
+          <Line x1="346" y1={RULER_TOP_Y} x2="346" y2={RULER_BOTTOM_Y} stroke={rulerLine} strokeWidth="1.4" />
+          {Array.from({ length: 20 }, (_, tick) => tick).map((tick) => (
             <Line
               key={tick}
               x1="346"
-              y1={66 + tick * (206 / 13)}
-              x2={tick % 3 === 0 ? '357' : '353'}
-              y2={66 + tick * (206 / 13)}
-              stroke={tick === 4 ? palette.gold : rulerLine}
+              y1={RULER_TOP_Y + tick * (RULER_HEIGHT / 19)}
+              x2={tick % 5 === 0 ? '357' : '353'}
+              y2={RULER_TOP_Y + tick * (RULER_HEIGHT / 19)}
+              stroke={rulerLine}
               strokeWidth="1.2"
             />
           ))}
+          <Line
+            x1="338"
+            y1={safetyLimitY}
+            x2="358"
+            y2={safetyLimitY}
+            stroke={palette.gold}
+            strokeWidth="2"
+            strokeDasharray="3 2"
+          />
           <Circle cx="346" cy={rulerY} r="6" fill={palette.gold} />
-          <SvgText x="363" y="71" fontSize="11" fill={rulerMuted}>129</SvgText>
-          <SvgText x="363" y="131" fontSize="11" fill={rulerMuted}>110</SvgText>
-          <SvgText x="363" y="168" fontSize="11" fill={rulerMuted}>100</SvgText>
-          <SvgText x="363" y="219" fontSize="11" fill={rulerMuted}>80</SvgText>
-          <SvgText x="363" y="277" fontSize="11" fill={rulerMuted}>64</SvgText>
+          {DESK_RULER_LABELS_CM.map((heightCm) => (
+            <SvgText
+              key={heightCm}
+              x="363"
+              y={RULER_BOTTOM_Y - normalizeDeskHeight(heightCm * 10) *
+                RULER_HEIGHT + 4}
+              fontSize="11"
+              fill={rulerMuted}
+            >
+              {heightCm}
+            </SvgText>
+          ))}
           <SvgText x="350" y="296" fontSize="10" fill={rulerMuted}>cm</SvgText>
         </G>
       </Svg>
     </View>
-  );
-}
-
-function normalizeHeight(
-  heightMm: number | null,
-  minHeightMm: number,
-  maxHeightMm: number,
-): number {
-  if (heightMm === null || maxHeightMm <= minHeightMm) {
-    return 0.5;
-  }
-  return Math.max(
-    0,
-    Math.min(1, (heightMm - minHeightMm) / (maxHeightMm - minHeightMm)),
   );
 }
 

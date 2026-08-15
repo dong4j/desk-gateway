@@ -20,6 +20,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { DeskClientSnapshot } from '../desk/DeskClient';
 import type { DeskHeightPreset } from '../desk/DeskRestClient';
 import { formatFirmwareBuildTime } from '../desk/formatFirmwareBuildTime';
+import {
+  DESK_DEFAULT_SIT_HEIGHT_MM,
+  DESK_DEFAULT_STAND_HEIGHT_MM,
+  DESK_MAX_HEIGHT_MM,
+  describeDeskStatus,
+} from '../desk/heightPresentation';
 import { formatRemaining, reminderPhaseLabel } from '../desk/reminderPresentation';
 import { DeskScene } from '../ui/DeskScene';
 import {
@@ -95,10 +101,11 @@ export function HomeScreen({
     ? (state.heightMm / 10).toFixed(1)
     : '—';
   const firmwareBuildTime = formatFirmwareBuildTime(snapshot.firmwareRevision);
-  const maxHeightMm = state?.maxHeightMm ?? 940;
+  const maxHeightMm = state?.maxHeightMm ?? DESK_MAX_HEIGHT_MM;
   const maxHeightCm = (maxHeightMm / 10).toFixed(1);
-  const preset1HeightMm = config?.preset1HeightMm ?? 560;
-  const preset4HeightMm = config?.preset4HeightMm ?? 870;
+  const preset1HeightMm = config?.preset1HeightMm ?? DESK_DEFAULT_SIT_HEIGHT_MM;
+  const preset4HeightMm = config?.preset4HeightMm ??
+    DESK_DEFAULT_STAND_HEIGHT_MM;
   const preset1HeightCm = (preset1HeightMm / 10).toFixed(0);
   const preset4HeightCm = (preset4HeightMm / 10).toFixed(0);
   const preset1MovesUp = state?.heightKnown === true && state.heightMm !== null &&
@@ -107,6 +114,17 @@ export function HomeScreen({
     state.heightMm < preset4HeightMm;
   const customPresetBlocked = !connected || state?.childLock === true ||
     config?.restAllowed === false || state?.controllerResetActive === true;
+  const statusDescription = describeDeskStatus({
+    connected,
+    childLock: state?.childLock === true,
+    activeSourceAllowed,
+    controllerResetActive: state?.controllerResetActive === true,
+    heightKnown: state?.heightKnown === true,
+    heightMm: state?.heightMm ?? null,
+    maxHeightMm,
+    upwardBlocked,
+    motion: state?.motion ?? null,
+  });
 
   useEffect(() => {
     if (state?.controllerResetRecommended !== true) {
@@ -205,7 +223,7 @@ export function HomeScreen({
 
         <DeskScene
           heightMm={state?.heightKnown ? state.heightMm : null}
-          maxHeightMm={maxHeightMm}
+          safetyMaxHeightMm={maxHeightMm}
         />
 
         <View style={styles.heightBlock}>
@@ -217,13 +235,16 @@ export function HomeScreen({
           <View style={styles.limitPill}>
             <Text style={styles.limitText}>最高 {maxHeightCm} cm</Text>
           </View>
+          <Text accessibilityLiveRegion="polite" style={styles.stateHint}>
+            {statusDescription}
+          </Text>
         </View>
 
         <View style={styles.controlsRow}>
           <HoldControl
             label="按住升高"
             direction="up"
-            disabled={motionBlocked || upwardBlocked}
+            disabled={motionBlocked || upwardBlocked || heightUnknown}
             onPressIn={onHoldUpStart}
             onPressOut={onHoldEnd}
           />
@@ -506,7 +527,8 @@ const styles = StyleSheet.create({
   heightUnit: { marginLeft: 8, color: palette.ink, fontSize: 21, fontWeight: '500' },
   limitPill: { marginTop: 3, paddingHorizontal: 17, paddingVertical: 6, borderWidth: 1, borderColor: palette.gold, borderRadius: radii.pill },
   limitText: { color: palette.gold, fontSize: 16 },
-  controlsRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 11 },
+  stateHint: { minHeight: 18, marginTop: 9, color: palette.inkMuted, fontSize: 13, lineHeight: 18, textAlign: 'center' },
+  controlsRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 11 },
   holdButton: { flex: 1, height: 76, alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 22 },
   holdOutline: { borderWidth: 1.5, borderColor: palette.ink, backgroundColor: palette.surface },
   holdPressed: { transform: [{ scale: 0.98 }], backgroundColor: palette.gold },

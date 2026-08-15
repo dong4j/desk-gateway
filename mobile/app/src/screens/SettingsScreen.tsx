@@ -25,6 +25,12 @@ import type {
 } from '../desk/DeskClient';
 import { formatFirmwareBuildTime } from '../desk/formatFirmwareBuildTime';
 import {
+  DESK_DEFAULT_SIT_HEIGHT_MM,
+  DESK_DEFAULT_STAND_HEIGHT_MM,
+  DESK_MAX_HEIGHT_MM,
+  DESK_MIN_HEIGHT_MM,
+} from '../desk/heightPresentation';
+import {
   heightPresetErrorMessage,
   heightPresetMmFromCm,
   normalizeHeightPresetName,
@@ -56,12 +62,12 @@ import {
 import { PrototypeSwitch } from '../ui/PrototypeSwitch';
 import { palette, radii } from '../ui/theme';
 
-const MIN_DESK_HEIGHT_CM = 56;
-const MAX_DESK_HEIGHT_CM = 94;
+const MIN_DESK_HEIGHT_CM = DESK_MIN_HEIGHT_MM / 10;
+const MAX_DESK_HEIGHT_CM = DESK_MAX_HEIGHT_MM / 10;
 const MAX_HEIGHT_TICKS = [
-  64, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 129,
+  56, 60, 65, 70, 75, 80, 85, 90, 94,
 ] as const;
-const MAX_HEIGHT_LABELS = [64, 80, 100, 120, 129] as const;
+const MAX_HEIGHT_LABELS = [56, 65, 75, 85, 94] as const;
 
 interface SettingsScreenProps {
   snapshot: DeskClientSnapshot;
@@ -92,17 +98,18 @@ interface SettingsScreenProps {
     heightMm: number,
   ) => Promise<void>;
   onDeleteHeightPreset: (id: string) => Promise<void>;
-  onSetChildLock: (enabled: boolean) => void;
+  onSetChildLock: (enabled: boolean) => Promise<void>;
   onSetSourceEnabled: (
     source: 'rest' | 'bluetooth' | 'panel',
     enabled: boolean,
-  ) => void;
-  onSetMaxHeightMm: (maxHeightMm: number) => void;
+  ) => Promise<void>;
+  onSetMaxHeightMm: (maxHeightMm: number) => Promise<void>;
   onSetPresetHeightsMm: (
     preset1HeightMm: number,
     preset4HeightMm: number,
-  ) => void;
-  onRestart: () => void;
+  ) => Promise<void>;
+  onResetController: () => Promise<void>;
+  onRestart: () => Promise<void>;
   onDisconnect: () => void;
 }
 
@@ -135,6 +142,7 @@ export function SettingsScreen({
   onSetSourceEnabled,
   onSetMaxHeightMm,
   onSetPresetHeightsMm,
+  onResetController,
   onRestart,
   onDisconnect,
 }: SettingsScreenProps) {
@@ -142,15 +150,20 @@ export function SettingsScreen({
   const config = snapshot.deskConfig;
   const deviceSettingsAvailable = connected && config !== null;
   const maxHeightMm = config?.maxHeightMm ?? snapshot.deskState?.maxHeightMm;
-  const maxHeightCm = maxHeightMm ? maxHeightMm / 10 : 94;
+  const maxHeightCm = maxHeightMm ? maxHeightMm / 10 : MAX_DESK_HEIGHT_CM;
   const [maxHeightDraft, setMaxHeightDraft] = useState(String(maxHeightCm));
   const [maxHeightError, setMaxHeightError] = useState<string | null>(null);
+  const [maxHeightMessage, setMaxHeightMessage] = useState<string | null>(null);
   const maxHeightTickRef = useRef(Math.round(maxHeightCm));
-  const preset1HeightCm = (config?.preset1HeightMm ?? 560) / 10;
-  const preset4HeightCm = (config?.preset4HeightMm ?? 870) / 10;
+  const preset1HeightCm = (config?.preset1HeightMm ??
+    DESK_DEFAULT_SIT_HEIGHT_MM) / 10;
+  const preset4HeightCm = (config?.preset4HeightMm ??
+    DESK_DEFAULT_STAND_HEIGHT_MM) / 10;
   const [preset1Draft, setPreset1Draft] = useState(String(preset1HeightCm));
   const [preset4Draft, setPreset4Draft] = useState(String(preset4HeightCm));
   const [presetHeightError, setPresetHeightError] = useState<string | null>(null);
+  const [presetHeightMessage, setPresetHeightMessage] = useState<string | null>(null);
+  const [deviceOperationBusy, setDeviceOperationBusy] = useState<string | null>(null);
   const [connectionModeDraft, setConnectionModeDraft] = useState(connectionMode);
   const [restHostDraft, setRestHostDraft] = useState(restHost);
   const [restKeyDraft, setRestKeyDraft] = useState(restKey);
@@ -362,16 +375,45 @@ export function SettingsScreen({
     );
   };
 
+  const runDeviceOperation = async (
+    key: string,
+    operation: () => Promise<void>,
+    failureTitle: string,
+  ): Promise<boolean> => {
+    if (deviceOperationBusy !== null) return false;
+    setDeviceOperationBusy(key);
+    try {
+      await operation();
+      return true;
+    } catch (error) {
+      Alert.alert(
+        failureTitle,
+        error instanceof Error ? error.message : String(error),
+      );
+      return false;
+    } finally {
+      setDeviceOperationBusy(null);
+    }
+  };
+
   const commitMaxHeight = (centimetres: number) => {
     if (!Number.isFinite(centimetres) ||
         centimetres < MIN_DESK_HEIGHT_CM ||
         centimetres > MAX_DESK_HEIGHT_CM) {
       setMaxHeightError('请输入 56–94 cm');
+      setMaxHeightMessage(null);
       return;
     }
     setMaxHeightError(null);
     setMaxHeightDraft(String(Math.round(centimetres)));
-    onSetMaxHeightMm(Math.round(centimetres * 10));
+    setMaxHeightMessage('正在保存…');
+    void runDeviceOperation(
+      'max-height',
+      () => onSetMaxHeightMm(Math.round(centimetres * 10)),
+      '最高安全高度保存失败',
+    ).then((succeeded) => {
+      setMaxHeightMessage(succeeded ? '已保存到设备' : null);
+    });
   };
   const saveMaxHeight = () => commitMaxHeight(Number(maxHeightDraft));
 
@@ -379,13 +421,40 @@ export function SettingsScreen({
     const preset1Mm = Math.round(Number(preset1Draft) * 10);
     const preset4Mm = Math.round(Number(preset4Draft) * 10);
     if (!Number.isInteger(preset1Mm) || !Number.isInteger(preset4Mm) ||
-        preset1Mm < 560 || preset1Mm >= preset4Mm ||
+        preset1Mm < DESK_MIN_HEIGHT_MM || preset1Mm >= preset4Mm ||
         preset4Mm > MAX_DESK_HEIGHT_CM * 10) {
       setPresetHeightError('请坐需低于站立，档位高度范围为 56–94 cm');
+      setPresetHeightMessage(null);
       return;
     }
     setPresetHeightError(null);
-    onSetPresetHeightsMm(preset1Mm, preset4Mm);
+    setPresetHeightMessage('正在保存…');
+    void runDeviceOperation(
+      'built-in-presets',
+      () => onSetPresetHeightsMm(preset1Mm, preset4Mm),
+      '档位高度保存失败',
+    ).then((succeeded) => {
+      setPresetHeightMessage(succeeded ? '已保存到设备' : null);
+    });
+  };
+
+  const confirmControllerReset = () => {
+    Alert.alert(
+      '重置控制盒',
+      '仅在控制盒显示 B12 或升降指令发出后高度不变化时使用。请先确认桌子周围没有障碍物。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '开始重置',
+          style: 'destructive',
+          onPress: () => void runDeviceOperation(
+            'controller-reset',
+            onResetController,
+            '控制盒重置失败',
+          ),
+        },
+      ],
+    );
   };
 
   const runHeightPresetOperation = async (
@@ -813,13 +882,16 @@ export function SettingsScreen({
         <View style={styles.card}>
           <View style={styles.heightSetting}>
             <View style={styles.rowBetween}>
-              <Text style={styles.settingTitle}>最高安全高度（暂未启用）</Text>
+              <Text style={styles.settingTitle}>最高安全高度</Text>
               <Text style={styles.settingValue}>{maxHeightCm.toFixed(1)} cm</Text>
             </View>
+            <Text style={styles.settingDescription}>
+              使用 TOF400C 高度，到达该位置后设备会立即停止上升。
+            </Text>
             <View style={styles.sliderControl}>
               <Slider
                 accessibilityLabel="最高安全高度"
-                disabled={!deviceSettingsAvailable}
+                disabled={!deviceSettingsAvailable || deviceOperationBusy !== null}
                 minimumValue={MIN_DESK_HEIGHT_CM}
                 maximumValue={MAX_DESK_HEIGHT_CM}
                 step={1}
@@ -873,7 +945,7 @@ export function SettingsScreen({
             <View style={styles.heightEditor}>
               <TextInput
                 accessibilityLabel="最高安全高度，单位厘米"
-                editable={deviceSettingsAvailable}
+                editable={deviceSettingsAvailable && deviceOperationBusy === null}
                 keyboardType="decimal-pad"
                 value={maxHeightDraft}
                 onChangeText={setMaxHeightDraft}
@@ -883,12 +955,14 @@ export function SettingsScreen({
               <Text style={styles.heightUnit}>cm</Text>
               <Pressable
                 accessibilityRole="button"
-                disabled={!deviceSettingsAvailable}
+                disabled={!deviceSettingsAvailable || deviceOperationBusy !== null}
                 onPress={saveMaxHeight}
                 style={({ pressed }) => [
                   styles.heightSave,
-                  !deviceSettingsAvailable && styles.disabled,
-                  pressed && deviceSettingsAvailable && styles.pressed,
+                  (!deviceSettingsAvailable || deviceOperationBusy !== null) &&
+                    styles.disabled,
+                  pressed && deviceSettingsAvailable &&
+                    deviceOperationBusy === null && styles.pressed,
                 ]}
               >
                 <Text style={styles.heightSaveText}>保存</Text>
@@ -896,6 +970,9 @@ export function SettingsScreen({
             </View>
             {maxHeightError ? (
               <Text style={styles.heightError}>{maxHeightError}</Text>
+            ) : null}
+            {maxHeightMessage ? (
+              <Text style={styles.settingFeedback}>{maxHeightMessage}</Text>
             ) : null}
           </View>
           <View style={styles.divider} />
@@ -910,7 +987,8 @@ export function SettingsScreen({
                 <View style={styles.presetInputLine}>
                   <TextInput
                     accessibilityLabel="请坐高度，单位厘米"
-                    editable={deviceSettingsAvailable}
+                    editable={deviceSettingsAvailable &&
+                      deviceOperationBusy === null}
                     keyboardType="number-pad"
                     value={preset1Draft}
                     onChangeText={setPreset1Draft}
@@ -924,7 +1002,8 @@ export function SettingsScreen({
                 <View style={styles.presetInputLine}>
                   <TextInput
                     accessibilityLabel="站立高度，单位厘米"
-                    editable={deviceSettingsAvailable}
+                    editable={deviceSettingsAvailable &&
+                      deviceOperationBusy === null}
                     keyboardType="number-pad"
                     value={preset4Draft}
                     onChangeText={setPreset4Draft}
@@ -936,13 +1015,15 @@ export function SettingsScreen({
               </View>
               <Pressable
                 accessibilityRole="button"
-                disabled={!deviceSettingsAvailable}
+                disabled={!deviceSettingsAvailable || deviceOperationBusy !== null}
                 onPress={savePresetHeights}
                 style={({ pressed }) => [
                   styles.heightSave,
                   styles.presetSave,
-                  !deviceSettingsAvailable && styles.disabled,
-                  pressed && deviceSettingsAvailable && styles.pressed,
+                  (!deviceSettingsAvailable || deviceOperationBusy !== null) &&
+                    styles.disabled,
+                  pressed && deviceSettingsAvailable &&
+                    deviceOperationBusy === null && styles.pressed,
                 ]}
               >
                 <Text style={styles.heightSaveText}>保存</Text>
@@ -950,6 +1031,9 @@ export function SettingsScreen({
             </View>
             {presetHeightError ? (
               <Text style={styles.heightError}>{presetHeightError}</Text>
+            ) : null}
+            {presetHeightMessage ? (
+              <Text style={styles.settingFeedback}>{presetHeightMessage}</Text>
             ) : null}
             <Text style={styles.presetBuiltInNote}>内置档位，可以修改高度但不能删除。</Text>
           </View>
@@ -1088,14 +1172,20 @@ export function SettingsScreen({
             accessibilityLabel="童锁"
             accessibilityState={{
               checked: config?.childLock ?? false,
-              disabled: !deviceSettingsAvailable,
+              disabled: !deviceSettingsAvailable || deviceOperationBusy !== null,
             }}
-            disabled={!deviceSettingsAvailable}
-            onPress={() => onSetChildLock(!(config?.childLock ?? false))}
+            disabled={!deviceSettingsAvailable || deviceOperationBusy !== null}
+            onPress={() => void runDeviceOperation(
+              'child-lock',
+              () => onSetChildLock(!(config?.childLock ?? false)),
+              '童锁设置失败',
+            )}
             style={({ pressed }) => [
               styles.securityRow,
-              !deviceSettingsAvailable && styles.disabled,
-              pressed && deviceSettingsAvailable && styles.pressed,
+              (!deviceSettingsAvailable || deviceOperationBusy !== null) &&
+                styles.disabled,
+              pressed && deviceSettingsAvailable &&
+                deviceOperationBusy === null && styles.pressed,
             ]}
           >
             <LockIcon size={30} color={palette.gold} />
@@ -1105,7 +1195,7 @@ export function SettingsScreen({
             </View>
             <PrototypeSwitch
               value={config?.childLock ?? false}
-              muted={!deviceSettingsAvailable}
+              muted={!deviceSettingsAvailable || deviceOperationBusy !== null}
             />
           </Pressable>
           <View style={styles.divider} />
@@ -1157,32 +1247,38 @@ export function SettingsScreen({
             title="REST 接口"
             badge={config ? undefined : '需升级固件'}
             value={config?.restAllowed ?? false}
-            disabled={!deviceSettingsAvailable}
-            onPress={() =>
-              onSetSourceEnabled('rest', !(config?.restAllowed ?? false))
-            }
+            disabled={!deviceSettingsAvailable || deviceOperationBusy !== null}
+            onPress={() => void runDeviceOperation(
+              'source-rest',
+              () => onSetSourceEnabled('rest', !(config?.restAllowed ?? false)),
+              'REST 入口设置失败',
+            )}
           />
           <SettingRow
             icon={<BluetoothIcon size={27} />}
             title="蓝牙"
             value={config?.bluetoothAllowed ?? false}
-            disabled={!deviceSettingsAvailable}
-            onPress={() =>
-              onSetSourceEnabled(
+            disabled={!deviceSettingsAvailable || deviceOperationBusy !== null}
+            onPress={() => void runDeviceOperation(
+              'source-bluetooth',
+              () => onSetSourceEnabled(
                 'bluetooth',
                 !(config?.bluetoothAllowed ?? false),
-              )
-            }
+              ),
+              '蓝牙入口设置失败',
+            )}
           />
           <SettingRow
             icon={<PanelIcon size={27} />}
             title="原厂控制面板"
             badge="待硬件验证"
             value={config?.panelAllowed ?? false}
-            disabled={!deviceSettingsAvailable}
-            onPress={() =>
-              onSetSourceEnabled('panel', !(config?.panelAllowed ?? false))
-            }
+            disabled={!deviceSettingsAvailable || deviceOperationBusy !== null}
+            onPress={() => void runDeviceOperation(
+              'source-panel',
+              () => onSetSourceEnabled('panel', !(config?.panelAllowed ?? false)),
+              '原厂面板入口设置失败',
+            )}
             last
           />
         </View>
@@ -1208,15 +1304,51 @@ export function SettingsScreen({
           />
         </View>
 
+        <SectionTitle>设备维护</SectionTitle>
         <Pressable
           accessibilityRole="button"
-          disabled={!deviceSettingsAvailable}
-          onPress={onRestart}
+          disabled={!deviceSettingsAvailable ||
+            snapshot.deskState?.controllerResetSupported !== true ||
+            snapshot.deskState?.controllerResetActive === true ||
+            deviceOperationBusy !== null}
+          onPress={confirmControllerReset}
+          style={({ pressed }) => [
+            styles.actionButton,
+            styles.controllerResetButton,
+            (!deviceSettingsAvailable ||
+              snapshot.deskState?.controllerResetSupported !== true ||
+              snapshot.deskState?.controllerResetActive === true ||
+              deviceOperationBusy !== null) && styles.disabled,
+            pressed && deviceSettingsAvailable &&
+              snapshot.deskState?.controllerResetSupported === true &&
+              snapshot.deskState?.controllerResetActive !== true &&
+              deviceOperationBusy === null && styles.pressed,
+          ]}
+        >
+          <Text style={styles.controllerResetText}>
+            {snapshot.deskState?.controllerResetActive
+              ? '控制盒正在重置…'
+              : '重置控制盒'}
+          </Text>
+        </Pressable>
+        <Text style={styles.maintenanceHint}>
+          仅在控制盒显示 B12 或升降指令发出后高度不变化时使用。
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          disabled={!deviceSettingsAvailable || deviceOperationBusy !== null}
+          onPress={() => void runDeviceOperation(
+            'restart',
+            onRestart,
+            '网关重启失败',
+          )}
           style={({ pressed }) => [
             styles.actionButton,
             styles.restartButton,
-            !deviceSettingsAvailable && styles.disabled,
-            pressed && deviceSettingsAvailable && styles.pressed,
+            (!deviceSettingsAvailable || deviceOperationBusy !== null) &&
+              styles.disabled,
+            pressed && deviceSettingsAvailable &&
+              deviceOperationBusy === null && styles.pressed,
           ]}
         >
           <Text style={styles.restartText}>重启网关</Text>
@@ -1502,6 +1634,7 @@ const styles = StyleSheet.create({
   heightSave: { minWidth: 66, height: 40, marginLeft: 'auto', alignItems: 'center', justifyContent: 'center', borderRadius: radii.pill, backgroundColor: palette.ink },
   heightSaveText: { color: palette.white, fontSize: 15, fontWeight: '600' },
   heightError: { marginTop: 7, color: palette.danger, fontSize: 12 },
+  settingFeedback: { marginTop: 7, color: palette.greenInk, fontSize: 12 },
   presetSetting: { paddingHorizontal: 18, paddingTop: 17, paddingBottom: 17 },
   presetEditorRow: { marginTop: 14, flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
   presetInputGroup: { flex: 1 },
@@ -1536,7 +1669,10 @@ const styles = StyleSheet.create({
   badge: { marginLeft: 9, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: palette.goldSoft, borderRadius: radii.pill },
   badgeText: { color: palette.gold, fontSize: 11 },
   actionButton: { minHeight: 54, marginTop: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.line, borderRadius: radii.medium, backgroundColor: palette.surface },
-  restartButton: { marginTop: 26, borderColor: palette.gold },
+  controllerResetButton: { borderColor: palette.danger },
+  controllerResetText: { color: palette.danger, fontSize: 17, fontWeight: '500' },
+  maintenanceHint: { marginTop: 7, color: palette.inkMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  restartButton: { borderColor: palette.gold },
   restartText: { color: palette.gold, fontSize: 17, fontWeight: '500' },
   disconnectText: { color: palette.danger, fontSize: 17, fontWeight: '500' },
   footer: { marginTop: 17, color: palette.inkFaint, fontSize: 12, lineHeight: 18, textAlign: 'center' },

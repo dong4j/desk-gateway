@@ -6,6 +6,11 @@
  */
 
 import { DeskCommand, type DeskCommandValue } from './commands';
+import {
+  DESK_DEFAULT_SIT_HEIGHT_MM,
+  DESK_DEFAULT_STAND_HEIGHT_MM,
+  DESK_MAX_HEIGHT_MM,
+} from './heightPresentation';
 import type {
   DeskClient,
   DeskClientSnapshot,
@@ -201,6 +206,15 @@ export class DeskRestClient implements DeskClient {
     } catch (error) {
       throw this.connectionError(errorMessage(error));
     }
+  }
+
+  /**
+   * BLE 作为桌控主通道时，按需刷新仅存在于 REST 状态中的音频管理字段。
+   * 该调用不会启动 REST 轮询，也不会把 REST 切换为当前控制通道。
+   */
+  async refreshManagementSnapshot(): Promise<void> {
+    this.ensureConfigured();
+    await this.refreshStatus();
   }
 
   async sendCommand(command: DeskCommandValue): Promise<void> {
@@ -423,7 +437,7 @@ export class DeskRestClient implements DeskClient {
 
   private async refreshStatus(): Promise<void> {
     const status = await this.request<RestStatus>('/api/v1/desk/status');
-    const maxHeightMm = integerOr(status.max_height_mm, 1020);
+    const maxHeightMm = integerOr(status.max_height_mm, DESK_MAX_HEIGHT_MM);
     const heightKnown = status.height_known === true &&
       typeof status.height_mm === 'number';
     const sources = status.control_sources ?? {};
@@ -452,8 +466,14 @@ export class DeskRestClient implements DeskClient {
         bluetoothAllowed: sources.bluetooth !== false,
         panelAllowed: sources.panel !== false,
         maxHeightMm,
-        preset1HeightMm: integerOr(status.preset1_height_mm, 640),
-        preset4HeightMm: integerOr(status.preset4_height_mm, Math.min(1020, maxHeightMm)),
+        preset1HeightMm: integerOr(
+          status.preset1_height_mm,
+          DESK_DEFAULT_SIT_HEIGHT_MM,
+        ),
+        preset4HeightMm: integerOr(
+          status.preset4_height_mm,
+          Math.min(DESK_DEFAULT_STAND_HEIGHT_MM, maxHeightMm),
+        ),
       },
       firmwareRevision: firmwareRevision(status),
       reminder: parseReminder(status.reminder),

@@ -13,7 +13,7 @@ import type {
   DeskSnapshotListener,
   DeskUnsubscribe,
 } from './DeskClient';
-import type { ReminderAction } from './types';
+import type { AudioSnapshot, ReminderAction } from './types';
 import {
   DeskRestClient,
   type DeskBondSnapshot,
@@ -39,6 +39,8 @@ export class DeskConnectionManager implements DeskClient {
   private listeners = new Set<DeskSnapshotListener>();
   private activeClient: DeskClient | null = null;
   private activeUnsubscribe: DeskUnsubscribe | null = null;
+  private managementUnsubscribe: DeskUnsubscribe | null = null;
+  private managementAudio: AudioSnapshot | null = null;
   private manualDisconnect = false;
   private connectPromise: Promise<void> | null = null;
   private fallbackPromise: Promise<void> | null = null;
@@ -49,10 +51,21 @@ export class DeskConnectionManager implements DeskClient {
     private settings: DeskConnectionSettings,
   ) {
     this.restClient.configure(settings.restHost, settings.restKey);
+    this.managementUnsubscribe = this.restClient.subscribe((snapshot) => {
+      this.managementAudio = snapshot.audio;
+      if (this.activeClient === this.bleClient) {
+        // BLE State/Reminder 不包含音频配置；只合并 REST 独有字段，不覆盖桌控状态。
+        this.update({ audio: snapshot.audio });
+      }
+    });
   }
 
   configure(settings: DeskConnectionSettings): void {
     this.settings = settings;
+    this.managementAudio = null;
+    if (this.activeClient === this.bleClient) {
+      this.update({ audio: null });
+    }
     this.restClient.configure(settings.restHost, settings.restKey);
   }
 
@@ -173,6 +186,14 @@ export class DeskConnectionManager implements DeskClient {
     return this.restClient.stopReminderAudio();
   }
 
+  /** BLE 控桌时按需读取 REST 独有的音频快照，但不改变当前控制通道。 */
+  refreshManagementState(): Promise<void> {
+    if (this.activeClient === this.restClient) {
+      return Promise.resolve();
+    }
+    return this.restClient.refreshManagementSnapshot();
+  }
+
   getBluetoothBonds(): Promise<DeskBondSnapshot> {
     return this.restClient.getBluetoothBonds();
   }
@@ -233,6 +254,8 @@ export class DeskConnectionManager implements DeskClient {
     this.manualDisconnect = true;
     this.activeUnsubscribe?.();
     this.activeUnsubscribe = null;
+    this.managementUnsubscribe?.();
+    this.managementUnsubscribe = null;
     this.activeClient = null;
     this.bleClient.dispose();
     this.restClient.dispose();
@@ -246,7 +269,9 @@ export class DeskConnectionManager implements DeskClient {
       if (this.activeClient !== client) {
         return;
       }
-      this.update(snapshot);
+      this.update(client === this.bleClient
+        ? { ...snapshot, audio: snapshot.audio ?? this.managementAudio }
+        : snapshot);
       if (
         client === this.bleClient &&
         snapshot.phase === 'disconnected' &&

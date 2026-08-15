@@ -389,6 +389,8 @@ export default function App() {
           onOpenPomodoro={() => {
             feedback();
             setScreen('pomodoro');
+            // BLE 只承载计时状态；语音开关、音量和试听状态来自鉴权 REST。
+            void clientRef.current!.refreshManagementState().catch(() => undefined);
           }}
           onHoldUpStart={() => startHold(DeskCommand.HoldUp)}
           onHoldDownStart={() => startHold(DeskCommand.HoldDown)}
@@ -492,26 +494,33 @@ export default function App() {
           onCreateHeightPreset={createHeightPreset}
           onUpdateHeightPreset={updateHeightPreset}
           onDeleteHeightPreset={deleteHeightPreset}
-          onSetChildLock={(enabled) =>
-            runCommand(clientRef.current!.setChildLock(enabled))
-          }
-          onSetSourceEnabled={(source, enabled) =>
-            runCommand(clientRef.current!.setSourceEnabled(source, enabled))
-          }
-          onSetMaxHeightMm={(maxHeightMm) =>
-            runCommand(clientRef.current!.setMaxHeightMm(maxHeightMm))
-          }
-          onSetPresetHeightsMm={(preset1HeightMm, preset4HeightMm) =>
-            runCommand(
-              clientRef.current!.setPresetHeightsMm(
-                preset1HeightMm,
-                preset4HeightMm,
-              ),
-            )
-          }
-          onRestart={() =>
-            runCommand(clientRef.current!.restartGateway())
-          }
+          onSetChildLock={(enabled) => {
+            feedback();
+            return clientRef.current!.setChildLock(enabled);
+          }}
+          onSetSourceEnabled={(source, enabled) => {
+            feedback();
+            return clientRef.current!.setSourceEnabled(source, enabled);
+          }}
+          onSetMaxHeightMm={(maxHeightMm) => {
+            feedback();
+            return clientRef.current!.setMaxHeightMm(maxHeightMm);
+          }}
+          onSetPresetHeightsMm={(preset1HeightMm, preset4HeightMm) => {
+            feedback();
+            return clientRef.current!.setPresetHeightsMm(
+              preset1HeightMm,
+              preset4HeightMm,
+            );
+          }}
+          onResetController={() => {
+            feedback();
+            return clientRef.current!.resetController();
+          }}
+          onRestart={() => {
+            feedback();
+            return clientRef.current!.restartGateway();
+          }}
           onDisconnect={() => {
             feedback();
             runSafely(clientRef.current!.disconnect());

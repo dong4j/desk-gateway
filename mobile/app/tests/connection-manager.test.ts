@@ -114,6 +114,45 @@ test('uses the REST management channel while BLE remains the active control tran
   manager.dispose();
 });
 
+test('merges REST audio state while BLE remains the active control transport', async () => {
+  const ble = new ReadyBleClient();
+  const rest = new DeskRestClient(async () => new Response(JSON.stringify({
+    status: 'idle',
+    height_mm: 720,
+    height_known: true,
+    max_height_mm: 940,
+    control_sources: { rest: true, bluetooth: true, panel: false },
+    audio: {
+      available: true,
+      enabled: true,
+      playing: false,
+      volume_percent: 65,
+      voice_pack: 'zh-CN-default',
+      current_prompt: null,
+      last_error: null,
+    },
+  }), { status: 200 }));
+  const manager = new DeskConnectionManager(ble, rest, {
+    mode: 'ble',
+    restHost: 'desk-gateway.local',
+    restKey: 'secret',
+  });
+  const snapshots: DeskClientSnapshot[] = [];
+  manager.subscribe((snapshot) => {
+    snapshots.push(snapshot);
+  });
+
+  await manager.initialize();
+  await manager.connect();
+  await manager.refreshManagementState();
+
+  const latest = snapshots.at(-1)!;
+  assert.equal(latest?.transport, 'ble');
+  assert.equal(latest?.audio?.enabled, true);
+  assert.equal(latest?.audio?.volumePercent, 65);
+  manager.dispose();
+});
+
 class FailingBleClient implements DeskClient {
   connectAttempts = 0;
   commands: DeskCommandValue[] = [];
