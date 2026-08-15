@@ -52,10 +52,26 @@ test('queues STOP after an in-flight renewal', async () => {
 
 test('rejects preset commands as HOLD input', async () => {
   const controller = new DeskHoldController(async () => undefined);
+  const invalidCommand = DeskCommand.Preset1 as typeof DeskCommand.HoldUp;
   await assert.rejects(
-    controller.start(DeskCommand.Preset1),
+    controller.start(invalidCommand),
     /only accepts HOLD commands/,
   );
+});
+
+test('ignores a stale release from the previous direction', async () => {
+  const sent: DeskCommandValue[] = [];
+  const controller = new DeskHoldController(async (command) => {
+    sent.push(command);
+  }, 1_000);
+
+  await controller.start(DeskCommand.HoldUp);
+  await controller.start(DeskCommand.HoldDown);
+  await controller.stop(DeskCommand.HoldUp);
+
+  assert.equal(sent.at(-1), DeskCommand.HoldDown);
+  await controller.stop(DeskCommand.HoldDown);
+  assert.equal(sent.at(-1), DeskCommand.Stop);
 });
 
 test('does not start a renewal timer after the first write fails', async () => {

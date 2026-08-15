@@ -6,10 +6,13 @@ import {
 } from './commands';
 
 type CommandSender = (command: DeskCommandValue) => Promise<void>;
+export type HoldCommand =
+  | typeof DeskCommand.HoldUp
+  | typeof DeskCommand.HoldDown;
 
 export class DeskHoldController {
   private timer: ReturnType<typeof setInterval> | null = null;
-  private activeCommand: DeskCommandValue | null = null;
+  private activeCommand: HoldCommand | null = null;
   private writeInFlight = false;
   private writeTail: Promise<void> = Promise.resolve();
 
@@ -18,7 +21,7 @@ export class DeskHoldController {
     private readonly renewIntervalMs = 300,
   ) {}
 
-  async start(command: DeskCommandValue): Promise<void> {
+  async start(command: HoldCommand): Promise<void> {
     if (command !== DeskCommand.HoldUp && command !== DeskCommand.HoldDown) {
       throw new Error('DeskHoldController only accepts HOLD commands');
     }
@@ -40,7 +43,17 @@ export class DeskHoldController {
     }, this.renewIntervalMs);
   }
 
-  async stop(): Promise<void> {
+  async stop(expectedCommand?: HoldCommand): Promise<void> {
+    /*
+     * 两个方向分别产生松手事件。旧按钮的延迟 onPressOut 不能停止已经开始的
+     * 另一个方向，否则 BLE 队列会表现为 HOLD 后立即 STOP。
+     */
+    if (
+      expectedCommand !== undefined &&
+      this.activeCommand !== expectedCommand
+    ) {
+      return;
+    }
     const wasActive = this.activeCommand !== null || this.timer !== null;
     this.activeCommand = null;
     this.clearTimer();

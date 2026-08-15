@@ -319,7 +319,7 @@ export class DeskBleClient implements DeskClient {
     });
     const operation = write.catch((error: unknown) => {
       /* ATT 拒绝是一次操作失败，不代表 GATT 链路已经断开。 */
-      this.update({ error: isDeskBusyError(error) ? '另一台设备正在控制' : '操作失败' });
+      this.update({ error: bleOperationError(error) });
       throw error;
     });
     this.writeQueue = operation.catch(() => undefined);
@@ -374,7 +374,8 @@ export class DeskBleClient implements DeskClient {
 
   private acceptState(bytes: readonly number[]): void {
     try {
-      this.update({ deskState: decodeDeskState(bytes), error: null });
+      /* 状态心跳不能抹掉刚发生的命令写入错误；成功写入会统一清理 error。 */
+      this.update({ deskState: decodeDeskState(bytes) });
     } catch (error) {
       this.fail(error);
     }
@@ -382,7 +383,7 @@ export class DeskBleClient implements DeskClient {
 
   private acceptConfig(bytes: readonly number[]): void {
     try {
-      this.update({ deskConfig: decodeDeskConfig(bytes), error: null });
+      this.update({ deskConfig: decodeDeskConfig(bytes) });
     } catch (error) {
       this.fail(error);
     }
@@ -391,7 +392,7 @@ export class DeskBleClient implements DeskClient {
   private acceptReminder(bytes: readonly number[]): void {
     try {
       const decoded = decodeReminder(bytes);
-      this.update({ ...decoded, error: null });
+      this.update(decoded);
     } catch (error) {
       this.fail(error);
     }
@@ -505,6 +506,15 @@ export function isDeskBusyError(error: unknown): boolean {
   }
   const message = error instanceof Error ? error.message : String(error);
   return /(?:ATT|GATT|status|code)[^\n]*(?:0x80|\b128\b)/i.test(message);
+}
+
+/** 保留底层 GATT 错误，避免 BLE 写入失败在首页退化成没有细节的“操作失败”。 */
+export function bleOperationError(error: unknown): string {
+  if (isDeskBusyError(error)) {
+    return '另一台设备正在控制';
+  }
+  const detail = error instanceof Error ? error.message : String(error);
+  return detail ? `BLE 写入失败：${detail}` : 'BLE 写入失败';
 }
 
 function isMissingCharacteristicError(error: unknown): boolean {

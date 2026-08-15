@@ -177,7 +177,10 @@ test('keeps BLE ready when a command write is rejected', async () => {
 
   await assert.rejects(client.sendCommand(DeskCommand.Preset4));
   assert.equal(latestPhase, 'ready');
-  assert.equal(latestError, '操作失败');
+  assert.equal(latestError, 'BLE 写入失败：ATT write rejected');
+
+  adapter.emitState(initialState);
+  assert.equal(latestError, 'BLE 写入失败：ATT write rejected');
 
   await client.sendCommand(DeskCommand.Stop);
   assert.equal(latestPhase, 'ready');

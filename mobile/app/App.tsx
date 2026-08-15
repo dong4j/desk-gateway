@@ -22,7 +22,10 @@ import type {
   DeskConnectionSettings,
 } from './src/desk/DeskClient';
 import { DeskConnectionManager } from './src/desk/DeskConnectionManager';
-import { DeskHoldController } from './src/desk/DeskHoldController';
+import {
+  DeskHoldController,
+  type HoldCommand,
+} from './src/desk/DeskHoldController';
 import { DeskRestClient } from './src/desk/DeskRestClient';
 import type { DeskHeightPresetSnapshot } from './src/desk/DeskRestClient';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -68,6 +71,7 @@ const defaultPreferences: AppPreferences = {
 export default function App() {
   const clientRef = useRef<DeskConnectionManager | null>(null);
   const holdRef = useRef<DeskHoldController | null>(null);
+  const activeHoldCommandRef = useRef<HoldCommand | null>(null);
   const holdHapticRef = useRef<HoldHapticController | null>(null);
   const hapticFeedbackEnabledRef = useRef(defaultPreferences.hapticFeedback);
   const hapticStrengthRef = useRef(defaultPreferences.hapticStrength);
@@ -119,6 +123,7 @@ export default function App() {
       (nextState) => {
         // App 失去前台控制权时必须停止续期；固件 750ms 租约是第二道保护。
         if (nextState !== 'active') {
+          activeHoldCommandRef.current = null;
           holdHapticRef.current?.cancel();
           void holdRef.current?.stop();
         }
@@ -128,6 +133,7 @@ export default function App() {
     return () => {
       appStateSubscription.remove();
       unsubscribe();
+      activeHoldCommandRef.current = null;
       holdHapticRef.current?.cancel();
       void holdRef.current?.stop();
       client.dispose();
@@ -136,7 +142,9 @@ export default function App() {
 
   useEffect(() => {
     if (snapshot.phase !== 'ready') {
+      activeHoldCommandRef.current = null;
       holdHapticRef.current?.cancel();
+      void holdRef.current?.stop();
     }
   }, [snapshot.phase]);
 
@@ -316,10 +324,14 @@ export default function App() {
 
   const startHold = useCallback(
     (command: typeof DeskCommand.HoldUp | typeof DeskCommand.HoldDown) => {
+      activeHoldCommandRef.current = command;
       holdHapticRef.current!.start();
       runSafely(
         holdRef.current!.start(command).catch((error) => {
-          holdHapticRef.current?.cancel();
+          if (activeHoldCommandRef.current === command) {
+            activeHoldCommandRef.current = null;
+            holdHapticRef.current?.cancel();
+          }
           throw error;
         }),
       );
@@ -327,9 +339,13 @@ export default function App() {
     [],
   );
 
-  const endHold = useCallback(() => {
+  const endHold = useCallback((command?: HoldCommand) => {
+    if (command !== undefined && activeHoldCommandRef.current !== command) {
+      return;
+    }
+    activeHoldCommandRef.current = null;
     holdHapticRef.current?.stop();
-    runSafely(holdRef.current!.stop());
+    runSafely(holdRef.current!.stop(command));
   }, []);
 
   const getBluetoothBonds = useCallback(
@@ -394,7 +410,9 @@ export default function App() {
           }}
           onHoldUpStart={() => startHold(DeskCommand.HoldUp)}
           onHoldDownStart={() => startHold(DeskCommand.HoldDown)}
-          onHoldEnd={endHold}
+          onHoldEnd={(direction) => endHold(
+            direction === 'up' ? DeskCommand.HoldUp : DeskCommand.HoldDown,
+          )}
           onStop={() => {
             holdHapticRef.current?.stop();
             runCommand(clientRef.current!.sendCommand(DeskCommand.Stop));

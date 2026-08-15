@@ -47,7 +47,7 @@ interface HomeScreenProps {
   onOpenPomodoro: () => void;
   onHoldUpStart: () => void;
   onHoldDownStart: () => void;
-  onHoldEnd: () => void;
+  onHoldEnd: (direction: HoldDirection) => void;
   onStop: () => void;
   onPreset1: () => void;
   onPreset4: () => void;
@@ -55,6 +55,8 @@ interface HomeScreenProps {
   onResetController: () => void;
   onToggleChildLock: () => void;
 }
+
+type HoldDirection = 'up' | 'down';
 
 interface ErrorToastState {
   title: string;
@@ -82,6 +84,8 @@ export function HomeScreen({
   onToggleChildLock,
 }: HomeScreenProps) {
   const [errorToast, setErrorToast] = useState<ErrorToastState | null>(null);
+  const [activeHoldDirection, setActiveHoldDirection] =
+    useState<HoldDirection | null>(null);
   const errorToastProgress = useRef(new Animated.Value(0)).current;
   const errorToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resetPromptShown = useRef(false);
@@ -164,7 +168,9 @@ export function HomeScreen({
     const retryable = snapshot.phase !== 'ready';
     setErrorToast({
       title: retryable ? '连接失败，点击重试' : '操作失败',
-      detail: retryable ? friendlyError(snapshot.error) : null,
+      detail: retryable || snapshot.transport === 'ble'
+        ? friendlyError(snapshot.error)
+        : null,
       retryable,
     });
 
@@ -198,6 +204,8 @@ export function HomeScreen({
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <ScrollView
+        /* 长按期间禁止父容器抢占 responder，否则 Pressable 会立刻触发松手 STOP。 */
+        scrollEnabled={activeHoldDirection === null}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
@@ -245,8 +253,16 @@ export function HomeScreen({
             label="按住升高"
             direction="up"
             disabled={motionBlocked || upwardBlocked || heightUnknown}
-            onPressIn={onHoldUpStart}
-            onPressOut={onHoldEnd}
+            onPressIn={() => {
+              setActiveHoldDirection('up');
+              onHoldUpStart();
+            }}
+            onPressOut={() => {
+              setActiveHoldDirection((current) =>
+                current === 'up' ? null : current,
+              );
+              onHoldEnd('up');
+            }}
           />
           <Pressable
             accessibilityRole="button"
@@ -265,8 +281,16 @@ export function HomeScreen({
             label="按住降低"
             direction="down"
             disabled={motionBlocked}
-            onPressIn={onHoldDownStart}
-            onPressOut={onHoldEnd}
+            onPressIn={() => {
+              setActiveHoldDirection('down');
+              onHoldDownStart();
+            }}
+            onPressOut={() => {
+              setActiveHoldDirection((current) =>
+                current === 'down' ? null : current,
+              );
+              onHoldEnd('down');
+            }}
           />
         </View>
 
@@ -426,7 +450,7 @@ function HoldControl({
   onPressOut,
 }: {
   label: string;
-  direction: 'up' | 'down';
+  direction: HoldDirection;
   disabled: boolean;
   onPressIn: () => void;
   onPressOut: () => void;
