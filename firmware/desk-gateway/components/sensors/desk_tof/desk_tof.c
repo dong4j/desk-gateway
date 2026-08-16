@@ -50,6 +50,10 @@
 
 static const char *TAG = "desk_tof";
 static atomic_int s_height_mm = ATOMIC_VAR_INIT(-1);
+static atomic_int s_raw_height_mm = ATOMIC_VAR_INIT(-1);
+static atomic_int s_control_height_mm = ATOMIC_VAR_INIT(-1);
+/* 偶数表示一组完整样本；写入期间使用相邻奇数，避免读到混合快照。 */
+static atomic_uint_fast32_t s_height_publish_seq = ATOMIC_VAR_INIT(0);
 static atomic_bool s_height_known = ATOMIC_VAR_INIT(false);
 static atomic_int s_right_gap_mm = ATOMIC_VAR_INIT(-1);
 static atomic_bool s_right_gap_known = ATOMIC_VAR_INIT(false);
@@ -66,6 +70,7 @@ typedef struct {
     TickType_t height_last_valid;
     desk_tof_stable_filter_t wall_filter;
     desk_tof_stable_filter_t height_filter;
+    desk_tof_control_filter_t height_control_filter;
 } desk_tof_context_t;
 
 typedef struct {
@@ -309,10 +314,16 @@ static void publish_height(desk_tof_context_t *ctx, int raw_mm)
     if (raw_mm < 0) {
         return;
     }
-    /* 产品高度就是 TOF400C 原始距离，只做防抖，不做物理桌高换算。 */
-    int filtered = desk_tof_stable_filter_push(&ctx->height_filter, raw_mm);
-    atomic_store(&s_height_mm, filtered);
+    /* 产品高度就是 TOF400C 原始距离，不做物理桌高换算。 */
+    int stable = desk_tof_stable_filter_push(&ctx->height_filter, raw_mm);
+    int control = desk_tof_control_filter_push(&ctx->height_control_filter,
+                                                raw_mm);
+    atomic_fetch_add(&s_height_publish_seq, 1U);
+    atomic_store(&s_raw_height_mm, raw_mm);
+    atomic_store(&s_control_height_mm, control);
+    atomic_store(&s_height_mm, stable);
     atomic_store(&s_height_known, true);
+    atomic_fetch_add(&s_height_publish_seq, 1U);
     ctx->height_last_valid = xTaskGetTickCount();
 }
 
@@ -401,14 +412,27 @@ esp_err_t desk_tof_start(i2c_master_bus_handle_t bus)
 
 desk_tof_snapshot_t desk_tof_snapshot(void)
 {
-    desk_tof_snapshot_t snapshot = {
-        .height_mm = atomic_load(&s_height_mm),
-        .height_known = atomic_load(&s_height_known),
-        .right_gap_mm = atomic_load(&s_right_gap_mm),
-        .right_gap_known = atomic_load(&s_right_gap_known),
-    };
+    desk_tof_snapshot_t snapshot = {0};
+    uint_fast32_t begin_seq = 0;
+    uint_fast32_t end_seq = 0;
+    do {
+        begin_seq = atomic_load(&s_height_publish_seq);
+        if ((begin_seq & 1U) != 0U) {
+            continue;
+        }
+        snapshot.height_mm = atomic_load(&s_height_mm);
+        snapshot.raw_height_mm = atomic_load(&s_raw_height_mm);
+        snapshot.control_height_mm = atomic_load(&s_control_height_mm);
+        snapshot.height_known = atomic_load(&s_height_known);
+        end_seq = atomic_load(&s_height_publish_seq);
+    } while (begin_seq != end_seq || (end_seq & 1U) != 0U);
+    snapshot.height_sample_id = (uint32_t)(end_seq / 2U);
+    snapshot.right_gap_mm = atomic_load(&s_right_gap_mm);
+    snapshot.right_gap_known = atomic_load(&s_right_gap_known);
     if (!snapshot.height_known) {
         snapshot.height_mm = -1;
+        snapshot.raw_height_mm = -1;
+        snapshot.control_height_mm = -1;
     }
     if (!snapshot.right_gap_known) {
         snapshot.right_gap_mm = -1;

@@ -28,11 +28,65 @@ int main(void)
     assert(mxtark_preset_direction(700, 1020, 5) == MXTARK_PRESET_UP);
     assert(mxtark_preset_direction(800, 640, 5) == MXTARK_PRESET_DOWN);
     assert(mxtark_preset_direction(638, 640, 5) == MXTARK_PRESET_STOP);
+    /* 6 mm 静止抖动可越过旧 5 mm 边界，但不应触发同档位反向点动。 */
+    assert(mxtark_preset_direction(876, 870, 5) == MXTARK_PRESET_DOWN);
+    assert(mxtark_preset_direction(876, 870, 8) == MXTARK_PRESET_STOP);
 
     assert(!mxtark_preset_reached(1014, 1020, 5, MXTARK_PRESET_UP));
     assert(mxtark_preset_reached(1015, 1020, 5, MXTARK_PRESET_UP));
     assert(!mxtark_preset_reached(646, 640, 5, MXTARK_PRESET_DOWN));
     assert(mxtark_preset_reached(645, 640, 5, MXTARK_PRESET_DOWN));
+
+    /* 上升过冲后必须先稳定、有限反向校正，再在容差内结束。 */
+    mxtark_preset_control_t control;
+    mxtark_preset_control_reset(&control);
+    mxtark_preset_control_start(&control, 870, MXTARK_PRESET_UP, 10);
+    assert(mxtark_preset_control_update(
+               &control, 864, 858, 11, 100, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_NONE);
+    assert(mxtark_preset_control_update(
+               &control, 866, 860, 12, 200, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
+    assert(mxtark_preset_control_update(
+               &control, 875, 876, 13, 500, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_NONE);
+    assert(mxtark_preset_control_update(
+               &control, 876, 876, 14, 700, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_MOVE_DOWN);
+    assert(mxtark_preset_control_update(
+               &control, 873, 875, 15, 800, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
+    assert(mxtark_preset_control_update(
+               &control, 871, 872, 16, 1300, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_COMPLETE);
+    assert(control.phase == MXTARK_PRESET_PHASE_IDLE);
+
+    /* 同一样本不能被 50 ms 控制循环重复消费并提前结束稳定等待。 */
+    mxtark_preset_control_start(&control, 870, MXTARK_PRESET_UP, 20);
+    assert(mxtark_preset_control_update(
+               &control, 866, 860, 21, 100, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
+    assert(mxtark_preset_control_update(
+               &control, 866, 870, 21, 700, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_NONE);
+
+    /* 连续过冲达到校正上限后必须结束，不能在目标两侧无限振荡。 */
+    assert(mxtark_preset_control_update(
+               &control, 878, 878, 22, 700, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_MOVE_DOWN);
+    assert(mxtark_preset_control_update(
+               &control, 874, 878, 23, 800, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
+    assert(mxtark_preset_control_update(
+               &control, 862, 862, 24, 1300, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_MOVE_UP);
+    assert(mxtark_preset_control_update(
+               &control, 866, 862, 25, 1400, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
+    assert(mxtark_preset_control_update(
+               &control, 879, 879, 26, 1900, 5, 5, 500, 2) ==
+           MXTARK_PRESET_ACTION_CORRECTION_LIMIT);
+    assert(control.phase == MXTARK_PRESET_PHASE_IDLE);
 
     /* 右侧障碍仅在高度严格低于 80 cm 时阻止上升。 */
     assert(mxtark_tof_upward_blocked(false, -1, true, 100, 940));

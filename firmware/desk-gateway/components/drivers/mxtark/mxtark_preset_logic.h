@@ -31,6 +31,34 @@ typedef enum {
     MXTARK_PRESET_DOWN = -1,
 } mxtark_preset_direction_t;
 
+typedef enum {
+    MXTARK_PRESET_PHASE_IDLE = 0,
+    MXTARK_PRESET_PHASE_MOVING,
+    MXTARK_PRESET_PHASE_SETTLING,
+} mxtark_preset_phase_t;
+
+typedef enum {
+    MXTARK_PRESET_ACTION_NONE = 0,
+    MXTARK_PRESET_ACTION_STOP_AND_SETTLE,
+    MXTARK_PRESET_ACTION_MOVE_UP,
+    MXTARK_PRESET_ACTION_MOVE_DOWN,
+    MXTARK_PRESET_ACTION_COMPLETE,
+    MXTARK_PRESET_ACTION_CORRECTION_LIMIT,
+} mxtark_preset_action_t;
+
+/**
+ * 档位闭环的纯状态。运行时只在驱动控制任务中推进，主机测试用相同逻辑
+ * 回放测距延迟和停车过冲，避免只测试一个静态阈值。
+ */
+typedef struct {
+    int target_mm;
+    mxtark_preset_direction_t direction;
+    mxtark_preset_phase_t phase;
+    unsigned int correction_count;
+    uint32_t settle_started_ms;
+    uint32_t last_sample_id;
+} mxtark_preset_control_t;
+
 /** Return the configured target in millimetres, or -1 for an unsupported preset. */
 int mxtark_preset_target_mm(uint8_t preset, int preset1_height_mm,
                               int preset4_height_mm);
@@ -49,6 +77,32 @@ mxtark_preset_direction_t mxtark_preset_direction(
 /** Check the one-way stop boundary without reversing after small overshoot. */
 bool mxtark_preset_reached(int current_mm, int target_mm, int stop_margin_mm,
                             mxtark_preset_direction_t direction);
+
+/** 清空目标与校正次数，使后续手动命令不会被旧档位状态停车。 */
+void mxtark_preset_control_reset(mxtark_preset_control_t *control);
+
+/** 启动一段已确定方向的档位运动，并跳过启动前的旧测距样本。 */
+void mxtark_preset_control_start(mxtark_preset_control_t *control,
+                                 int target_mm,
+                                 mxtark_preset_direction_t direction,
+                                 uint32_t current_sample_id);
+
+/**
+ * 消费一组新的控制/稳定高度并返回驱动动作。
+ *
+ * 首次越过停车边界后进入稳定等待；稳定高度仍超出容差时最多反向校正
+ * max_corrections 次。达到上限必须结束，不能在目标两侧无限振荡。
+ */
+mxtark_preset_action_t mxtark_preset_control_update(
+    mxtark_preset_control_t *control,
+    int control_height_mm,
+    int stable_height_mm,
+    uint32_t sample_id,
+    uint32_t now_ms,
+    int stop_margin_mm,
+    int settle_tolerance_mm,
+    uint32_t settle_ms,
+    unsigned int max_corrections);
 
 /**
  * 判断当前 TOF 数据是否必须阻止上升。

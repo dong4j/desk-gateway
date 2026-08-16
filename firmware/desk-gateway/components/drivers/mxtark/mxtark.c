@@ -77,6 +77,13 @@ static const char *TAG = "mxtark";
 
 /* Stop slightly inside the target to absorb normal motor and protocol latency. */
 #define PRESET_STOP_MARGIN_MM 5
+/* 静止实测抖动为 6 mm；重新点击同一档位时留出额外回差，避免反向点动。 */
+#define PRESET_START_MARGIN_MM 8
+/* 停车后等待五个 100 ms 测距周期，再使用稳定高度决定是否校正。 */
+#define PRESET_SETTLE_MS 500
+#define PRESET_SETTLE_TOLERANCE_MM 5
+/* 校正必须有界；传感器或机械异常时不能在目标两侧持续振荡。 */
+#define PRESET_MAX_CORRECTIONS 2U
 
 /*
  * A clean TM1650 refresh is about 7 ms. The wider 20 ms window tolerates task
@@ -133,21 +140,45 @@ static atomic_int s_preset1_height_mm;
 static atomic_int s_preset4_height_mm;
 static atomic_int s_preset_target_mm;
 static atomic_int s_preset_direction;
+static mxtark_preset_control_t s_preset_control;
+static portMUX_TYPE s_preset_control_mux = portMUX_INITIALIZER_UNLOCKED;
 
 /** Cancel closed-loop preset tracking before any manual or explicit stop command. */
 static void cancel_preset_motion(void)
 {
+    portENTER_CRITICAL(&s_preset_control_mux);
+    mxtark_preset_control_reset(&s_preset_control);
     atomic_store(&s_preset_target_mm, -1);
     atomic_store(&s_preset_direction, 0);
+    portEXIT_CRITICAL(&s_preset_control_mux);
 }
+
+#if CONFIG_DESK_TOF_ENABLE
+/** Install one new ToF target and ignore the height sample used to choose direction. */
+static void start_preset_motion(int target_mm,
+                                mxtark_preset_direction_t direction,
+                                uint32_t current_sample_id)
+{
+    portENTER_CRITICAL(&s_preset_control_mux);
+    mxtark_preset_control_start(&s_preset_control, target_mm, direction,
+                                current_sample_id);
+    atomic_store(&s_preset_target_mm, target_mm);
+    atomic_store(&s_preset_direction, direction);
+    portEXIT_CRITICAL(&s_preset_control_mux);
+}
+#endif
 #endif
 
 #if CONFIG_DESK_TOF_ENABLE
 /** Read the already-filtered ToF snapshot used by every upward safety path. */
 static bool tof_upward_blocked(desk_tof_snapshot_t snapshot)
 {
+    /* 最高位保护与档位停车共用低延迟高度，不能继续落后两个测距周期。 */
+    int safety_height_mm = snapshot.control_height_mm >= 0
+                               ? snapshot.control_height_mm
+                               : snapshot.height_mm;
     return mxtark_tof_upward_blocked(
-        snapshot.height_known, snapshot.height_mm,
+        snapshot.height_known, safety_height_mm,
         snapshot.right_gap_known, snapshot.right_gap_mm,
         atomic_load(&s_max_height_mm));
 }
@@ -157,8 +188,9 @@ static void log_tof_upward_block(const char *source,
                                  desk_tof_snapshot_t snapshot)
 {
     ESP_LOGW(TAG,
-             "block upward source=%s height=%d known=%d right_gap=%d known=%d max=%d",
-             source, snapshot.height_mm, (int)snapshot.height_known,
+             "block upward source=%s stable=%d control=%d known=%d right_gap=%d known=%d max=%d",
+             source, snapshot.height_mm, snapshot.control_height_mm,
+             (int)snapshot.height_known,
              snapshot.right_gap_mm, (int)snapshot.right_gap_known,
              atomic_load(&s_max_height_mm));
 }
@@ -350,7 +382,7 @@ static void motion_diagnostics_task(void *arg)
 
 #endif
 
-#if MXTARK_CLOSED_LOOP_ENABLED
+#if MXTARK_HEIGHT_INPUT_ENABLED && !CONFIG_DESK_TOF_ENABLE
 /** Stop once the measured height reaches or crosses the preset target. */
 static void stop_preset_if_reached(int height_mm)
 {
@@ -381,6 +413,103 @@ static void stop_preset_if_reached(int height_mm)
 
 #if CONFIG_DESK_TOF_ENABLE
 /**
+ * Advance the ToF preset state using each sensor sample at most once.
+ *
+ * The pure state machine decides when to stop, settle, correct, or give up;
+ * this adapter applies the resulting DR byte and preserves the existing upward
+ * obstacle gate for every correction.
+ */
+static void update_tof_preset_control(desk_tof_snapshot_t snapshot,
+                                      uint32_t now_ms)
+{
+    mxtark_preset_action_t action;
+    unsigned int corrections;
+    int target_mm;
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    mxtark_preset_phase_t phase;
+    int direction;
+    bool consumed_sample;
+#endif
+
+    portENTER_CRITICAL(&s_preset_control_mux);
+    target_mm = s_preset_control.target_mm;
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    consumed_sample = snapshot.height_sample_id !=
+                      s_preset_control.last_sample_id;
+#endif
+    action = mxtark_preset_control_update(
+        &s_preset_control, snapshot.control_height_mm, snapshot.height_mm,
+        snapshot.height_sample_id, now_ms, PRESET_STOP_MARGIN_MM,
+        PRESET_SETTLE_TOLERANCE_MM, PRESET_SETTLE_MS,
+        PRESET_MAX_CORRECTIONS);
+    corrections = s_preset_control.correction_count;
+    atomic_store(&s_preset_target_mm, s_preset_control.target_mm);
+    atomic_store(&s_preset_direction, s_preset_control.direction);
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    phase = s_preset_control.phase;
+    direction = (int)s_preset_control.direction;
+#endif
+    portEXIT_CRITICAL(&s_preset_control_mux);
+
+#if CONFIG_DESK_MOTION_DIAGNOSTICS
+    if (consumed_sample) {
+        ESP_LOGI(TAG,
+                 "preset sample id=%" PRIu32 " phase=%d dir=%d raw=%d control=%d stable=%d target=%d corrections=%u",
+                 snapshot.height_sample_id, (int)phase, direction,
+                 snapshot.raw_height_mm, snapshot.control_height_mm,
+                 snapshot.height_mm, target_mm, corrections);
+    }
+#endif
+
+    esp_err_t err = ESP_OK;
+    switch (action) {
+    case MXTARK_PRESET_ACTION_STOP_AND_SETTLE:
+        ESP_LOGI(TAG,
+                 "preset stop: control=%d stable=%d target=%d; settling",
+                 snapshot.control_height_mm, snapshot.height_mm, target_mm);
+        err = set_dr(DR_IDLE);
+        break;
+    case MXTARK_PRESET_ACTION_MOVE_UP:
+        if (tof_upward_blocked(snapshot)) {
+            log_tof_upward_block("preset correction", snapshot);
+            err = ESP_ERR_INVALID_STATE;
+        } else {
+            ESP_LOGI(TAG,
+                     "preset correction %u/%u: stable=%d target=%d direction=up",
+                     corrections, PRESET_MAX_CORRECTIONS,
+                     snapshot.height_mm, target_mm);
+            err = set_dr(DR_UP);
+        }
+        break;
+    case MXTARK_PRESET_ACTION_MOVE_DOWN:
+        ESP_LOGI(TAG,
+                 "preset correction %u/%u: stable=%d target=%d direction=down",
+                 corrections, PRESET_MAX_CORRECTIONS,
+                 snapshot.height_mm, target_mm);
+        err = set_dr(DR_DOWN);
+        break;
+    case MXTARK_PRESET_ACTION_COMPLETE:
+        ESP_LOGI(TAG, "preset settled: stable=%d target=%d",
+                 snapshot.height_mm, target_mm);
+        break;
+    case MXTARK_PRESET_ACTION_CORRECTION_LIMIT:
+        ESP_LOGW(TAG,
+                 "preset correction limit: stable=%d target=%d tolerance=%d",
+                 snapshot.height_mm, target_mm,
+                 PRESET_SETTLE_TOLERANCE_MM);
+        err = set_dr(DR_IDLE);
+        break;
+    case MXTARK_PRESET_ACTION_NONE:
+    default:
+        break;
+    }
+    if (err != ESP_OK) {
+        cancel_preset_motion();
+        (void)set_dr(DR_IDLE);
+    }
+}
+
+/**
  * Enforce the ToF ceiling/obstacle policy during motion and close preset loops.
  *
  * Entry checks reject unsafe commands before motion; this task is still
@@ -405,7 +534,9 @@ static void tof_control_task(void *arg)
                 cancel_preset_motion();
                 (void)set_dr(DR_IDLE);
             } else if (target_mm >= 0) {
-                stop_preset_if_reached(snapshot.height_mm);
+                uint32_t now_ms =
+                    (uint32_t)xTaskGetTickCount() * portTICK_PERIOD_MS;
+                update_tof_preset_control(snapshot, now_ms);
             }
         }
         vTaskDelay(pdMS_TO_TICKS(HEIGHT_SAFETY_POLL_MS));
@@ -638,7 +769,9 @@ static void height_decode_task(void *arg)
                      complete_frame ? "frame" : "cache");
         }
         if (accepted) {
+#if !CONFIG_DESK_TOF_ENABLE
             stop_preset_if_reached(height_mm);
+#endif
         }
     }
 }
@@ -1067,7 +1200,16 @@ static esp_err_t yd_start_height_target(
     }
 
     int current_mm = -1;
+#if CONFIG_DESK_TOF_ENABLE
+    desk_tof_snapshot_t start_snapshot = desk_tof_snapshot();
+    esp_err_t height_err = start_snapshot.height_known ? ESP_OK
+                                                       : ESP_ERR_NOT_SUPPORTED;
+    if (height_err == ESP_OK) {
+        current_mm = start_snapshot.height_mm;
+    }
+#else
     esp_err_t height_err = read_control_height_mm(&current_mm);
+#endif
     if (height_err != ESP_OK) {
 #if CONFIG_DESK_TOF_ENABLE
         return ESP_ERR_INVALID_STATE;
@@ -1089,23 +1231,33 @@ static esp_err_t yd_start_height_target(
 #endif
     }
     mxtark_preset_direction_t direction = mxtark_preset_direction(
-        current_mm, target_mm, PRESET_STOP_MARGIN_MM);
+        current_mm, target_mm,
+#if CONFIG_DESK_TOF_ENABLE
+        PRESET_START_MARGIN_MM
+#else
+        PRESET_STOP_MARGIN_MM
+#endif
+    );
     if (direction == MXTARK_PRESET_STOP) {
         cancel_preset_motion();
         return set_dr(DR_IDLE);
     }
 #if CONFIG_DESK_TOF_ENABLE
     if (direction == MXTARK_PRESET_UP) {
-        desk_tof_snapshot_t snapshot = desk_tof_snapshot();
-        if (tof_upward_blocked(snapshot)) {
-            log_tof_upward_block("preset", snapshot);
+        if (tof_upward_blocked(start_snapshot)) {
+            log_tof_upward_block("preset", start_snapshot);
             return ESP_ERR_INVALID_STATE;
         }
     }
 #endif
 
+#if CONFIG_DESK_TOF_ENABLE
+    start_preset_motion(target_mm, direction,
+                        start_snapshot.height_sample_id);
+#else
     atomic_store(&s_preset_direction, direction);
     atomic_store(&s_preset_target_mm, target_mm);
+#endif
     ESP_LOGI(TAG, "%s: current=%d mm target=%d mm direction=%s",
              log_label, current_mm, target_mm,
              direction > 0 ? "up" : "down");

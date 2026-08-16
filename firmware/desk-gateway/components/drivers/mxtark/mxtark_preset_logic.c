@@ -45,6 +45,87 @@ bool mxtark_preset_reached(int current_mm, int target_mm, int stop_margin_mm,
     return true;
 }
 
+void mxtark_preset_control_reset(mxtark_preset_control_t *control)
+{
+    if (!control) {
+        return;
+    }
+    *control = (mxtark_preset_control_t){
+        .target_mm = -1,
+        .direction = MXTARK_PRESET_STOP,
+        .phase = MXTARK_PRESET_PHASE_IDLE,
+    };
+}
+
+void mxtark_preset_control_start(mxtark_preset_control_t *control,
+                                 int target_mm,
+                                 mxtark_preset_direction_t direction,
+                                 uint32_t current_sample_id)
+{
+    if (!control) {
+        return;
+    }
+    *control = (mxtark_preset_control_t){
+        .target_mm = target_mm,
+        .direction = direction,
+        .phase = MXTARK_PRESET_PHASE_MOVING,
+        .last_sample_id = current_sample_id,
+    };
+}
+
+mxtark_preset_action_t mxtark_preset_control_update(
+    mxtark_preset_control_t *control,
+    int control_height_mm,
+    int stable_height_mm,
+    uint32_t sample_id,
+    uint32_t now_ms,
+    int stop_margin_mm,
+    int settle_tolerance_mm,
+    uint32_t settle_ms,
+    unsigned int max_corrections)
+{
+    if (!control || control->phase == MXTARK_PRESET_PHASE_IDLE ||
+        control_height_mm < 0 || stable_height_mm < 0 ||
+        stop_margin_mm < 0 || settle_tolerance_mm < 0 ||
+        sample_id == control->last_sample_id) {
+        return MXTARK_PRESET_ACTION_NONE;
+    }
+    control->last_sample_id = sample_id;
+
+    if (control->phase == MXTARK_PRESET_PHASE_MOVING) {
+        if (!mxtark_preset_reached(control_height_mm, control->target_mm,
+                                   stop_margin_mm, control->direction)) {
+            return MXTARK_PRESET_ACTION_NONE;
+        }
+        control->phase = MXTARK_PRESET_PHASE_SETTLING;
+        control->direction = MXTARK_PRESET_STOP;
+        control->settle_started_ms = now_ms;
+        return MXTARK_PRESET_ACTION_STOP_AND_SETTLE;
+    }
+
+    if ((uint32_t)(now_ms - control->settle_started_ms) < settle_ms) {
+        return MXTARK_PRESET_ACTION_NONE;
+    }
+    int error_mm = stable_height_mm - control->target_mm;
+    int error_magnitude = error_mm < 0 ? -error_mm : error_mm;
+    if (error_magnitude <= settle_tolerance_mm) {
+        mxtark_preset_control_reset(control);
+        return MXTARK_PRESET_ACTION_COMPLETE;
+    }
+    if (control->correction_count >= max_corrections) {
+        mxtark_preset_control_reset(control);
+        return MXTARK_PRESET_ACTION_CORRECTION_LIMIT;
+    }
+
+    control->correction_count++;
+    control->phase = MXTARK_PRESET_PHASE_MOVING;
+    control->direction = error_mm < 0 ? MXTARK_PRESET_UP
+                                     : MXTARK_PRESET_DOWN;
+    return control->direction == MXTARK_PRESET_UP
+               ? MXTARK_PRESET_ACTION_MOVE_UP
+               : MXTARK_PRESET_ACTION_MOVE_DOWN;
+}
+
 bool mxtark_tof_upward_blocked(bool height_known, int height_mm,
                                  bool right_gap_known, int right_gap_mm,
                                  int max_height_mm)

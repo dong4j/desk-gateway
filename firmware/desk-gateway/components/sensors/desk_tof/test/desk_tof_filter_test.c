@@ -34,6 +34,39 @@ static void test_height_motion_continues_to_follow(void)
     assert(desk_tof_stable_filter_push(&filter, 577) == 571);
 }
 
+/** 控制通道只落后一个测距样本，并拒绝夹在正常样本中的单次尖峰。 */
+static void test_control_height_rejects_spike_with_lower_delay(void)
+{
+    desk_tof_control_filter_t filter = {0};
+    assert(desk_tof_control_filter_push(&filter, 850) == 850);
+    assert(desk_tof_control_filter_push(&filter, 854) == 854);
+    assert(desk_tof_control_filter_push(&filter, 900) == 854);
+    assert(desk_tof_control_filter_push(&filter, 858) == 858);
+    assert(desk_tof_control_filter_push(&filter, 862) == 862);
+}
+
+/** 同一上升序列中，控制高度必须比五点稳定高度更早进入停车边界。 */
+static void test_control_height_crosses_target_before_stable_height(void)
+{
+    desk_tof_control_filter_t control = {0};
+    desk_tof_stable_filter_t stable = {0};
+    const int samples[] = {850, 854, 858, 862, 866, 870, 874};
+    size_t control_crossing = 0U;
+    size_t stable_crossing = 0U;
+    for (size_t i = 0; i < sizeof(samples) / sizeof(samples[0]); ++i) {
+        int control_mm = desk_tof_control_filter_push(&control, samples[i]);
+        int stable_mm = desk_tof_stable_filter_push(&stable, samples[i]);
+        if (control_crossing == 0U && control_mm >= 865) {
+            control_crossing = i + 1U;
+        }
+        if (stable_crossing == 0U && stable_mm >= 865) {
+            stable_crossing = i + 1U;
+        }
+    }
+    assert(control_crossing > 0U);
+    assert(stable_crossing > control_crossing);
+}
+
 /** 9.x cm 的右侧静止距离应保持稳定。 */
 static void test_right_gap_stationary_jitter_is_stable(void)
 {
@@ -64,6 +97,8 @@ int main(void)
 {
     test_height_stationary_jitter_is_stable();
     test_height_motion_continues_to_follow();
+    test_control_height_rejects_spike_with_lower_delay();
+    test_control_height_crosses_target_before_stable_height();
     test_right_gap_stationary_jitter_is_stable();
     test_right_gap_real_change_continues_to_follow();
     puts("desk_tof_filter_test: ok");
