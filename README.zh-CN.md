@@ -92,7 +92,6 @@ Web：升/降为 **按住运动、松手停止**（保持 DR，不连发）。
 
 ```text
 firmware/desk-gateway/        主固件（ESP-IDF）
-firmware/phase1-panel-slave/  早期 Phase1 原型
 integrations/xiaozhi-mcp/     小智云 MCP 到 Desk Gateway REST 桥接
 docs/                         需求、架构、协议、UI Demo
 LICENSE                       MIT

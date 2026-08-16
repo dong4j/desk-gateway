@@ -175,7 +175,7 @@ Phase 1 建议优先从下列里挑：
 
 ### 5.1 推荐工具链
 
-Phase 1 固件：主工程见 [`firmware/desk-gateway/`](../firmware/desk-gateway/)（平台 + Web）。历史最小实现 [`firmware/phase1-panel-slave/`](../firmware/phase1-panel-slave/) 已停止演进。总览：[architecture/overview.md](./architecture/overview.md)。
+固件主工程见 [`firmware/desk-gateway/`](../firmware/desk-gateway/)（平台 + Web）。总览：[architecture/overview.md](./architecture/overview.md)。
 
 | 用途 | 选择 | 说明 |
 |---|---|---|

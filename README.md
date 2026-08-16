@@ -97,7 +97,6 @@ Web hold buttons: **press = move**, **release = stop** (DR held, not spammed).
 
 ```text
 firmware/desk-gateway/     Main ESP-IDF firmware
-firmware/phase1-panel-slave/  Earlier Phase‑1 prototype (legacy)
 integrations/xiaozhi-mcp/  XiaoZhi cloud MCP to Desk Gateway REST bridge
 docs/                      Requirements, architecture, protocol notes, UI demos
 LICENSE                    MIT
