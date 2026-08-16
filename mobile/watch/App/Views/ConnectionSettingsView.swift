@@ -45,9 +45,13 @@ struct ConnectionSettingsView: View {
         save()
       } label: {
         Text("保存并重连")
-          .frame(maxWidth: .infinity)
+          .fontWeight(.semibold)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity, alignment: .center)
       }
+      .frame(maxWidth: .infinity, alignment: .center)
       .buttonStyle(.borderedProminent)
+      .tint(.orange)
       // Form 默认行底色会与胶囊按钮叠成双层背景，主操作只保留系统按钮形状。
       .listRowBackground(Color.clear)
       .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))

@@ -15,14 +15,18 @@ struct PomodoroView<Controller: DeskControlling>: View {
   var body: some View {
     VStack(spacing: 8) {
       if let reminder = desk.reminder, reminder.available {
-        Text(phaseLabel(reminder))
-          .font(.caption)
-          .foregroundStyle(.orange)
+        // 状态与倒计时组成独立头部，并避开返回按钮和系统时间所在的顶部区域。
+        VStack(spacing: 4) {
+          Text(phaseLabel(reminder))
+            .font(.caption)
+            .foregroundStyle(.orange)
 
-        Text(format(seconds: reminder.remainingSeconds))
-          .font(.system(size: 38, weight: .medium, design: .rounded))
-          .monospacedDigit()
-          .minimumScaleFactor(0.8)
+          Text(format(seconds: reminder.remainingSeconds))
+            .font(.system(size: 38, weight: .medium, design: .rounded))
+            .monospacedDigit()
+            .minimumScaleFactor(0.8)
+        }
+        .padding(.top, 8)
 
         Text("已完成 \(reminder.completedFocusCount) 次")
           .font(.caption2)
@@ -69,8 +73,6 @@ struct PomodoroView<Controller: DeskControlling>: View {
       }
     }
     .padding(.horizontal, 8)
-    .navigationTitle("番茄时钟")
-    .navigationBarTitleDisplayMode(.inline)
   }
 
   private func primary(
