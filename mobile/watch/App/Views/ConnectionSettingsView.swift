@@ -41,10 +41,16 @@ struct ConnectionSettingsView: View {
           .foregroundStyle(.red)
       }
 
-      Button("保存并重连") {
+      Button {
         save()
+      } label: {
+        Text("保存并重连")
+          .frame(maxWidth: .infinity)
       }
       .buttonStyle(.borderedProminent)
+      // Form 默认行底色会与胶囊按钮叠成双层背景，主操作只保留系统按钮形状。
+      .listRowBackground(Color.clear)
+      .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
     }
     .navigationTitle("连接设置")
     .navigationBarTitleDisplayMode(.inline)

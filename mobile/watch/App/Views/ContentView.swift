@@ -94,28 +94,24 @@ struct ContentView<Controller: DeskControlling>: View {
     .padding(.horizontal, 8)
     .toolbar {
       ToolbarItem(placement: .topBarLeading) {
-        connectionLabel
+        NavigationLink {
+          PomodoroView(desk: desk)
+        } label: {
+          Image(systemName: "timer")
+        }
+        .accessibilityLabel("番茄时钟")
       }
       ToolbarItem(placement: .topBarTrailing) {
-        HStack(spacing: 8) {
-          NavigationLink {
-            PomodoroView(desk: desk)
-          } label: {
-            Image(systemName: "timer")
+        NavigationLink {
+          ConnectionSettingsView(settings: connectionSettings) {
+            crown.forceStop(sendEvenIfIdle: true, playHaptic: false)
+            desk.reconnect()
           }
-          .accessibilityLabel("番茄时钟")
-
-          NavigationLink {
-            ConnectionSettingsView(settings: connectionSettings) {
-              crown.forceStop(sendEvenIfIdle: true, playHaptic: false)
-              desk.reconnect()
-            }
-          } label: {
-            Image(systemName: "gearshape")
-          }
-          .disabled(isMoving)
-          .accessibilityLabel("连接设置")
+        } label: {
+          Image(systemName: "gearshape")
         }
+        .disabled(isMoving)
+        .accessibilityLabel("连接设置")
       }
     }
     .focusable(canMoveUp || canMoveDown)
@@ -236,9 +232,7 @@ struct ContentView<Controller: DeskControlling>: View {
         }
       }
 
-      Text(maximumHeightText)
-        .font(.system(size: 9))
-        .foregroundStyle(.secondary)
+      connectionStatusLine
     }
   }
 
@@ -271,37 +265,49 @@ struct ContentView<Controller: DeskControlling>: View {
     .animation(.easeOut(duration: reduceMotion ? 0.1 : 0.18), value: isMoving)
   }
 
-  /// 连接状态使用系统顶部栏，与右侧系统时间处于同一行。
-  private var connectionLabel: some View {
-    HStack(spacing: 4) {
+  /// 状态信息放在正文中，避免与系统时间及两侧导航按钮争用顶部栏宽度。
+  @ViewBuilder
+  private var connectionStatusLine: some View {
+    if canReconnect {
+      Button {
+        desk.reconnect()
+      } label: {
+        connectionStatusContent
+      }
+      .buttonStyle(.plain)
+      .accessibilityHint("重新连接升降桌网关")
+    } else {
+      connectionStatusContent
+    }
+  }
+
+  private var connectionStatusContent: some View {
+    HStack(spacing: 3) {
       Circle()
         .fill(desk.isReady ? Color.green : Color.gray)
-        .frame(width: 6, height: 6)
-      Text(desk.phase.label)
-        .font(.caption2)
+        .frame(width: 5, height: 5)
+
+      Text(connectionStatusText)
+        .font(.system(size: 9))
         .lineLimit(1)
-
-      if let transport = desk.transport {
-        Text(transport.label)
-          .font(.system(size: 8, weight: .semibold))
-          .foregroundStyle(transport == .mock ? .black : .secondary)
-          .padding(.horizontal, 4)
-          .padding(.vertical, 1)
-          .background(
-            transport == .mock ? Color.orange : Color.secondary.opacity(0.18),
-            in: Capsule()
-          )
-      }
-
-      if desk.phase == .disconnected || isFailure {
-        Button("重连") {
-          desk.reconnect()
-        }
-        .font(.caption2)
-        .buttonStyle(.plain)
-      }
+        .minimumScaleFactor(0.75)
     }
+    .foregroundStyle(canReconnect ? Color.orange : Color.secondary)
     .accessibilityElement(children: .combine)
+  }
+
+  private var connectionStatusText: String {
+    var components: [String] = []
+    if let transport = desk.transport {
+      components.append(transport.label)
+    }
+    components.append(desk.phase.label)
+    components.append(canReconnect ? "重连" : maximumHeightText)
+    return components.joined(separator: " · ")
+  }
+
+  private var canReconnect: Bool {
+    desk.phase == .disconnected || isFailure
   }
 
   /// 运动态只提供整行红色 STOP；运动文案由上方固定状态槽承载。
