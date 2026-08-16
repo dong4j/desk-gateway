@@ -3,14 +3,14 @@
 | 项 | 内容 |
 | --- | --- |
 | 文档编号 | DG-XIAOZHI-001 |
-| 版本 | 0.1.0 |
-| 日期 | 2026-08-15 |
-| 状态 | 调研完成，固件刷写和服务部署待实机执行 |
+| 版本 | 0.2.0 |
+| 日期 | 2026-08-16 |
+| 状态 | JC3636W518C 固件已完成实机刷写；本地 Server 流程已补齐，服务尚未部署 |
 | 适用硬件 | JC3636W518C、Xmini-C3 普通版 |
 
 本文整理现有两台小智 AI 硬件的资料、固件选择、烧录方法，以及
 `xiaozhi-esp32-server` 的本地部署和设备接入方式。文中的版本和链接以
-2026-08-15 的仓库状态为基准；实际操作前应再检查最新 Release 是否改变了板卡命名或部署要求。
+2026-08-16 的仓库状态为基准；实际操作前应再检查最新 Release 是否改变了板卡命名或部署要求。
 
 ## 1. 结论
 
@@ -290,102 +290,395 @@ OTA 地址、修改 UI、唤醒词或板载 MCP 工具时，才需要自行编�
 
 ## 6. 本地部署 `xiaozhi-esp32-server`
 
-### 6.1 推荐架构
+### 6.1 部署目标和固定版本
 
-Mac 本地完整部署包括：
+本文使用全模块安装，保留本地智控台、设备绑定、多智能体、模型管理和后续 MCP 管理能力。
+服务端采用当前最新正式版，不直接跟随 `main` 或 `latest`：
 
-| 组件 | 端口 | 作用 |
+| 项目 | 固定值 |
+| --- | --- |
+| 服务端仓库 | [`xinnan-tech/xiaozhi-esp32-server`](https://github.com/xinnan-tech/xiaozhi-esp32-server) |
+| Release | [`v0.9.6`](https://github.com/xinnan-tech/xiaozhi-esp32-server/releases/tag/v0.9.6) |
+| Commit | `f5ed1aaec88471ba00ac778045331514066d63dc` |
+| 宿主机 | Apple Silicon Mac，`arm64` |
+| 容器运行时 | OrbStack + Docker Compose |
+| 当前 Mac 局域网地址 | `192.168.21.249` |
+| 当前 JC3636W518C 地址 | `192.168.21.251` |
+
+源码保存在独立仓库，不放进 Desk Gateway 仓库：
+
+```text
+/Users/dong4j/Developer/1.AI/ai-incubator/xiaozhi-esp32-server
+```
+
+运行时数据放在源码仓库的 `main/xiaozhi-server` 下，方便按照上游目录结构更新配置，但所有
+密码、数据库、模型、上传文件和 `server.secret` 都只保留在本机，不提交到 Git。
+
+完整部署包含：
+
+| 组件 | 对外端口 | 作用 |
 | --- | ---: | --- |
 | `xiaozhi-esp32-server` | `8000` | 设备 WebSocket 语音连接 |
 | `xiaozhi-esp32-server` HTTP | `8003` | 视觉接口；简化部署时也可提供 OTA |
-| `manager-api` + `manager-web` | `8002` | 智控台、设备管理、全模块 OTA 接口 |
-| MySQL | 容器内部 `3306` | 用户、设备、智能体和模型配置 |
-| Redis | 容器内部 `6379` | 缓存和服务协作 |
-| SenseVoiceSmall | 本地模型文件 | 默认本地 ASR |
+| `manager-api` + `manager-web` | `8002` | 智控台、设备管理和全模块 OTA |
+| MySQL | 不映射到宿主机 | 用户、设备、智能体和模型配置 |
+| Redis | 不映射到宿主机 | 缓存和服务协作 |
+| SenseVoiceSmall | 文件挂载 | 默认本地 ASR |
 
-本文选择“全模块安装”，因为需要本地智控台、设备绑定、多智能体和后续 MCP 管理。全模块
-部署时使用：
+最终使用的局域网地址是：
 
 ```text
-智控台：    http://<Mac局域网IP>:8002
-OTA：       http://<Mac局域网IP>:8002/xiaozhi/ota/
-WebSocket： ws://<Mac局域网IP>:8000/xiaozhi/v1/
+智控台：    http://192.168.21.249:8002
+OTA：       http://192.168.21.249:8002/xiaozhi/ota/
+WebSocket： ws://192.168.21.249:8000/xiaozhi/v1/
 ```
 
-设备不能使用 `127.0.0.1`、`localhost` 或 Docker 容器名访问 Mac。必须填写 Mac 在同一
-局域网内的实际地址，例如 `192.168.21.10`，并为 Mac 设置 DHCP 地址保留或静态地址。
+设备不能使用 `127.0.0.1`、`localhost`、`host.docker.internal` 或 Docker 服务名访问 Mac。
+应在路由器中为 Mac 设置 DHCP 地址保留；如果地址变化，智控台参数和两台硬件都要重新配置。
 
-### 6.2 Apple Silicon 注意事项
+### 6.2 Apple Silicon 和部署方式
 
-项目文档说明，从 `0.8.2` 开始，项目发布的 Docker 镜像只支持 x86。M2 Ultra 是
-ARM64，不建议直接把发布镜像当作原生镜像运行。推荐从源码在本机编译 ARM64 镜像，避免
-依赖 Docker 的 amd64 模拟层。
+上游文档说明，从 `0.8.2` 开始，发行 Docker 镜像只支持 x86。M2 Ultra 是 ARM64，不能把
+发布镜像当作原生镜像直接运行。本机需要依次构建：
 
-另一种方式是所有模块直接从源码运行，但需要分别维护 JDK 21、Maven、Node.js、Python
-3.10、MySQL、Redis、Opus、FFmpeg 和前后端进程。对于第一套可复现环境，优先使用本机构建
-的 ARM64 Docker 镜像。
+1. Python、Opus、FFmpeg 和依赖所在的 `server-base`；
+2. Python 语音 Server；
+3. Vue 智控台和 Java manager-api。
 
-### 6.3 获取源码并构建 ARM64 镜像
+不要用 `platform: linux/amd64` 长期依赖模拟层。它可以用于临时排查，但性能、功耗和依赖
+兼容性都不适合作为这台机器的正式方案。
+
+另一种方式是直接从源码启动全部模块，但需要同时维护 JDK 21、Maven、Node.js、Python
+3.10、MySQL、Redis、Opus、FFmpeg 和多个前后台进程。本文不采用这种方式。
+
+### 6.3 宿主机预检
+
+先启动 OrbStack：
 
 ```bash
-git clone https://github.com/xinnan-tech/xiaozhi-esp32-server.git
+open -a OrbStack
+orb status
+docker version
+docker compose version
+```
+
+必须满足：
+
+- `orb status` 显示运行中；
+- `docker version` 同时包含 Client 和 Server；
+- Docker Server 架构是 `arm64`；
+- `docker compose version` 可以正常输出版本。
+
+检查架构、磁盘、端口和设备路由：
+
+```bash
+uname -m
+df -h /Users/dong4j/Developer/1.AI/ai-incubator
+
+for port in 8000 8002 8003; do
+  lsof -nP -iTCP:${port} -sTCP:LISTEN
+done
+
+route -n get 192.168.21.251
+```
+
+预期结果：
+
+- `uname -m` 输出 `arm64`；
+- 预留至少 25 GB 可用空间；
+- `8000`、`8002`、`8003` 没有被其他进程监听；
+- 到硬件的路由走当前局域网接口，宿主机地址为 `192.168.21.249`。
+
+MySQL 和 Redis 只在 Compose 网络中开放，不应把 `3306`、`6379` 映射到宿主机。macOS
+防火墙需要允许 OrbStack/Docker 接收局域网对 `8000`、`8002`、`8003` 的访问。不要在路由器
+上配置公网端口转发。
+
+### 6.4 获取并固定源码
+
+确认目标目录不存在同名仓库后执行：
+
+```bash
+cd /Users/dong4j/Developer/1.AI/ai-incubator
+
+git clone \
+  --branch v0.9.6 \
+  --depth 1 \
+  https://github.com/xinnan-tech/xiaozhi-esp32-server.git
+
 cd xiaozhi-esp32-server
-
-docker build \
-  -f Dockerfile-server \
-  -t local/xiaozhi-esp32-server:arm64 .
-
-docker build \
-  -f Dockerfile-web \
-  -t local/xiaozhi-esp32-server-web:arm64 .
+git rev-parse HEAD
+git status --short
 ```
 
-进入部署目录：
+`git rev-parse HEAD` 必须输出：
+
+```text
+f5ed1aaec88471ba00ac778045331514066d63dc
+```
+
+如果上游移动了 Tag 或 Commit 不一致，停止部署并重新核对 Release，不要继续使用未知源码。
+
+### 6.5 构建三个 ARM64 镜像
+
+`Dockerfile-server` 默认依赖上游的 `server-base`。为避免拉到 x86 基础镜像，先本地构建
+ARM64 基础镜像：
 
 ```bash
-cd main/xiaozhi-server
-mkdir -p data models/SenseVoiceSmall uploadfile mysql/data
+cd /Users/dong4j/Developer/1.AI/ai-incubator/xiaozhi-esp32-server
+
+docker build \
+  --platform linux/arm64 \
+  -f Dockerfile-server-base \
+  -t local/xiaozhi-esp32-server-base:v0.9.6 \
+  .
+```
+
+复制一份本地 Dockerfile：
+
+```bash
+cp Dockerfile-server Dockerfile-server.arm64
+
+sed -i '' \
+  's#^FROM .*server-base$#FROM local/xiaozhi-esp32-server-base:v0.9.6#' \
+  Dockerfile-server.arm64
+
+head -n 1 Dockerfile-server.arm64
+```
+
+第一行必须是：
+
+```dockerfile
+FROM local/xiaozhi-esp32-server-base:v0.9.6
+```
+
+继续构建 Server 和智控台：
+
+```bash
+docker build \
+  --platform linux/arm64 \
+  -f Dockerfile-server.arm64 \
+  -t local/xiaozhi-esp32-server:v0.9.6 \
+  .
+
+docker build \
+  --platform linux/arm64 \
+  -f Dockerfile-web \
+  -t local/xiaozhi-esp32-server-web:v0.9.6 \
+  .
+```
+
+构建过程需要从 Python、npm 和 Maven 仓库下载依赖。完成后检查镜像架构：
+
+```bash
+for image in \
+  local/xiaozhi-esp32-server-base:v0.9.6 \
+  local/xiaozhi-esp32-server:v0.9.6 \
+  local/xiaozhi-esp32-server-web:v0.9.6; do
+  docker image inspect \
+    --format '{{.RepoTags}} {{.Os}}/{{.Architecture}}' \
+    "${image}"
+done
+```
+
+三个镜像都必须显示 `linux/arm64`。出现 `exec format error` 时，不要继续启动服务，先检查
+`Dockerfile-server.arm64` 的基础镜像和构建参数。
+
+### 6.6 准备运行目录和本地密码
+
+```bash
+cd /Users/dong4j/Developer/1.AI/ai-incubator/xiaozhi-esp32-server/main/xiaozhi-server
+
+mkdir -p \
+  data \
+  models/SenseVoiceSmall \
+  uploadfile \
+  mysql/data \
+  redis/data
+
 cp config_from_api.yaml data/.config.yaml
 cp docker-compose_all.yml docker-compose.local.yml
 ```
 
-下载默认本地 ASR 模型：
+生成独立数据库密码。命令不会把密码打印到终端：
 
 ```bash
-curl -L \
-  https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/master/model.pt \
-  -o models/SenseVoiceSmall/model.pt
+umask 077
+XIAOZHI_DB_PASSWORD="$(openssl rand -hex 24)"
+printf 'XIAOZHI_DB_PASSWORD=%s\n' "${XIAOZHI_DB_PASSWORD}" > .env
+unset XIAOZHI_DB_PASSWORD
+chmod 600 .env
 ```
 
-编辑 `docker-compose.local.yml`：
+不要使用上游示例中的 `123456`。不要提交以下文件和目录：
+
+```text
+.env
+Dockerfile-server.arm64
+docker-compose.local.yml
+data/
+models/
+uploadfile/
+mysql/
+redis/
+```
+
+其中 `data/.config.yaml` 会保存 `server.secret`；`.env` 保存数据库密码。排查问题时不要把
+这些文件完整粘贴到聊天、Issue 或公开日志中。
+
+### 6.7 完整的本地 Compose 配置
+
+将 `docker-compose.local.yml` 改成下面的内容。MySQL 和 Redis 只有 `expose`，没有宿主机
+端口映射；三项对外服务明确监听局域网：
 
 ```yaml
+name: xiaozhi-local
+
 services:
   xiaozhi-esp32-server:
-    image: local/xiaozhi-esp32-server:arm64
+    image: local/xiaozhi-esp32-server:v0.9.6
+    container_name: xiaozhi-esp32-server
+    restart: unless-stopped
+    depends_on:
+      xiaozhi-esp32-server-db:
+        condition: service_healthy
+      xiaozhi-esp32-server-redis:
+        condition: service_healthy
+    ports:
+      - "0.0.0.0:8000:8000"
+      - "0.0.0.0:8003:8003"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data:/opt/xiaozhi-esp32-server/data
+      - ./models/SenseVoiceSmall/model.pt:/opt/xiaozhi-esp32-server/models/SenseVoiceSmall/model.pt:ro
+    security_opt:
+      - seccomp:unconfined
+    networks:
+      - xiaozhi
 
   xiaozhi-esp32-server-web:
-    image: local/xiaozhi-esp32-server-web:arm64
+    image: local/xiaozhi-esp32-server-web:v0.9.6
+    container_name: xiaozhi-esp32-server-web
+    restart: unless-stopped
+    depends_on:
+      xiaozhi-esp32-server-db:
+        condition: service_healthy
+      xiaozhi-esp32-server-redis:
+        condition: service_healthy
+    ports:
+      - "0.0.0.0:8002:8002"
+    environment:
+      TZ: Asia/Shanghai
+      SPRING_DATASOURCE_DRUID_URL: jdbc:mysql://xiaozhi-esp32-server-db:3306/xiaozhi_esp32_server?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true&connectTimeout=30000&socketTimeout=30000&autoReconnect=true&failOverReadOnly=false&maxReconnects=10
+      SPRING_DATASOURCE_DRUID_USERNAME: root
+      SPRING_DATASOURCE_DRUID_PASSWORD: ${XIAOZHI_DB_PASSWORD:?XIAOZHI_DB_PASSWORD is required}
+      SPRING_DATA_REDIS_HOST: xiaozhi-esp32-server-redis
+      SPRING_DATA_REDIS_PASSWORD: ""
+      SPRING_DATA_REDIS_PORT: 6379
+    volumes:
+      - ./uploadfile:/uploadfile
+    networks:
+      - xiaozhi
+
+  xiaozhi-esp32-server-db:
+    image: mysql:8.4
+    container_name: xiaozhi-esp32-server-db
+    restart: unless-stopped
+    expose:
+      - "3306"
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${XIAOZHI_DB_PASSWORD:?XIAOZHI_DB_PASSWORD is required}
+      MYSQL_DATABASE: xiaozhi_esp32_server
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - xiaozhi
+
+  xiaozhi-esp32-server-redis:
+    image: redis:8.0
+    container_name: xiaozhi-esp32-server-redis
+    restart: unless-stopped
+    expose:
+      - "6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./redis/data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - xiaozhi
+
+networks:
+  xiaozhi:
+    driver: bridge
 ```
 
-同时修改示例中的 MySQL 默认密码 `123456`。以下两个值必须保持一致：
-
-```yaml
-- SPRING_DATASOURCE_DRUID_PASSWORD=<本地数据库强密码>
-- MYSQL_ROOT_PASSWORD=<同一个本地数据库强密码>
-```
-
-不要提交 `data/.config.yaml`、模型 API Key、数据库密码或 `server.secret`。
-
-### 6.4 第一次启动
+先做静态展开，确认 `.env` 已加载且 YAML 有效：
 
 ```bash
-docker compose -f docker-compose.local.yml up -d
-docker compose -f docker-compose.local.yml ps
+docker compose -f docker-compose.local.yml config --quiet
 ```
 
-第一次启动时，`xiaozhi-esp32-server` 可能因为还没有 `server.secret` 而报错；此时先确认
-`xiaozhi-esp32-server-web`、MySQL 和 Redis 正常。
+不要把不带 `--quiet` 的展开结果保存或公开，因为展开后的内容可能包含数据库密码。
+
+### 6.8 下载本地 ASR 模型
+
+```bash
+cd /Users/dong4j/Developer/1.AI/ai-incubator/xiaozhi-esp32-server/main/xiaozhi-server
+
+curl \
+  --fail \
+  --location \
+  --retry 3 \
+  --continue-at - \
+  https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/master/model.pt \
+  --output models/SenseVoiceSmall/model.pt
+
+test -s models/SenseVoiceSmall/model.pt
+shasum -a 256 models/SenseVoiceSmall/model.pt \
+  > models/SenseVoiceSmall/model.pt.sha256
+```
+
+ModelScope 没有在本文固定公开校验值，因此这里记录本次实际下载文件的 SHA-256，用于后续
+备份和恢复时比对。启动容器前必须确认 `model.pt` 是普通文件而不是目录；模型缺失时 Docker
+可能创建同名目录，导致 Server 启动后无法加载 ASR。
+
+### 6.9 分阶段完成首次启动
+
+不要第一次就启动全部服务。先启动数据库、Redis 和智控台：
+
+```bash
+docker compose -f docker-compose.local.yml up -d \
+  xiaozhi-esp32-server-db \
+  xiaozhi-esp32-server-redis \
+  xiaozhi-esp32-server-web
+
+docker compose -f docker-compose.local.yml ps
+docker compose -f docker-compose.local.yml logs \
+  --tail 100 \
+  xiaozhi-esp32-server-web
+```
+
+等待智控台日志出现 `Started AdminApplication`，然后检查：
+
+```bash
+curl --fail --silent --show-error \
+  http://127.0.0.1:8002/ \
+  > /dev/null
+```
 
 浏览器打开：
 
@@ -393,115 +686,387 @@ docker compose -f docker-compose.local.yml ps
 http://127.0.0.1:8002
 ```
 
-注册第一个账号。第一个账号会成为超级管理员。登录后：
+注册第一个账号。第一个注册成功的账号是超级管理员，因此首次初始化期间只在可信局域网内
+开放，不要把 `8002` 暴露到公网。
 
-1. 打开“参数管理”。
-2. 找到 `server.secret` 并复制参数值。
-3. 编辑 `data/.config.yaml`：
+登录后进入“参数管理”，找到 `server.secret` 并复制参数值。只修改
+`data/.config.yaml` 中的 `manager-api`：
 
 ```yaml
 manager-api:
   url: http://xiaozhi-esp32-server-web:8002/xiaozhi
-  secret: <刚才复制的 server.secret>
+  secret: <智控台中的 server.secret>
 ```
 
-4. 重启 Server：
+不要把 URL 写成 `127.0.0.1`。在 Server 容器里，`127.0.0.1` 指向 Server 容器自身，不是
+智控台容器。
+
+现在启动语音 Server：
 
 ```bash
-docker compose -f docker-compose.local.yml restart xiaozhi-esp32-server
-docker logs -f -n 100 xiaozhi-esp32-server
+docker compose -f docker-compose.local.yml up -d xiaozhi-esp32-server
+
+docker compose -f docker-compose.local.yml logs \
+  --follow \
+  --tail 100 \
+  xiaozhi-esp32-server
 ```
 
-日志中应出现 WebSocket 服务已经监听 `8000`。然后在智控台的“参数管理”中设置：
+成功日志应包含 WebSocket 服务监听 `8000`，并显示类似地址：
 
 ```text
-server.websocket = ws://<Mac局域网IP>:8000/xiaozhi/v1/
-server.ota       = http://<Mac局域网IP>:8002/xiaozhi/ota/
+ws://192.168.21.249:8000/xiaozhi/v1/
 ```
 
-用浏览器访问 OTA 地址：
+日志持续出现 manager-api 认证失败时，重新核对 `server.secret`；不要反复重建容器或清空
+数据库。
+
+### 6.10 配置服务地址并完成健康检查
+
+在智控台“参数管理”中设置：
 
 ```text
-http://<Mac局域网IP>:8002/xiaozhi/ota/
+server.websocket = ws://192.168.21.249:8000/xiaozhi/v1/
+server.ota       = http://192.168.21.249:8002/xiaozhi/ota/
 ```
 
-页面应显示 OTA 接口运行正常，并且存在可用的 WebSocket 集群。`ws://` 地址不是普通网页，
-不能用“浏览器能打开”作为 WebSocket 验证方法。
+保存后检查智控台、OTA 和端口：
 
-### 6.5 模型配置与“全部本地”的含义
+```bash
+curl --fail --silent --show-error \
+  http://127.0.0.1:8002/ \
+  > /dev/null
 
-“Server 在本地运行”和“推理完全离线”是两件事：
+curl --fail --silent --show-error \
+  http://192.168.21.249:8002/xiaozhi/ota/
 
-| 模块 | 默认或可用方案 | 是否依赖互联网 |
+nc -vz 127.0.0.1 8000
+nc -vz 192.168.21.249 8000
+
+docker compose -f docker-compose.local.yml ps
+```
+
+OTA 页面应提示接口运行正常，并显示可用 WebSocket 集群。`ws://` 不是普通网页地址，浏览器
+打不开不能作为失败证据；使用 Server 日志、`nc` 或协议客户端验收。
+
+### 6.11 配置 ASR、LLM 和 TTS
+
+“Server 在本地运行”和“推理完全离线”是两个验收目标：
+
+| 模块 | 可用方案 | 是否需要互联网 |
 | --- | --- | --- |
-| ASR | 本地 `FunASR` / SenseVoiceSmall | 否 |
-| LLM | 智谱、豆包等 API | 是 |
-| LLM | `OllamaLLM` | 否，模型已在本地下载后可离线 |
-| TTS | 默认 `EdgeTTS` 或其他云 API | 是 |
-| TTS | FishSpeech、Index-TTS、PaddleSpeech 等本地服务 | 否，但需要额外部署和算力 |
+| ASR | 本地 `FunASR` / SenseVoiceSmall | 模型下载后不需要 |
+| LLM | 智谱、豆包等 API | 需要 |
+| LLM | `OllamaLLM` | 模型下载后不需要 |
+| TTS | `EdgeTTS` 或云 API | 需要 |
+| TTS | FishSpeech、Index-TTS、PaddleSpeech 等本地服务 | 模型下载后不需要 |
 
-建议分两步：
+第一阶段先配置本地 SenseVoiceSmall，再任选一个能正常工作的 LLM/TTS 跑通设备链路。第二阶段
+再替换成本地 LLM 和本地 TTS，最后断开外网验证。
 
-1. 先用一个可用的 LLM/TTS API 跑通设备、Server 和智控台链路。
-2. 再切换 Ollama 和本地 TTS，最后通过断开外网验证是否真正离线。
-
-当 Ollama 运行在 Mac、Server 运行在 Docker 中时，Ollama 地址应使用：
+本机 Ollama 在 macOS 上运行、Server 在 Docker 中运行时，智控台里的 Ollama 地址必须是：
 
 ```text
 http://host.docker.internal:11434
 ```
 
-如果 Python Server 直接运行在 macOS 上，才使用 `http://localhost:11434`。
+不是 `http://localhost:11434`。先在宿主机检查：
 
-该社区项目的部署文档：
+```bash
+curl --fail --silent --show-error \
+  http://127.0.0.1:11434/api/tags \
+  > /dev/null
+```
 
-- [全模块部署](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/main/docs/Deployment_all.md)
-- [本地编译 Docker 镜像](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/main/docs/docker-build.md)
-- [使用预编译固件连接自定义 Server](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/main/docs/firmware-setting.md)
+再从 Server 容器检查：
+
+```bash
+docker exec xiaozhi-esp32-server \
+  python -c 'import urllib.request; print(urllib.request.urlopen("http://host.docker.internal:11434/api/tags", timeout=5).status)'
+```
+
+返回 `200` 后，在智控台创建或修改 `OllamaLLM`，填写地址和本机已经下载的模型名，再把该
+模型分配给目标智能体。工具调用是否稳定需要单独验收，不能只以普通问答成功代替。
+
+如果 TTS 仍使用 EdgeTTS，即使 ASR 和 LLM 已经本地化，整条链路仍然依赖互联网。完成本地
+TTS 部署后，应关闭外网但保留局域网，重新执行唤醒、识别、回答和播报，才能标记为完全
+离线。
+
+### 6.12 日常启动、停止和日志
+
+```bash
+cd /Users/dong4j/Developer/1.AI/ai-incubator/xiaozhi-esp32-server/main/xiaozhi-server
+
+# 启动
+docker compose -f docker-compose.local.yml up -d
+
+# 查看状态
+docker compose -f docker-compose.local.yml ps
+
+# 查看最近日志
+docker compose -f docker-compose.local.yml logs --tail 200
+
+# 只重启语音 Server
+docker compose -f docker-compose.local.yml restart xiaozhi-esp32-server
+
+# 停止并保留数据
+docker compose -f docker-compose.local.yml down
+```
+
+不要使用 `down -v`，也不要直接删除 `mysql/data`、`redis/data`、`data` 或 `uploadfile`。
+OrbStack 停止、Mac 休眠或局域网地址变化都会使硬件暂时无法连接本地 Server。
+
+### 6.13 备份、恢复和升级
+
+升级前先停止容器并备份运行目录：
+
+```bash
+docker compose -f docker-compose.local.yml down
+
+cd /Users/dong4j/Developer/1.AI/ai-incubator/xiaozhi-esp32-server/main
+
+tar -czf \
+  "xiaozhi-server-backup-$(date +%Y%m%d-%H%M%S).tar.gz" \
+  xiaozhi-server/.env \
+  xiaozhi-server/data \
+  xiaozhi-server/uploadfile \
+  xiaozhi-server/mysql \
+  xiaozhi-server/redis \
+  xiaozhi-server/models/SenseVoiceSmall/model.pt.sha256 \
+  xiaozhi-server/docker-compose.local.yml
+```
+
+模型文件较大，备份策略可以只保存校验文件并在恢复时重新下载。数据库目录只能在 MySQL
+容器停止后做文件级备份。重要环境建议再增加 `mysqldump` 逻辑备份，不能只依赖目录压缩包。
+
+升级时不要覆盖现有运行目录后直接跟随 `main`。推荐：
+
+1. 查看新的正式 Release 和迁移说明；
+2. 记录新 Tag 与 Commit；
+3. 使用新版本号构建一组新镜像；
+4. 备份数据库和配置；
+5. 修改 `docker-compose.local.yml` 的镜像 Tag；
+6. 启动后重新执行本节健康检查和第 10 节验收；
+7. 验收完成前保留上一组镜像和备份。
+
+恢复时先在独立目录解压，检查 `.env`、`data/.config.yaml` 和数据库版本，再启动容器。不要
+直接覆盖一个正在运行的 MySQL 数据目录。
+
+### 6.14 常见故障定位
+
+| 现象 | 优先检查 |
+| --- | --- |
+| `docker version` 只有 Client | OrbStack 没有启动或 Docker Context 指向失效的 Socket |
+| 容器报 `exec format error` | 镜像是 amd64；重新检查本地 `server-base` 和 `--platform linux/arm64` |
+| `8002` 正常但 `8000` 不监听 | `server.secret` 未填写、manager-api URL 错误或 ASR 模型挂载失败 |
+| OTA 页面提示没有 WebSocket 集群 | Server 未启动，或 `server.websocket` 没有填写局域网地址 |
+| MySQL 反复认证失败 | `.env` 两处密码不一致；已有数据库仍保存旧密码 |
+| `model.pt` 被识别成目录 | 模型下载前容器已经启动；停止容器，修正挂载目标后重试 |
+| 容器访问不到 Ollama | 使用了 `localhost:11434`；Docker 内应使用 `host.docker.internal:11434` |
+| Mac 能打开智控台，硬件打不开 OTA | macOS 防火墙、访客网络隔离、Mac IP 变化或路由器 AP 隔离 |
+| 硬件仍连接官方云 | 配网高级选项仍保存官方 OTA 地址，或本地 OTA 健康检查失败 |
+| 对话识别正常但不播报 | TTS Provider、音色、网络或本地 TTS 服务未配置 |
+| 断网后不能对话 | LLM、TTS 或模型下载仍依赖云服务，不能标记为完全离线 |
+
+遇到故障时先保存以下信息，不要立即清空数据库或重建全部容器：
+
+```bash
+docker compose -f docker-compose.local.yml ps
+docker compose -f docker-compose.local.yml logs --tail 300
+docker image inspect local/xiaozhi-esp32-server:v0.9.6 \
+  --format '{{.Os}}/{{.Architecture}}'
+```
+
+日志中如果包含 API Key、`server.secret`、设备 Token 或用户信息，分享前必须脱敏。
+
+### 6.15 后端部署验收标准
+
+本地 Server 只有同时满足以下条件才算部署完成：
+
+- 三个本地业务镜像都是 `linux/arm64`；
+- MySQL、Redis、智控台和语音 Server 容器均为 `running/healthy`；
+- `http://192.168.21.249:8002` 可以从局域网访问；
+- OTA 页面显示运行正常并发现 WebSocket 集群；
+- `8000` 在宿主机和局域网地址上都可连接；
+- `server.secret`、`server.websocket`、`server.ota` 配置一致；
+- JC3636W518C 能获得本地验证码并绑定本地智能体；
+- 设备完成一次唤醒、ASR、LLM 回复和 TTS 播报；
+- Server 日志证明设备连接的是本地 WebSocket，不是 `mqtt.xiaozhi.me`；
+- 使用本地 LLM/TTS 时，断开外网后仍能完成相同对话，才能标记为完全离线。
+
+上游原始文档：
+
+- [全模块部署](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/docs/Deployment_all.md)
+- [本地编译 Docker 镜像](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/docs/docker-build.md)
+- [使用预编译固件连接自定义 Server](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/docs/firmware-setting.md)
 
 ## 7. 让两台硬件连接本地 Server
 
-每台设备分别执行以下步骤：
+### 7.1 接入前提
 
-1. 确认 Mac 和小智硬件位于同一个局域网，且硬件连接的是 2.4 GHz Wi-Fi。
-2. 让设备进入重新配网模式。
-3. 手机或电脑连接 `Xiaozhi-XXXXXX` 热点。
-4. 打开 `http://192.168.4.1`。
-5. 在“高级选项”中填写全模块 OTA 地址：
+先在同一局域网的手机或另一台电脑上打开：
 
 ```text
-http://<Mac局域网IP>:8002/xiaozhi/ota/
+http://192.168.21.249:8002/xiaozhi/ota/
 ```
 
-6. 保存 Wi-Fi 和 OTA 配置，等待设备重启。
-7. 查看 `xiaozhi-esp32-server` 日志，确认设备连接到了：
+页面必须显示 OTA 接口正常并发现 WebSocket 集群。不能只在 Mac 本机使用 `127.0.0.1`
+验证，因为硬件访问的是 Mac 的局域网地址。
+
+当前局域网参数：
 
 ```text
-ws://<Mac局域网IP>:8000/xiaozhi/v1/
+Mac：             192.168.21.249
+JC3636W518C：     192.168.21.251
+本地 OTA：        http://192.168.21.249:8002/xiaozhi/ota/
+本地 WebSocket：  ws://192.168.21.249:8000/xiaozhi/v1/
 ```
 
-8. 如果设备播报六位验证码，打开本地智控台
-   `http://<Mac局域网IP>:8002`，在本地智能体中添加设备。不要再到 `xiaozhi.me` 输入这个
-   本地验证码。
+官方云和本地智控台的设备、智能体、模型配置相互独立。切换到本地 Server 后，需要在本地
+智控台重新添加设备，`xiaozhi.me` 中原有的绑定不会自动迁移。
 
-如果设备仍然连接官方云，依次检查：
+### 7.2 JC3636W518C 进入配网
 
-- 配网页面保存的 OTA 地址是否仍是 `https://api.tenclass.net/xiaozhi/ota/`；
-- OTA 地址是否错误填写为 `127.0.0.1`；
+`taiji-pi-s3` 固件在启动阶段检测到一次短触摸时会进入配网模式。操作顺序：
+
+1. 重启设备；
+2. 屏幕刚亮、设备仍处于启动状态时短触屏幕一次，不要持续按住；
+3. 等待设备提示进入配网模式；
+4. 手机连接 `Xiaozhi-XXXX` 热点；
+5. 手机提示“无互联网”时选择继续使用当前 Wi-Fi；
+6. 浏览器打开 `http://192.168.4.1`。
+
+当前 v2.4.2 源码把小于 500 ms 的启动阶段触摸识别为短触并进入配网。固件 UI 后续如果提供
+网络设置入口，优先使用 UI；不要为了修改 OTA 地址重新烧录固件。
+
+### 7.3 Xmini-C3 进入配网
+
+1. 关闭板上电源；
+2. 按住 `BOOT`；
+3. 打开电源或按 `RESET`；
+4. 设备进入配网后释放 `BOOT`；
+5. 连接 `Xiaozhi-XXXX` 热点并打开 `http://192.168.4.1`。
+
+Xmini-C3 普通版不能使用 V3 固件。进入配网只是修改 NVS，不涉及前文所述 eFuse 风险。
+
+### 7.4 保存 Wi-Fi 和本地 OTA
+
+在配网页面中：
+
+1. 选择 2.4 GHz Wi-Fi；
+2. 输入密码，不要把密码记录到本文或命令历史；
+3. “Wi-Fi 最大发送功率”设置为 `20 dBm`；
+4. 展开“高级选项”；
+5. OTA 地址填写：
+
+```text
+http://192.168.21.249:8002/xiaozhi/ota/
+```
+
+6. 保存并等待设备重启。
+
+如果路由器使用双频合一，优先确认 2.4 GHz 已启用、不是访客网络，并关闭会阻止无线客户端
+访问有线设备的 AP 隔离。不要把 OTA 地址写成 `127.0.0.1`、容器 IP 或 `localhost`。
+
+### 7.5 绑定本地设备并验证
+
+查看 Server 日志：
+
+```bash
+cd /Users/dong4j/Developer/1.AI/ai-incubator/xiaozhi-esp32-server/main/xiaozhi-server
+
+docker compose -f docker-compose.local.yml logs \
+  --follow \
+  --tail 200 \
+  xiaozhi-esp32-server
+```
+
+日志应出现来自硬件的连接，并使用：
+
+```text
+ws://192.168.21.249:8000/xiaozhi/v1/
+```
+
+如果设备播报六位验证码：
+
+1. 打开 `http://192.168.21.249:8002`；
+2. 进入准备使用的本地智能体；
+3. 添加设备并输入本地验证码；
+4. 不要把该验证码输入 `xiaozhi.me`；
+5. 分别完成唤醒、识别、回答和播报测试。
+
+至少保存以下验收证据：设备 MAC/SKU、本地 IP、连接时间、Server 日志中的连接目标、使用的
+智能体，以及麦克风和喇叭实测结果。日志出现连接只证明协议链路建立，不能代替实机音频
+验收。
+
+### 7.6 连接失败和恢复官方云
+
+设备仍然连接官方云时依次检查：
+
+- 配网页面保存的 OTA 是否仍是 `https://api.tenclass.net/xiaozhi/ota/`；
+- 本地 OTA 页面能否从手机访问；
 - Mac 局域网 IP 是否变化；
-- macOS 防火墙是否允许 Docker 访问 `8000`、`8002`、`8003`；
-- `server.websocket` 是否填写了设备能访问的局域网地址；
-- `server.secret` 是否与 `data/.config.yaml` 一致。
+- macOS 防火墙是否允许 OrbStack/Docker 接收 `8000`、`8002`、`8003`；
+- `server.websocket` 是否填写为设备可以访问的局域网地址；
+- `server.secret` 是否与 `data/.config.yaml` 一致；
+- 路由器是否开启访客网络隔离或 AP 隔离。
 
-需要恢复官方云时，重新进入配网高级选项，将 OTA 地址改回：
+需要恢复官方云时，重新进入配网高级选项，将 OTA 改回：
 
 ```text
 https://api.tenclass.net/xiaozhi/ota/
 ```
 
-## 8. 通过小智控制 Desk Gateway
+保存并重启后，串口日志应重新出现 `mqtt.xiaozhi.me` 或官方 WebSocket 连接。恢复官方云不会
+删除本地智控台中的设备记录，后续重新切换回来仍需按实际验证码和绑定状态验收。
 
-本地 Server 跑通语音对话后，通过 MCP 接入点增加受控的 Desk Gateway REST 工具层：
+## 8. 不部署本地 Server：使用官方云 MCP 桥接
+
+本地 Server 不是控制 Desk Gateway 的强制前提。设备可以继续连接 `xiaozhi.me`，只在 Mac
+上运行轻量 MCP 桥接进程：
+
+```mermaid
+flowchart LR
+    Device["JC3636W518C"] --> Cloud["xiaozhi.me 官方云"]
+    Cloud --> Endpoint["官方 MCP 接入点"]
+    Bridge["Mac 上的 desk-mcp-bridge"] -->|"主动 WSS 连接"| Endpoint
+    Bridge -->|"局域网 REST + X-Desk-Key"| Gateway["Desk Gateway"]
+    Gateway --> Desk["升降桌"]
+```
+
+这种方式不需要部署 Python 语音 Server、智控台、MySQL、Redis、ASR、LLM 或 TTS。桥接进程
+主动连接官方 MCP WebSocket，因此不需要公网 IP、域名或路由器端口映射。但它仍然是一个
+需要常驻的本地进程；Mac 休眠或进程退出后，升降桌工具会离线。
+
+使用官方示例 [`78/mcp-calculator`](https://github.com/78/mcp-calculator) 的运行方式：
+
+```bash
+export MCP_ENDPOINT='<xiaozhi.me 智能体中的 MCP 接入点>'
+export DESK_GATEWAY_URL='http://<Desk Gateway 局域网地址>'
+export DESK_GATEWAY_KEY='<本地 X-Desk-Key>'
+
+python mcp_pipe.py desk_mcp.py
+```
+
+`MCP_ENDPOINT` 和 `DESK_GATEWAY_KEY` 都是凭据，不能写进 Git、智能体提示词或公开日志。桥接
+工具只能映射固定 REST 路由，不能让模型传入任意 URL、HTTP Method 或认证头。
+
+两种方案的选择：
+
+| 目标 | 推荐方案 |
+| --- | --- |
+| 最快跑通小智控制升降桌 | 官方云 + 轻量 MCP 桥接 |
+| ASR、LLM、TTS、账号和设备都自己管理 | 本地全模块 Server |
+| 完全不运行 Mac 端进程 | 改造 Desk Gateway 固件直接连接云 MCP；当前尚未实现 |
+| 最终完全离线 | 本地 Server + 本地 ASR/LLM/TTS + 本地 MCP |
+
+完整的 Desk MCP 工具、安全语义和桥接代码设计见
+[通过小智 AI 控制升降桌](./11-xiaozhi-ai-desk-control.md)。
+
+## 9. 通过小智控制 Desk Gateway
+
+无论设备使用本地 Server 还是官方云，最终都通过受控 MCP 工具访问 Desk Gateway REST。
+本地 Server 方案的链路如下：
 
 ```mermaid
 flowchart LR
@@ -520,9 +1085,9 @@ flowchart LR
 完整架构、MCP Endpoint 部署、桥接代码、工具语义、安全前提和验收步骤见
 [通过小智 AI 控制升降桌](./11-xiaozhi-ai-desk-control.md)。
 
-## 9. 验收清单
+## 10. 验收清单
 
-### 9.1 固件
+### 10.1 固件
 
 - [ ] 两台设备的 16 MB 原始 Flash 已备份并保存 SHA-256。
 - [ ] JC3636W518C 产品标签批次号已经核对。
@@ -530,9 +1095,9 @@ flowchart LR
 - [ ] Xmini-C3 只刷了 `xmini-c3`，没有刷 `xmini-c3-v3`。
 - [ ] 两台设备的屏幕、按键、麦克风、喇叭和 2.4 GHz Wi-Fi 均已实测。
 
-### 9.2 本地 Server
+### 10.2 本地 Server
 
-- [ ] ARM64 Server 和 Web 镜像在本机从源码构建完成。
+- [ ] ARM64 Base、Server 和 Web 镜像在本机从源码构建完成。
 - [ ] MySQL、Redis、manager-web/api、Server 容器健康。
 - [ ] `server.secret` 已同步，且未提交到仓库。
 - [ ] `server.websocket` 和 `server.ota` 使用固定局域网 IP。
@@ -540,7 +1105,15 @@ flowchart LR
 - [ ] 两台设备已经在本地智控台完成绑定并能完整对话。
 - [ ] 如果目标是完全离线，断开外网后 ASR、LLM、TTS 仍可工作。
 
-### 9.3 升降桌控制
+### 10.3 官方云 MCP 桥接
+
+- [ ] 目标智能体的 `MCP_ENDPOINT` 只保存在本机凭据配置中。
+- [ ] 桥接进程只建立出站 WSS，不开放公网端口。
+- [ ] `DESK_GATEWAY_KEY` 未写入 Git、提示词或公开日志。
+- [ ] Mac 休眠、桥接退出和自动重连行为已经测试。
+- [ ] 官方云对话正常，桥接日志能看到 `tools/list` 和 `tools/call`。
+
+### 10.4 升降桌控制
 
 - [ ] `desk.raise_to_max` 只在 TOF400C 高度有效、最高安全高度已配置并完成真桌验收后启用。
 - [ ] “升到最高”和“站立档位”分别映射到安全上限与档位 4，没有混用。
@@ -548,7 +1121,7 @@ flowchart LR
 - [ ] `desk.stop` 不受对话状态或普通来源权限阻塞。
 - [ ] 已完成真桌短行程、断网、Server 退出和紧急停止测试。
 
-## 10. 参考资料
+## 11. 参考资料
 
 - [小智 AI 官方固件源码](https://github.com/78/xiaozhi-esp32)
 - [小智 AI v2.4.2 Release](https://github.com/78/xiaozhi-esp32/releases/tag/v2.4.2)
@@ -558,4 +1131,9 @@ flowchart LR
 - [Xmini-C3 V3 固件源码](https://github.com/78/xiaozhi-esp32/tree/main/main/boards/xmini/c3-v3)
 - [小智 AI 开发文档](https://xiaozhi.me/home/zh/docs/)
 - [社区本地后端源码](https://github.com/xinnan-tech/xiaozhi-esp32-server)
-- [社区后端全模块部署文档](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/main/docs/Deployment_all.md)
+- [社区后端 v0.9.6 Release](https://github.com/xinnan-tech/xiaozhi-esp32-server/releases/tag/v0.9.6)
+- [社区后端 v0.9.6 全模块部署文档](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/docs/Deployment_all.md)
+- [社区后端 v0.9.6 Docker 构建文档](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/docs/docker-build.md)
+- [社区后端固件接入文档](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/v0.9.6/docs/firmware-setting.md)
+- [SenseVoiceSmall 模型](https://modelscope.cn/models/iic/SenseVoiceSmall)
+- [小智官方 MCP 示例](https://github.com/78/mcp-calculator)
