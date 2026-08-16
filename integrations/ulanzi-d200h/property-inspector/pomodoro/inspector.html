@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Desk Gateway 设置</title>
+  <link rel="stylesheet" href="../shared/inspector.css">
+</head>
+<body>
+  <main class="panel hidden">
+    <form id="desk-gateway-settings" autocomplete="off">
+      <div class="field"><label for="gateway_url">网关地址</label><input id="gateway_url" name="gateway_url" type="url" spellcheck="false"></div>
+      <div class="field"><label for="api_key">X-Desk-Key</label><input id="api_key" name="api_key" type="password"></div>
+      <p class="hint">配置由三个按钮共享，密钥不会写入插件源码或日志。</p>
+      <p id="save-status" class="status" aria-live="polite"></p>
+    </form>
+  </main>
+  <script>window.DESK_GATEWAY_ACTION_UUID = "com.ulanzi.ulanzistudio.deskgateway.pomodoro";</script>
+  <script src="../../libs/js/constants.js"></script>
+  <script src="../../libs/js/eventEmitter.js"></script>
+  <script src="../../libs/js/timers.js"></script>
+  <script src="../../libs/js/utils.js"></script>
+  <script src="../../libs/js/ulanziApi.js"></script>
+  <script src="../shared/inspector.js"></script>
+</body>
+</html>

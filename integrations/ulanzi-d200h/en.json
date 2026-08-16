@@ -1,0 +1,19 @@
+{
+  "Name": "Desk Gateway",
+  "Description": "Control sitting, standing, and device-side Pomodoro focus",
+  "Actions": [
+    {
+      "Name": "Sit",
+      "Tooltip": "Move to sitting height and show the current desk height"
+    },
+    {
+      "Name": "Stand",
+      "Tooltip": "Move to standing height and show the current desk height"
+    },
+    {
+      "Name": "Pomodoro",
+      "Tooltip": "Start focus and show the device-side countdown"
+    }
+  ]
+}
+

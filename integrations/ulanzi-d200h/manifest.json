@@ -1,0 +1,77 @@
+{
+  "Actions": [
+    {
+      "Name": "请坐",
+      "Icon": "assets/icons/sit.svg",
+      "PropertyInspectorPath": "property-inspector/sit/inspector.html",
+      "States": [
+        {
+          "Name": "请坐",
+          "Image": "assets/icons/sit.svg"
+        }
+      ],
+      "Tooltip": "前往坐姿高度并显示当前桌面高度",
+      "UUID": "com.ulanzi.ulanzistudio.deskgateway.sit",
+      "Controllers": ["Keypad"],
+      "Devices": ["D200H"],
+      "SupportedInMultiActions": false
+    },
+    {
+      "Name": "站立",
+      "Icon": "assets/icons/stand.svg",
+      "PropertyInspectorPath": "property-inspector/stand/inspector.html",
+      "States": [
+        {
+          "Name": "站立",
+          "Image": "assets/icons/stand.svg"
+        }
+      ],
+      "Tooltip": "前往站姿高度并显示当前桌面高度",
+      "UUID": "com.ulanzi.ulanzistudio.deskgateway.stand",
+      "Controllers": ["Keypad"],
+      "Devices": ["D200H"],
+      "SupportedInMultiActions": false
+    },
+    {
+      "Name": "番茄时刻",
+      "Icon": "assets/icons/pomodoro.svg",
+      "PropertyInspectorPath": "property-inspector/pomodoro/inspector.html",
+      "States": [
+        {
+          "Name": "番茄时刻",
+          "Image": "assets/icons/pomodoro.svg"
+        }
+      ],
+      "Tooltip": "开始专注并显示设备端倒计时",
+      "UUID": "com.ulanzi.ulanzistudio.deskgateway.pomodoro",
+      "Controllers": ["Keypad"],
+      "Devices": ["D200H"],
+      "SupportedInMultiActions": false
+    }
+  ],
+  "Author": "dong4j",
+  "Name": "Desk Gateway",
+  "Description": "控制升降桌坐姿、站姿和设备端番茄时刻",
+  "Icon": "assets/icons/plugin.svg",
+  "Version": "1.0.0",
+  "Category": "Desk Gateway",
+  "CategoryIcon": "assets/icons/plugin.svg",
+  "CodePath": "dist/app.js",
+  "Type": "JavaScript",
+  "SupportedInMultiActions": false,
+  "UUID": "com.ulanzi.ulanzistudio.deskgateway",
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "10.11"
+    },
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Software": {
+    "MinVersion": "2.1.4"
+  }
+}
+
