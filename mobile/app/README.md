@@ -18,6 +18,9 @@ iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 Android 真机的 SDK/ADB 准备、首次构建安装、重新构建条件和故障排查见
 [`docs/guides/mobile-android-device-deployment.md`](../../docs/guides/mobile-android-device-deployment.md)。
 
+iPhone、Android 与独立 Apple Watch App 的签名、商店内测和正式发布流程见
+[`docs/guides/mobile-watch-production-release.md`](../../docs/guides/mobile-watch-production-release.md)。
+
 ## 当前能力
 
 - 扫描并连接广播名为 `DeskGateway` 的 ESP32。

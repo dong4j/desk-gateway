@@ -112,6 +112,7 @@ NOTICE                        第三方声明
 | [docs/architecture/ble-multi-client-bond-management.md](./docs/architecture/ble-multi-client-bond-management.md) | 三客户端所有权、配对窗口与 Bond 管理 |
 | [docs/guides/mobile-android-device-deployment.md](./docs/guides/mobile-android-device-deployment.md) | Android 真机编译、安装与故障排查 |
 | [docs/guides/mobile-ios-device-deployment.md](./docs/guides/mobile-ios-device-deployment.md) | iPhone Development Build 编译与真机安装 |
+| [docs/guides/mobile-watch-production-release.md](./docs/guides/mobile-watch-production-release.md) | iPhone、Android 与 Apple Watch 正式发布流程 |
 | [mobile/watch/README.md](./mobile/watch/README.md) | Apple Watch 构建、签名、安装与真机门禁 |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | 到货 / 真机验收 |
 | [docs/ui-demos/](./docs/ui-demos/) | Web 风格静态 Demo |

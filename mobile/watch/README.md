@@ -4,6 +4,9 @@
 Digital Crown 停止时序、番茄时钟 Reminder v1 和真机门禁见
 [`docs/architecture/apple-watch-control.md`](../../docs/architecture/apple-watch-control.md)。
 
+iPhone、Android 与独立 Apple Watch App 的统一签名、商店内测和正式发布流程见
+[`docs/guides/mobile-watch-production-release.md`](../../docs/guides/mobile-watch-production-release.md)。
+
 ## 工具与工程边界
 
 Watch 工程使用 Swift Package Manager 和 XcodeGen。开始前检查：
