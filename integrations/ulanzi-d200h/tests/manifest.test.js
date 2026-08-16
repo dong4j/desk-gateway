@@ -31,3 +31,9 @@ test("发布入口和属性面板依赖均已生成", async () => {
   }
 });
 
+test("发布脚本保留 Node.js ES Module 声明", async () => {
+  const packageJson = JSON.parse(await readFile(path.join(pluginRoot, "package.json"), "utf8"));
+  const packageScript = await readFile(path.join(pluginRoot, "scripts/package-plugin.mjs"), "utf8");
+  assert.equal(packageJson.type, "module");
+  assert.match(packageScript, /["']package\.json["']/);
+});

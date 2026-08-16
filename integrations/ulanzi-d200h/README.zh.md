@@ -5,8 +5,8 @@ UlanziStudio 安装目录；编译前需要自行下载官方 `UlanziDeckPlugin-
 
 插件为 D200H 提供三个按键：
 
-- **请坐**：调用 Desk Gateway 预设 1，并每秒显示一次当前高度。
-- **站立**：调用 Desk Gateway 预设 4，并每秒显示一次当前高度。
+- **请坐**：调用 Desk Gateway 预设 1，显示坐姿目标高度和每秒刷新的当前高度。
+- **站立**：调用 Desk Gateway 预设 4，显示站姿目标高度和每秒刷新的当前高度。
 - **番茄时刻**：启动设备端专注阶段，显示设备端剩余倒计时。
 
 三个按键共享一次 `GET /api/v1/desk/status` 轮询。倒计时来源是 Desk Gateway，插件不会
@@ -77,7 +77,8 @@ npm test
 release/com.ulanzi.deskgateway.ulanziPlugin/
 ```
 
-该目录应包含 `manifest.json`、`dist/app.js`、`libs/`、属性面板和图标资源。
+该目录应包含 `manifest.json`、`package.json`、`dist/app.js`、`libs/`、属性面板和图标资源。
+其中 `package.json` 提供 Node.js 识别 `dist/app.js` 所需的 ES Module 声明，安装时不能省略。
 
 ## 安装到 UlanziStudio
 
@@ -101,6 +102,7 @@ Windows：
 Plugins/
 └── com.ulanzi.deskgateway.ulanziPlugin/
     ├── manifest.json
+    ├── package.json
     ├── dist/app.js
     ├── libs/
     └── property-inspector/
@@ -129,6 +131,6 @@ Plugins/
 - 站立固定调用 `POST /api/v1/desk/preset/4/goto`。
 - 番茄时刻固定调用 `POST /api/v1/reminder/action`，请求体为
   `{"action":"start_focus"}`。
-- 当前高度来自 `height_mm`，转换为一位小数厘米显示。
+- 坐姿和站姿目标高度分别来自 `preset1_height_mm`、`preset4_height_mm`，当前高度来自
+  `height_mm`，均转换为一位小数厘米显示。
 - 网关离线时按键显示“离线”，不会继续显示陈旧高度。
-

@@ -63,13 +63,18 @@ export function createKeyView(kind, state) {
   if (!state.snapshot) return unavailableView(kind, "连接中", "正在读取状态");
 
   if (kind === "sit" || kind === "stand") {
-    const known = state.snapshot.height_known && Number.isFinite(state.snapshot.height_mm);
+    const targetHeightMm = kind === "sit"
+      ? state.snapshot.preset1_height_mm
+      : state.snapshot.preset4_height_mm;
+    const targetKnown = Number.isFinite(targetHeightMm);
+    const currentKnown = state.snapshot.height_known && Number.isFinite(state.snapshot.height_mm);
     return {
       label: ACTIONS[kind].label,
-      value: formatHeight(known ? state.snapshot.height_mm : Number.NaN),
-      detail: known ? "当前高度" : "高度未知",
+      // 目标档位是按键的主信息；当前高度放在下方并继续随共享轮询刷新。
+      value: formatHeight(targetKnown ? targetHeightMm : Number.NaN),
+      detail: currentKnown ? `当前 ${formatHeight(state.snapshot.height_mm)}` : "当前高度未知",
       accent: ACTIONS[kind].accent,
-      muted: !known,
+      muted: !targetKnown,
     };
   }
 

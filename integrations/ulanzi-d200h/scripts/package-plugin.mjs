@@ -11,6 +11,8 @@ const entries = [
   "libs",
   "property-inspector",
   "manifest.json",
+  // dist/app.js 使用 ES Module，运行目录必须保留 type=module 声明。
+  "package.json",
   "zh_CN.json",
   "en.json",
   "README.zh.md",
@@ -21,4 +23,3 @@ await mkdir(releaseRoot, { recursive: true });
 for (const entry of entries) {
   await cp(path.join(pluginRoot, entry), path.join(releaseRoot, entry), { recursive: true });
 }
-

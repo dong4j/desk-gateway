@@ -33,6 +33,26 @@ test("专注状态使用设备端剩余秒数", () => {
   assert.match(renderKeySvg(view), /24:59/);
 });
 
+test("坐姿和站姿显示各自目标档位及当前高度", () => {
+  const state = {
+    configured: true,
+    online: true,
+    snapshot: {
+      height_known: true,
+      height_mm: 556,
+      preset1_height_mm: 550,
+      preset4_height_mm: 870,
+    },
+  };
+  const sitView = createKeyView("sit", state);
+  const standView = createKeyView("stand", state);
+
+  assert.equal(sitView.value, "55.0 cm");
+  assert.equal(sitView.detail, "当前 55.6 cm");
+  assert.equal(standView.value, "87.0 cm");
+  assert.equal(standView.detail, "当前 55.6 cm");
+});
+
 test("离线状态不继续展示陈旧高度", () => {
   const view = createKeyView("sit", {
     configured: true,
