@@ -1,13 +1,15 @@
 # 通过小智 AI 控制升降桌
 
-> 更新时间：2026-08-15
+> 更新时间：2026-08-16
 >
 > 小智 ESP32 固件基线：`v2.4.2`
 >
 > 本地后端基线：`xiaozhi-esp32-server v0.9.6`
 >
-> 当前状态：Desk Gateway 有界 REST 入口已实现并通过构建；MCP 桥接尚未创建，REST 真桌与
-> 完整语音链路尚未验收。
+> 官方云 MCP 示例基线：`78/mcp-calculator@c537f71d`
+>
+> 当前状态：Desk Gateway 有界 REST 入口和小智云 MCP 桥接代码已实现；Mock REST 与五工具
+> 注册检查通过，官方云 Endpoint 注册、常驻部署、REST 真桌和完整语音链路尚未验收。
 
 本文记录如何让小智 AI 把“升降桌升高到最高”“切换到站立高度”“停止升降桌”等语音
 指令转换成受控的 MCP 工具调用，再由局域网桥接程序访问 Desk Gateway REST 接口。
@@ -18,13 +20,17 @@
 
 ## 1. 结论
 
-推荐使用下面的链路，不需要修改或重新编译两台小智硬件的固件：
+优先使用官方小智云 MCP Endpoint，不需要修改或重新编译两台小智硬件的固件。需要完全
+本地化时，后续章节中的本地 Server 与 MCP Endpoint Server 仍可复用同一个桥接程序：
 
 ```mermaid
 flowchart LR
     Voice["用户语音"] --> Device["小智 AI 硬件<br/>xiaozhi-esp32 v2.4.2"]
-    Device --> Server["本地 xiaozhi-esp32-server v0.9.6"]
-    Server --> Endpoint["MCP Endpoint Server<br/>端口 8004"]
+    Device --> Cloud["小智官方云智能体"]
+    Device -. 可选本地化 .-> Server["本地 xiaozhi-esp32-server v0.9.6"]
+    Cloud --> Endpoint["官方云 MCP Endpoint<br/>出站 WSS"]
+    Server -.-> LocalEndpoint["本地 MCP Endpoint Server<br/>端口 8004"]
+    LocalEndpoint -.-> Bridge
     Endpoint --> Bridge["desk_mcp.py<br/>MCP 工具桥接"]
     Bridge --> REST["Desk Gateway REST<br/>X-Desk-Key"]
     REST --> Core["desk_core + Mxtark Driver"]
@@ -44,19 +50,20 @@ flowchart LR
 
 ## 2. 版本和协议基线
 
-截至 2026-08-15，本文采用以下版本：
+截至 2026-08-16，本文采用以下版本：
 
 | 组件 | 版本 | 用途 |
 | --- | --- | --- |
 | `78/xiaozhi-esp32` | `v2.4.2` | 两台小智硬件的设备固件 |
 | `xinnan-tech/xiaozhi-esp32-server` | `v0.9.6` | 本地语音、智能体和工具调度后端 |
 | `xinnan-tech/mcp-endpoint-server` | 部署时固定实际提交 | 将一个智能体与外部 MCP 工具桥接 |
-| `78/mcp-calculator` | 部署时固定实际提交 | 使用其中的 `mcp_pipe.py` 连接 MCP 接入点 |
+| `78/mcp-calculator` | 已核对 `c537f71d` | 使用其中的 `mcp_pipe.py` 连接 MCP 接入点 |
 | Desk Gateway | 当前仓库固件 | 提供认证 REST 和设备侧运动保护 |
 
 小智当前推荐使用 MCP 扩展 IoT 控制。设备和后端通过 `initialize`、`tools/list`、
-`tools/call` 完成工具发现和调用。本文接入的是本地 Server 提供的外部 MCP 接入点，不是在
-小智 ESP32 上注册一个直接访问 REST 的板级工具。
+`tools/call` 完成工具发现和调用。优先链路连接官方云智能体提供的外部 MCP 接入点；完全
+本地化部署时改为连接本地 MCP Endpoint Server。两种方式都不是在小智 ESP32 上注册一个
+直接访问 REST 的板级工具。
 
 部署时不要长期跟随 `latest`。首次跑通后记录四个仓库的 commit hash，后续升级先在测试环境
 重新执行本文验收清单。
@@ -120,12 +127,13 @@ REST 返回 `200` 只表示 ESP32 已接受动作，不表示桌子已经到达�
 
 ## 4. 接入前检查 Desk Gateway
 
-以下命令在运行 MCP 前完成。不要把真实密钥写进 Shell history、文档或 Git 仓库；下面只用
-临时占位值说明格式。
+以下命令在运行 MCP 前完成。不要把真实密钥写进 Shell history、文档或 Git 仓库；使用
+静默输入读取密钥。
 
 ```bash
 export DESK_GATEWAY_URL='http://192.168.21.65'
-export DESK_GATEWAY_KEY='replace-with-local-desk-key'
+read -r -s "DESK_GATEWAY_KEY?Desk Gateway Key: "
+export DESK_GATEWAY_KEY
 ```
 
 查询状态：
@@ -186,12 +194,21 @@ curl --fail --silent --show-error \
 {"ok":true,"err":"ESP_OK"}
 ```
 
-## 5. 启用本地 Server 的 MCP 接入点
+## 5. 获取 MCP 接入点
+
+### 5.1 使用官方云 MCP 接入点（推荐）
+
+保持 JC3636W518C 连接小智官方云。在小智控制台打开这台设备当前使用的目标智能体，进入
+“配置角色”或“编辑功能”，复制完整的 MCP 接入点 WebSocket 地址。该地址应直接作为
+`MCP_ENDPOINT`，不需要部署本地 `xiaozhi-esp32-server` 或 `mcp-endpoint-server`。
+
+MCP 地址包含独立 token，只保存在运行环境或 macOS Keychain。Mac 上的桥接进程主动建立
+出站 WebSocket，Desk Gateway REST 继续只在局域网内提供服务，不需要端口映射。
+
+### 5.2 部署本地 MCP Endpoint Server（可选）
 
 本节假定已经按照前一篇文档部署好全模块 `xiaozhi-esp32-server`，并且小智硬件可以连接本地
 Server 完成一次正常对话。
-
-### 5.1 部署 MCP Endpoint Server
 
 在 Mac 上单独获取源码：
 
@@ -227,7 +244,7 @@ curl 'http://192.168.21.10:8004/mcp_endpoint/health?key=replace-with-key'
 
 `key` 和 `token` 都是凭据，不要提交到仓库、截图公开或放进智能体提示词。
 
-### 5.2 在智控台启用 MCP 接入点
+### 5.3 在本地智控台启用 MCP 接入点
 
 使用管理员账号打开 `http://<Mac局域网IP>:8002`：
 
@@ -245,21 +262,23 @@ curl 'http://192.168.21.10:8004/mcp_endpoint/health?key=replace-with-key'
 
 ## 6. 创建 Desk MCP 桥接
 
-本文复用官方示例仓库的 `mcp_pipe.py`，只增加一个本地 `desk_mcp.py`。以下操作在独立目录
-完成，不需要把桥接代码写进小智或 Desk Gateway 固件仓库。
+本文复用官方示例仓库的 `mcp_pipe.py`。Desk Gateway 专用桥接已经实现于
+[`integrations/xiaozhi-mcp/`](../integrations/xiaozhi-mcp/README.md)，包括固定 REST 客户端、
+MCP Server、启动脚本、launchd 模板和 Mock 测试。以下内嵌代码只用于解释工具语义，实际
+部署以仓库实现为准。
 
 ```bash
 git clone https://github.com/78/mcp-calculator.git desk-mcp-bridge
 cd desk-mcp-bridge
 git rev-parse HEAD
 
-python3.10 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-创建 `desk_mcp.py`，内容如下：
+核心映射示例如下；不要用它覆盖仓库内已经测试的实现：
 
 ```python
 """把小智 MCP 的固定工具映射到局域网 Desk Gateway REST。"""
@@ -415,12 +434,18 @@ if __name__ == "__main__":
 cd desk-mcp-bridge
 source .venv/bin/activate
 
-export MCP_ENDPOINT='ws://192.168.21.10:8004/mcp_endpoint/mcp/?token=replace-with-agent-token'
 export DESK_GATEWAY_URL='http://192.168.21.65'
-export DESK_GATEWAY_KEY='replace-with-local-desk-key'
 export DESK_HTTP_TIMEOUT_SECONDS='5'
 
-python mcp_pipe.py desk_mcp.py
+read -r -s "MCP_ENDPOINT?XiaoZhi MCP Endpoint: "
+export MCP_ENDPOINT
+read -r -s "DESK_GATEWAY_KEY?Desk Gateway Key: "
+export DESK_GATEWAY_KEY
+
+export MCP_PIPE_DIR="$PWD"
+export MCP_PYTHON="$PWD/.venv/bin/python"
+cd /path/to/desk-gateway
+./integrations/xiaozhi-mcp/scripts/run.sh
 ```
 
 预期日志至少表明：

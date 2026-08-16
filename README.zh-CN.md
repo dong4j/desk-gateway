@@ -93,6 +93,7 @@ Web：升/降为 **按住运动、松手停止**（保持 DR，不连发）。
 ```text
 firmware/desk-gateway/        主固件（ESP-IDF）
 firmware/phase1-panel-slave/  早期 Phase1 原型
+integrations/xiaozhi-mcp/     小智云 MCP 到 Desk Gateway REST 桥接
 docs/                         需求、架构、协议、UI Demo
 LICENSE                       MIT
 NOTICE                        第三方声明
@@ -110,6 +111,7 @@ NOTICE                        第三方声明
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | 架构总览 |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUID、字节协议与 LightBlue 测试步骤 |
 | [docs/architecture/ble-multi-client-bond-management.md](./docs/architecture/ble-multi-client-bond-management.md) | 三客户端所有权、配对窗口与 Bond 管理 |
+| [integrations/xiaozhi-mcp/README.md](./integrations/xiaozhi-mcp/README.md) | 小智云 MCP 桥接部署与验收 |
 | [docs/guides/mobile-android-device-deployment.md](./docs/guides/mobile-android-device-deployment.md) | Android 真机编译、安装与故障排查 |
 | [docs/guides/mobile-ios-device-deployment.md](./docs/guides/mobile-ios-device-deployment.md) | iPhone Development Build 编译与真机安装 |
 | [docs/guides/mobile-watch-production-release.md](./docs/guides/mobile-watch-production-release.md) | iPhone、Android 与 Apple Watch 正式发布流程 |

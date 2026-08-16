@@ -98,6 +98,7 @@ Web hold buttons: **press = move**, **release = stop** (DR held, not spammed).
 ```text
 firmware/desk-gateway/     Main ESP-IDF firmware
 firmware/phase1-panel-slave/  Earlier Phase‑1 prototype (legacy)
+integrations/xiaozhi-mcp/  XiaoZhi cloud MCP to Desk Gateway REST bridge
 docs/                      Requirements, architecture, protocol notes, UI demos
 LICENSE                    MIT
 NOTICE                     Third-party attributions
@@ -116,6 +117,7 @@ NOTICE                     Third-party attributions
 | [docs/architecture/mqtt-home-assistant.md](./docs/architecture/mqtt-home-assistant.md) | MQTT / Home Assistant integration design (Chinese) |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUIDs, byte protocol, and LightBlue test flow |
 | [docs/architecture/ble-multi-client-bond-management.md](./docs/architecture/ble-multi-client-bond-management.md) | Three-client ownership, pairing windows, and Bond management |
+| [integrations/xiaozhi-mcp/README.md](./integrations/xiaozhi-mcp/README.md) | XiaoZhi cloud MCP bridge deployment and acceptance (Chinese) |
 | [docs/guides/mobile-android-device-deployment.md](./docs/guides/mobile-android-device-deployment.md) | Android physical-device build, installation, and troubleshooting (Chinese) |
 | [docs/guides/mobile-ios-device-deployment.md](./docs/guides/mobile-ios-device-deployment.md) | iPhone Development Build and physical-device installation (Chinese) |
 | [docs/guides/mobile-watch-production-release.md](./docs/guides/mobile-watch-production-release.md) | iPhone, Android, and Apple Watch production release workflow (Chinese) |

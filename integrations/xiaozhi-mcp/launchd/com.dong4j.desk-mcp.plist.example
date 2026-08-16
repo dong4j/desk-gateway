@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.dong4j.desk-mcp</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PROJECT_ROOT__/integrations/xiaozhi-mcp/scripts/run.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>MCP_PIPE_DIR</key>
+    <string>__MCP_PIPE_DIR__</string>
+    <key>MCP_PYTHON</key>
+    <string>__MCP_PIPE_DIR__/.venv/bin/python</string>
+    <key>DESK_GATEWAY_URL</key>
+    <string>http://__DESK_GATEWAY_IP__</string>
+    <key>DESK_HTTP_TIMEOUT_SECONDS</key>
+    <string>5</string>
+    <key>MCP_ENDPOINT_KEYCHAIN_SERVICE</key>
+    <string>com.dong4j.desk-mcp.endpoint</string>
+    <key>DESK_GATEWAY_KEYCHAIN_SERVICE</key>
+    <string>com.dong4j.desk-mcp.gateway-key</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/desk-mcp.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/desk-mcp.error.log</string>
+</dict>
+</plist>
