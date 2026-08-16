@@ -4,9 +4,28 @@
 Digital Crown 停止时序、番茄时钟 Reminder v1 和真机门禁见
 [`docs/architecture/apple-watch-control.md`](../../docs/architecture/apple-watch-control.md)。
 
+## 工具与工程边界
+
+Watch 工程使用 Swift Package Manager 和 XcodeGen。开始前检查：
+
+```bash
+xcodebuild -version
+xcodegen --version
+swift --version
+```
+
+如果缺少 XcodeGen，可以通过 `brew install xcodegen` 安装。Xcode 必须支持目标 Apple
+Watch 当前安装的 watchOS；只运行 `swift test` 不需要开发签名，安装到真机则需要 Xcode
+账号、Team、Provisioning Profile 和已注册设备。
+
+`project.yml` 是 Xcode 工程配置的事实来源，生成的 `DeskGatewayWatch.xcodeproj` 不提交。
+不要只在生成工程中持久修改 Team、Bundle ID、Info.plist 属性或 Build Settings，因为下次
+执行 `xcodegen generate` 会覆盖这些修改。
+
 ## 本地验证
 
 ```bash
+cd /Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/mobile/watch
 swift test
 xcodegen generate
 xcodebuild -project DeskGatewayWatch.xcodeproj \
@@ -18,6 +37,9 @@ xcodebuild -project DeskGatewayWatch.xcodeproj \
 `swift test` 覆盖平台无关的 GATT、REST 状态映射和 Crown 状态机。通用 watchOS 构建
 只能证明 SwiftUI、CoreBluetooth 和 URLSession 代码可以编译，不能代替 Apple Watch
 真机上的扫描、配对、局域网连接、Digital Crown、触感和真实升降验收。
+
+上述 `CODE_SIGNING_ALLOWED=NO` 构建不会生成可直接安装到 Apple Watch 的已签名 App，
+也不会部署设备。真机安装必须继续执行下文的签名和 Xcode Run 流程。
 
 ## Simulator Debug Mock
 
@@ -55,14 +77,14 @@ Debug 和所有 Release 构建始终使用真实的 `DeskConnectionManager`，�
 Apple 官方说明：
 
 - [Enabling Developer Mode on a device](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)
-- [Managing devices in Device Hub](https://developer.apple.com/documentation/xcode/pairing-your-devices-with-your-mac)
+- [Managing devices in Device Hub](https://developer.apple.com/documentation/xcode/managing-your-simulated-and-physical-devices-in-device-hub)
 
 ### 2. 生成并打开 Xcode 工程
 
 本目录不提交生成的 `.xcodeproj`。每次 `project.yml` 变化后重新生成：
 
 ```bash
-cd mobile/watch
+cd /Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/mobile/watch
 xcodegen generate
 open DeskGatewayWatch.xcodeproj
 ```
@@ -112,7 +134,21 @@ Apple 官方真机运行流程见
 真机 Debug 构建始终使用 `DeskConnectionManager` 管理 BLE / REST，不会启用 Simulator
 Mock，也不会显示橙色“模拟”标识。
 
-### 6. 首次 BLE 验收顺序
+### 6. 日常修改与重新生成边界
+
+| 修改内容 | `swift test` | `xcodegen generate` | Xcode 重新 Build / Run |
+|---|---:|---:|---:|
+| `Sources/` 中的协议或状态机 | 需要 | 不需要 | 需要 |
+| `Tests/` 测试代码 | 需要 | 不需要 | 不需要 |
+| `App/` SwiftUI、BLE、REST 代码 | 按影响执行 | 不需要 | 需要 |
+| `App/Info.plist` 或资源 | 不需要 | 不需要 | 需要 |
+| `project.yml`、Team、Bundle ID、Build Settings | 按影响执行 | 需要 | 需要 |
+| 更换 Apple Watch 或 App 被删除 | 不需要 | 不需要 | 需要 |
+
+修改 `project.yml` 后先关闭旧工程，重新执行 `xcodegen generate` 并打开生成工程。普通
+Swift 源码修改不需要重复生成工程，直接在 Xcode 中重新 Run 即可。
+
+### 7. 首次 BLE 验收顺序
 
 首次绑定前先在已认证 Web 或手机设置页开启 120 秒配对窗口，并确认网关已通电和广播：
 
@@ -131,7 +167,7 @@ Mock，也不会显示橙色“模拟”标识。
 
 自动化构建、Simulator 和 UI 截图都不能替代这一真机安全门禁。
 
-### 7. 首次 Wi-Fi / REST 验收顺序
+### 8. 首次 Wi-Fi / REST 验收顺序
 
 1. 确认 Watch 与 Desk Gateway 可访问同一局域网，网关能通过
    `http://desk-gateway.local/` 或固定 IP 访问；
@@ -147,7 +183,7 @@ Mock，也不会显示橙色“模拟”标识。
 自动化构建只能证明 REST 路径、状态解析和工程配置可编译，不能替代上述真机断网和
 500 ms 租约验收。
 
-### 8. 常见问题
+### 9. 常见问题
 
 | 现象 | 检查项 |
 |---|---|
@@ -160,3 +196,9 @@ Mock，也不会显示橙色“模拟”标识。
 | 显示另一台设备正在控制 | 当前 Watch 不是 BLE 运动所有者；可继续查看状态或发送 STOP，等待所有者释放后再控制 |
 | Wi-Fi 连接失败 | 确认 Watch 能访问网关所在局域网；优先测试 `desk-gateway.local`，失败时填写网关 IP；检查 REST 密码和 REST 来源权限 |
 | 仍提示同时定义 `WKWatchOnly` 和 `WKRunsIndependentlyOfCompanionApp` | 删除 Watch 上的旧 App，确认生成配置只保留 `WKWatchOnly`，再执行 Product → Clean Build Folder 后重装 |
+
+## 正式发布边界
+
+当前 Watch 流程只覆盖 Debug 真机安装和验证。提交 App Store 前仍需单独确认版本号、
+Distribution 签名、Archive、隐私材料、独立 watchOS App 上架配置以及真实设备安全矩阵。
+通用构建、Simulator Mock 或一次 Xcode Run 都不能作为发布完成证据。

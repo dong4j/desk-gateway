@@ -116,6 +116,9 @@ NOTICE                     Third-party attributions
 | [docs/architecture/mqtt-home-assistant.md](./docs/architecture/mqtt-home-assistant.md) | MQTT / Home Assistant integration design (Chinese) |
 | [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUIDs, byte protocol, and LightBlue test flow |
 | [docs/architecture/ble-multi-client-bond-management.md](./docs/architecture/ble-multi-client-bond-management.md) | Three-client ownership, pairing windows, and Bond management |
+| [docs/guides/mobile-android-device-deployment.md](./docs/guides/mobile-android-device-deployment.md) | Android physical-device build, installation, and troubleshooting (Chinese) |
+| [docs/guides/mobile-ios-device-deployment.md](./docs/guides/mobile-ios-device-deployment.md) | iPhone Development Build and physical-device installation (Chinese) |
+| [mobile/watch/README.md](./mobile/watch/README.md) | Apple Watch build, signing, installation, and hardware gates (Chinese) |
 | [docs/bringup-checklist.md](./docs/bringup-checklist.md) | Bring-up / acceptance checklist |
 | [docs/ui-demos/](./docs/ui-demos/) | Static Web UI style demos |
 | [docs/3-protocol-reverse-notes.md](./docs/3-protocol-reverse-notes.md) | Protocol reverse notes |

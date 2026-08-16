@@ -100,6 +100,7 @@ Mac 端需要：
 - Node.js 与 npm；
 - Xcode 26：`/Applications/Xcode.app`；
 - Xcode 27：`/Applications/Xcode-beta.app`；
+- CocoaPods，并确保 `pod` 可从终端执行；
 - Xcode 已登录 Apple ID，并可使用 Team `8WCUMGCWMB`；
 - 项目依赖已安装。
 
@@ -110,6 +111,27 @@ iPhone 端需要：
 - 已点击“信任此电脑”；
 - 已开启“设置 → 隐私与安全性 → 开发者模式”；
 - Xcode 能识别设备并挂载 Developer Disk Image。
+
+部署前可以执行以下只读检查：
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -version
+DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild -version
+pod --version
+node --version
+npm --version
+```
+
+`scripts/run-ios-device.sh` 会为编译和安装分别设置 `DEVELOPER_DIR`，因此不依赖当前
+`xcode-select` 指向哪个 Xcode。两套 Xcode 的实际路径或版本不符合脚本预期时，应先修正
+安装路径，或者显式设置脚本支持的 `DESK_XCODE_26_APP`、`DESK_XCODE_27_APP`，不要通过
+全局切换 Xcode 掩盖路径问题。
+
+Apple 官方操作入口：
+
+- [在设备上开启 Developer Mode](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)
+- [在 Device Hub 管理物理设备](https://developer.apple.com/documentation/xcode/managing-your-simulated-and-physical-devices-in-device-hub)
+- [在模拟器或物理设备上运行 App](https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices)
 
 ## 4. 首次部署步骤
 
@@ -124,6 +146,18 @@ cd /Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/mobile/app
 ```bash
 npm install
 ```
+
+构建前执行项目检查：
+
+```bash
+npm run typecheck
+npm test
+npm run doctor
+```
+
+`expo-doctor` 的失败需要单独判断。依赖 patch 版本不一致时，先用
+`npx expo install --check` 查看建议，不要在真机部署排障中顺带升级多项依赖并混淆
+构建失败原因。
 
 如果本机还没有生成 `mobile/app/ios` 目录，执行一次：
 
@@ -229,7 +263,21 @@ npx expo run:ios --device
 
 ## 7. 常见问题
 
-### 7.1 第一次使用 Wi-Fi REST
+### 7.1 第一次使用 BLE
+
+首次绑定前，在已认证 Web 或已有手机 App 中开启 120 秒配对窗口：
+
+1. 启动 App 并允许蓝牙权限；
+2. 扫描并连接 `DeskGateway`；
+3. iOS 写入加密 Client Info `01 02`，出现系统配对提示时确认；
+4. 确认收到 State Notify，且高度来自真实桌面；
+5. 先验证 STOP，再在手靠近原控制器的情况下短按测试升降；
+6. 验证松手 STOP、App 退后台、关闭蓝牙和断连后的停止行为；
+7. 重启 App 和 ESP32，确认 bond 可以恢复。
+
+安装并启动成功只证明 Development Build 链路可用，不能替代上述 BLE 和真实升降验收。
+
+### 7.2 第一次使用 Wi-Fi REST
 
 最新 Development Build 第一次访问 ESP32 时，iOS 会询问是否允许 Desk Gateway 查找并
 连接本地网络设备。必须选择“允许”，否则 `desk-gateway.local` 和手工 IP 都无法访问。
@@ -238,7 +286,7 @@ npx expo run:ios --device
 Desk Gateway。手机与 ESP32 还需要处于同一局域网；`.local` 解析失败时，在 App 设置页
 填写 ESP32 启动日志中的 IP。
 
-### 7.2 点击 App 后立即退出
+### 7.3 点击 App 后立即退出
 
 先确认是否误用了 Xcode 27 SDK 构建。重新执行：
 
@@ -249,7 +297,7 @@ npm run ios:device
 如果仍退出，再通过 Xcode Devices and Simulators 或系统 Crash Log 确认新的崩溃原因，
 不要直接假定仍是 `UIScene` 问题。
 
-### 7.3 App 能打开，但无法加载页面
+### 7.4 App 能打开，但无法加载页面
 
 确认 Metro 正在运行：
 
@@ -258,9 +306,10 @@ npm start
 ```
 
 同时确认 Mac 与 iPhone 的连接可用。Development Build 本身只提供原生容器，开发阶段的
-JavaScript Bundle 仍由 Metro 提供。
+JavaScript Bundle 仍由 Metro 提供。若使用局域网连接，Mac 和 iPhone 必须能够互相访问，
+并检查 macOS 防火墙是否阻止 Node.js 接收入站连接。
 
-### 7.4 `No profiles for 'com.dong4j.deskgateway' were found`
+### 7.5 `No profiles for 'com.dong4j.deskgateway' were found`
 
 检查：
 
@@ -273,14 +322,14 @@ JavaScript Bundle 仍由 Metro 提供。
 `ios:device` 已向 `xcodebuild` 传入 `-allowProvisioningUpdates`，前提是 Xcode 本身已经
 完成账号登录和协议确认。
 
-### 7.4 `The developer disk image could not be mounted`
+### 7.6 `The developer disk image could not be mounted`
 
 - 解锁 iPhone 并保持屏幕亮起；
 - 确认已信任 Mac；
 - 打开 Xcode 的 Devices and Simulators，等待设备支持组件安装完成；
 - 重新插拔 USB 后再执行脚本。
 
-### 7.5 `No connected and unlocked iPhone was found`
+### 7.7 `No connected and unlocked iPhone was found`
 
 脚本只自动选择已连接、已解锁并建立设备通道的 iPhone。先处理连接状态，或者传入明确
 的设备 ID：

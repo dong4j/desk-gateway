@@ -15,6 +15,9 @@ BLE 优先、Wi-Fi 回退、mDNS 和安全边界见
 iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 [`docs/guides/mobile-ios-device-deployment.md`](../../docs/guides/mobile-ios-device-deployment.md)。
 
+Android 真机的 SDK/ADB 准备、首次构建安装、重新构建条件和故障排查见
+[`docs/guides/mobile-android-device-deployment.md`](../../docs/guides/mobile-android-device-deployment.md)。
+
 ## 当前能力
 
 - 扫描并连接广播名为 `DeskGateway` 的 ESP32。
@@ -50,6 +53,16 @@ npm start
 
 `npm start` 只启动 Metro；首次安装或原生依赖变化后，还需要执行对应平台的原生构建命令。
 iOS 27 Beta 真机必须使用下一节的 `npm run ios:device`。
+
+Android 真机在完成 Android Studio、SDK 和 ADB 配置后使用：
+
+```bash
+npm run android -- --device
+```
+
+首次运行会生成被 `.gitignore` 忽略的 `android` 原生目录、编译 Debug Development
+Build、安装到所选设备并启动 Metro。当前开发机尚未安装 Android 工具链，因此该命令
+仍需在环境就绪后完成首次构建和真机验证。
 
 ### iOS 27 Beta 真机
 
