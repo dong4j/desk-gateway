@@ -1,11 +1,20 @@
 #!/bin/zsh
 # 启动官方 mcp_pipe.py 与本仓库的 DeskGateway MCP Server。
-# 凭据优先从环境变量读取；launchd 场景可改用 macOS Keychain service。
+# 默认读取集成目录下的 .env；环境变量和 macOS Keychain 仍可用于高级场景。
 
 set -euo pipefail
 
 task_script_dir="${0:A:h}"
 task_integration_dir="${task_script_dir:h}"
+task_config_file="${DESK_MCP_CONFIG:-${task_integration_dir}/.env}"
+
+# .env 是用户本机的可信 Shell 配置。set -a 保证其中的变量会传给
+# mcp_pipe.py 及其启动的 desk_mcp.py 子进程。
+if [[ -f "${task_config_file}" ]]; then
+  set -a
+  source "${task_config_file}"
+  set +a
+fi
 
 if [[ -z "${MCP_ENDPOINT:-}" && -n "${MCP_ENDPOINT_KEYCHAIN_SERVICE:-}" ]]; then
   MCP_ENDPOINT="$(security find-generic-password \
@@ -19,10 +28,10 @@ if [[ -z "${DESK_GATEWAY_KEY:-}" && -n "${DESK_GATEWAY_KEYCHAIN_SERVICE:-}" ]]; 
   export DESK_GATEWAY_KEY
 fi
 
-: "${MCP_ENDPOINT:?MCP_ENDPOINT or MCP_ENDPOINT_KEYCHAIN_SERVICE is required}"
-: "${DESK_GATEWAY_URL:?DESK_GATEWAY_URL is required}"
-: "${DESK_GATEWAY_KEY:?DESK_GATEWAY_KEY or DESK_GATEWAY_KEYCHAIN_SERVICE is required}"
-: "${MCP_PIPE_DIR:?MCP_PIPE_DIR must point to the official 78/mcp-calculator checkout}"
+: "${MCP_ENDPOINT:?set MCP_ENDPOINT in ${task_config_file}}"
+: "${DESK_GATEWAY_URL:?set DESK_GATEWAY_URL in ${task_config_file}}"
+: "${DESK_GATEWAY_KEY:?set DESK_GATEWAY_KEY in ${task_config_file}}"
+: "${MCP_PIPE_DIR:?set MCP_PIPE_DIR in ${task_config_file}}"
 
 if [[ "${MCP_ENDPOINT}" != ws://* && "${MCP_ENDPOINT}" != wss://* ]]; then
   print -u2 "MCP_ENDPOINT must use ws:// or wss://"

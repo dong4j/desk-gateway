@@ -20,21 +20,9 @@
 
 工具不接受 URL、HTTP Method、Header 或任意目标高度参数。
 
-## 1. 前置检查
+## 1. Desk Gateway 前置条件
 
-Mac 必须能通过局域网访问 Desk Gateway：
-
-```bash
-export DESK_GATEWAY_URL='http://<desk-gateway-ip>'
-read -r -s "DESK_GATEWAY_KEY?Desk Gateway Key: "
-export DESK_GATEWAY_KEY
-
-curl --fail --silent --show-error \
-  -H "X-Desk-Key: ${DESK_GATEWAY_KEY}" \
-  "${DESK_GATEWAY_URL}/api/v1/desk/status" | jq
-```
-
-在启用运动工具前确认：
+Mac 必须能通过局域网访问 Desk Gateway。在启用运动工具前确认：
 
 - `height_sim=false`
 - `height_known=true`
@@ -71,51 +59,51 @@ python -m pip install \
 ## 3. 获取 MCP Endpoint
 
 登录小智控制台，在 JC3636W518C 当前使用的目标智能体中打开“配置角色 / 编辑功能”，复制
-完整 MCP 接入点 WebSocket 地址。该地址包含智能体 token，只保存在运行环境或 macOS
-Keychain 中，不要写入提示词、日志或仓库。
+完整 MCP 接入点 WebSocket 地址。该地址包含智能体 token，只保存在本地 `.env`，不要写入
+提示词、日志或仓库。
 
-## 4. 前台启动
+## 4. 创建本地配置并启动
+
+复制模板：
 
 ```bash
-export MCP_PIPE_DIR='/path/to/mcp-calculator'
-export MCP_PYTHON="${MCP_PIPE_DIR}/.venv/bin/python"
-export DESK_GATEWAY_URL='http://<desk-gateway-ip>'
+cp integrations/xiaozhi-mcp/.env.example \
+  integrations/xiaozhi-mcp/.env
+chmod 600 integrations/xiaozhi-mcp/.env
+```
 
-read -r -s "MCP_ENDPOINT?XiaoZhi MCP Endpoint: "
-export MCP_ENDPOINT
-read -r -s "DESK_GATEWAY_KEY?Desk Gateway Key: "
-export DESK_GATEWAY_KEY
+编辑 `integrations/xiaozhi-mcp/.env`，填写完整的 `MCP_ENDPOINT`、`MCP_PIPE_DIR`、
+`MCP_PYTHON`、`DESK_GATEWAY_URL` 和 `DESK_GATEWAY_KEY`。包含 `&`、`?` 或空格的值必须保留
+模板中的单引号。
 
+`.env` 已由仓库根目录的 `.gitignore` 排除。可以用下面的命令确认它不会被提交：
+
+```bash
+git check-ignore integrations/xiaozhi-mcp/.env
+```
+
+加载配置并检查 Desk Gateway：
+
+```bash
+set -a
+source integrations/xiaozhi-mcp/.env
+set +a
+
+curl --fail --silent --show-error \
+  -H "X-Desk-Key: ${DESK_GATEWAY_KEY}" \
+  "${DESK_GATEWAY_URL}/api/v1/desk/status" | jq
+```
+
+启动时不需要再次 `source`，脚本会自动读取同目录的 `.env`：
+
+```bash
 ./integrations/xiaozhi-mcp/scripts/run.sh
 ```
 
 预期日志包含 WebSocket 连接成功和 MCP Server 启动。返回小智智能体刷新功能列表，应能看到
 本页开头列出的五个 `desk.*` 工具。
 
-## 5. 使用 macOS Keychain 保存凭据
-
-`security` 在 `-w` 不带参数且放在命令末尾时会交互式读取密码，凭据不会进入 Shell 历史：
-
-```bash
-security add-generic-password -U \
-  -a desk-mcp \
-  -s com.dong4j.desk-mcp.endpoint \
-  -w
-
-security add-generic-password -U \
-  -a desk-mcp \
-  -s com.dong4j.desk-mcp.gateway-key \
-  -w
-```
-
-之后可以不设置 `MCP_ENDPOINT` 和 `DESK_GATEWAY_KEY`，改用：
-
-```bash
-export MCP_ENDPOINT_KEYCHAIN_SERVICE='com.dong4j.desk-mcp.endpoint'
-export DESK_GATEWAY_KEYCHAIN_SERVICE='com.dong4j.desk-mcp.gateway-key'
-```
-
-## 6. 配置 launchd 常驻
+## 5. 配置 launchd 常驻
 
 复制模板：
 
@@ -127,9 +115,9 @@ cp integrations/xiaozhi-mcp/launchd/com.dong4j.desk-mcp.plist.example \
 编辑副本并替换：
 
 - `__PROJECT_ROOT__`：本仓库绝对路径；
-- `__MCP_PIPE_DIR__`：官方 `mcp-calculator` 绝对路径；
-- `__DESK_GATEWAY_IP__`：Desk Gateway 局域网 IP；
 - `__HOME__`：当前用户主目录绝对路径。
+
+`launchd` 启动同一个 `run.sh`，会自动读取 `.env`，plist 中不再重复保存 Endpoint 或 Key。
 
 校验并启动：
 
@@ -154,7 +142,7 @@ launchctl bootout gui/$(id -u) \
   ~/Library/LaunchAgents/com.dong4j.desk-mcp.plist
 ```
 
-## 7. 本地测试
+## 6. 本地测试
 
 Mock 测试不会连接真实升降桌，也不会执行真实运动：
 
@@ -164,7 +152,7 @@ python3 -m unittest discover \
   -p 'test_*.py' -v
 ```
 
-## 8. 分层验收
+## 7. 分层验收
 
 1. 先调用 `desk.get_status`，核对数据与直接 REST 一致。
 2. 使用错误 Desk Key，确认工具明确失败且不返回成功。

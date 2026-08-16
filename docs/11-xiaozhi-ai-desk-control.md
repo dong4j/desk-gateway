@@ -202,7 +202,7 @@ curl --fail --silent --show-error \
 “配置角色”或“编辑功能”，复制完整的 MCP 接入点 WebSocket 地址。该地址应直接作为
 `MCP_ENDPOINT`，不需要部署本地 `xiaozhi-esp32-server` 或 `mcp-endpoint-server`。
 
-MCP 地址包含独立 token，只保存在运行环境或 macOS Keychain。Mac 上的桥接进程主动建立
+MCP 地址包含独立 token，只保存在桥接目录下被 Git 忽略的 `.env`。Mac 上的桥接进程主动建立
 出站 WebSocket，Desk Gateway REST 继续只在局域网内提供服务，不需要端口映射。
 
 ### 5.2 部署本地 MCP Endpoint Server（可选）
@@ -428,23 +428,18 @@ if __name__ == "__main__":
 
 ## 7. 启动桥接并注册工具
 
-在运行桥接的 Shell 中设置环境变量：
+复制并填写桥接配置：
 
 ```bash
-cd desk-mcp-bridge
-source .venv/bin/activate
-
-export DESK_GATEWAY_URL='http://192.168.21.65'
-export DESK_HTTP_TIMEOUT_SECONDS='5'
-
-read -r -s "MCP_ENDPOINT?XiaoZhi MCP Endpoint: "
-export MCP_ENDPOINT
-read -r -s "DESK_GATEWAY_KEY?Desk Gateway Key: "
-export DESK_GATEWAY_KEY
-
-export MCP_PIPE_DIR="$PWD"
-export MCP_PYTHON="$PWD/.venv/bin/python"
 cd /path/to/desk-gateway
+cp integrations/xiaozhi-mcp/.env.example integrations/xiaozhi-mcp/.env
+chmod 600 integrations/xiaozhi-mcp/.env
+```
+
+在 `.env` 中填写 MCP Endpoint、官方 `mcp-calculator` 路径、Python 路径、Desk Gateway 地址
+和 REST Key。然后直接启动：
+
+```bash
 ./integrations/xiaozhi-mcp/scripts/run.sh
 ```
 
