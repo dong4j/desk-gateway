@@ -15,9 +15,25 @@
     long_break: '长休息',
   };
 
+  const PREVIEW_PLAYING_HINT = '正在播放试听语音';
+
   function formatTime(seconds) {
     const total = Math.max(0, Math.floor(Number(seconds) || 0));
     return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  }
+
+  /**
+   * 试听成功提示跟设备 playing 走。reminderMsg 不是快照字段，
+   * 只在 POST 成功时写入的话，播放结束后会一直挂着。
+   */
+  function previewActionHint(currentHint, playing) {
+    if (playing) {
+      return PREVIEW_PLAYING_HINT;
+    }
+    if (currentHint === PREVIEW_PLAYING_HINT) {
+      return '';
+    }
+    return currentHint || '';
   }
 
   function viewModel(reminder = {}, audio = {}) {
@@ -49,5 +65,5 @@
     };
   }
 
-  return { formatTime, viewModel };
+  return { formatTime, viewModel, previewActionHint, PREVIEW_PLAYING_HINT };
 });

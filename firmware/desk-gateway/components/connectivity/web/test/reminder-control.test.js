@@ -23,4 +23,13 @@ view = Reminder.viewModel({ state: 'paused', phase: 'focus' }, {});
 assert.equal(view.pauseAction, 'resume');
 assert.equal(view.canSkip, true);
 
+assert.equal(
+  Reminder.previewActionHint('正在播放试听语音', true),
+  '正在播放试听语音');
+assert.equal(Reminder.previewActionHint('', true), '正在播放试听语音');
+assert.equal(Reminder.previewActionHint('正在播放试听语音', false), '');
+assert.equal(
+  Reminder.previewActionHint('提醒设置已保存，将从下一阶段生效', false),
+  '提醒设置已保存，将从下一阶段生效');
+
 console.log('reminder-control.test: ok');

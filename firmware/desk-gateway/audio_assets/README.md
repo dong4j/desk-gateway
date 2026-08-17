@@ -11,7 +11,7 @@ Asset IDs:
 - `focus_done`: focus session finished.
 - `break_done`: break finished.
 - `snooze_done`: snooze finished.
-- `attention_chime`: quiet preview chime.
+- `attention_chime`: short preview chime, loudness matched to the spoken prompts.
 
 `scripts/check-audio-assets.sh` checks format and required files before build. Firmware only accepts these IDs. There is no file-path or upload API.
 

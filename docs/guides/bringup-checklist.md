@@ -109,7 +109,7 @@ MAX98357A 到货后的接线：
 
 | ESP32-S3 | MAX98357A | 说明 |
 |---|---|---|
-| USB 输入侧 `5V` | `VIN` | 不使用桌子 RJ45 红线 3.3V |
+| USB 输入侧 `5V` | `VIN` | YD-ESP32-S3 排针 `5V` 出厂不通。飞线先接 `3V3`；要 5V 需短接板背 `IN-OUT` 焊盘。不要用桌子 RJ45 红线 |
 | `GND` | `GND` | ESP、功放、USB 电源共地 |
 | `GPIO14` | `BCLK` | I2S Bit Clock |
 | `GPIO15` | `LRC` / `WS` | I2S Word Select |

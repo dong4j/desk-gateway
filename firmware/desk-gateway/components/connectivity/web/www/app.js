@@ -677,6 +677,8 @@
       button.disabled = !view.audioAvailable || !audio.enabled || audio.volume_percent === 0;
     });
     audioStop.disabled = !view.audioAvailable || !audio.playing;
+    reminderMsg.textContent = DeskReminderControl.previewActionHint(
+      reminderMsg.textContent, !!audio.playing);
 
     const configValues = [
       [focusMinutes, reminder.focus_minutes],

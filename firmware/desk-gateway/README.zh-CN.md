@@ -60,13 +60,13 @@ idf.py -p PORT flash monitor
 
 | ESP32-S3 | MAX98357A |
 |----------|-----------|
-| USB 侧 5V | VIN |
+| USB 侧 5V 或 3V3 | VIN |
 | GND | GND |
 | GPIO14 | BCLK |
 | GPIO15 | LRC / WS |
 | GPIO16 | DIN |
 
-4 Ω / 3 W 喇叭接 `SPK+` / `SPK-`，喇叭端子都不要接 GND。不要用桌子 RJ45 的 3.3V 给功放供电。
+4 Ω / 3 W 喇叭接 `SPK+` / `SPK-`，喇叭端子都不要接 GND。YD-ESP32-S3 排针 `5V` 出厂不通 USB，飞线先用 `3V3`；要 5V 需短接板背 `IN-OUT`。不要用桌子 RJ45 的 3.3V 给功放供电。
 
 16 kHz / 16-bit / Mono WAV 包在独立的 4 MiB `audio` SPIFFS 分区。构建后必须完整 `idf.py flash`，把 `audio.bin` 烧到 `0x310000`；只跑 `idf.py app-flash` 不会更新语音包。第一次上电建议 20% 音量。固件和自动化测试已完成，音质、欠压、爆音和桌面总线 EMI 要等真机功放和喇叭验收。
 

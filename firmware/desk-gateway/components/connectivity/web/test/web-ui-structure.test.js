@@ -38,5 +38,10 @@ assertContains(
 assertContains(html, 'id="appDialog"', '页面需要统一的自定义弹窗');
 assertContains(app, 'function openAppDialog(options)', '交互需要复用统一弹窗入口');
 assertContains(app, 'function confirmAction(options)', '危险操作需要复用确认弹窗');
+assertContains(
+  app,
+  'DeskReminderControl.previewActionHint',
+  '试听提示必须按设备 playing 快照清除，不能只写死文案',
+);
 
 console.log('web-ui-structure.test: ok');

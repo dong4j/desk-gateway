@@ -41,6 +41,24 @@ static size_t make_wav(uint8_t *wav, uint32_t rate, uint16_t channels,
     return 48;
 }
 
+/** 扫描 data chunk 的绝对峰值，给提示音响度门禁用。 */
+static int16_t pcm_peak(const uint8_t *bytes, const desk_audio_wav_info_t *info)
+{
+    const int16_t *pcm = (const int16_t *)(bytes + info->data_offset);
+    size_t count = info->data_size / sizeof(int16_t);
+    int32_t peak = 0;
+    for (size_t i = 0; i < count; ++i) {
+        int32_t sample = pcm[i];
+        if (sample < 0) {
+            sample = -sample;
+        }
+        if (sample > peak) {
+            peak = sample;
+        }
+    }
+    return (int16_t)peak;
+}
+
 static void verify_asset(const char *path)
 {
     FILE *file = fopen(path, "rb");
@@ -55,6 +73,10 @@ static void verify_asset(const char *path)
     assert(desk_audio_wav_parse(bytes, (size_t)size, &info) ==
            DESK_AUDIO_WAV_OK);
     assert(info.data_size > 0);
+    /* 旧提示音峰值约 -32 dBFS，100% 音量仍远小于语音；门禁避免再回归。 */
+    if (strstr(path, "attention_chime") != NULL) {
+        assert(pcm_peak(bytes, &info) >= 8000);
+    }
     free(bytes);
 }
 

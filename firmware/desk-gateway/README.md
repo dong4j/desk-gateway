@@ -71,14 +71,16 @@ voice prompts. Wire the I2S amplifier as follows:
 
 | ESP32-S3 | MAX98357A |
 |----------|-----------|
-| USB-side 5V | VIN |
+| `3V3`, or `5V` after bridging `IN-OUT` | VIN |
 | GND | GND |
 | GPIO14 | BCLK |
 | GPIO15 | LRC / WS |
 | GPIO16 | DIN |
 
 Connect a 4 Ω / 3 W speaker between `SPK+` and `SPK-`; neither speaker terminal
-goes to GND. Do not power the amplifier from the desk RJ45 3.3V rail.
+goes to GND. The YD-ESP32-S3 header `5V` pin is not live from USB until the
+board `IN-OUT` pads are bridged; use `3V3` for bring-up. Do not power the
+amplifier from the desk RJ45 3.3V rail.
 
 The 16 kHz / 16-bit / Mono WAV pack lives in a separate 4 MiB `audio` SPIFFS
 partition. Use a full `idf.py flash` after building so `audio.bin` is flashed at

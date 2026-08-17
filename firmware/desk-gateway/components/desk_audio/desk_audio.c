@@ -9,6 +9,7 @@
 #include "desk_audio_wav.h"
 
 #include "driver/i2s_std.h"
+#include "esp_err.h"
 #include "esp_log.h"
 #include "esp_spiffs.h"
 #include "freertos/FreeRTOS.h"
@@ -25,6 +26,9 @@
 #define AUDIO_PARTITION_LABEL "audio"
 #define AUDIO_HEADER_SCAN_LIMIT 1024U
 #define AUDIO_MONO_SAMPLES_PER_CHUNK 512U
+/* IDF 例程用 1000ms；50ms 在 Wi-Fi/BLE 下不够等第一块 DMA 回队列。 */
+#define AUDIO_I2S_WRITE_TIMEOUT_MS 1000
+#define AUDIO_I2S_PRELOAD_SAMPLES 256U
 
 static const char *TAG = "desk_audio";
 static const char *NVS_NAMESPACE = "desk_audio";
@@ -226,13 +230,28 @@ static void mark_playback(bool playing, desk_audio_prompt_t prompt,
     xSemaphoreGive(s_mutex);
 }
 
+/** 使能前填满 DMA。不预载时第一笔 write 会空等 ISR，50ms 内容易变成 i2s_write_failed。 */
+static esp_err_t preload_and_enable_i2s(void)
+{
+    static const int16_t silence[AUDIO_I2S_PRELOAD_SAMPLES] = {0};
+    size_t loaded = sizeof(silence);
+    while (loaded == sizeof(silence)) {
+        esp_err_t err = i2s_channel_preload_data(
+            s_tx_channel, silence, sizeof(silence), &loaded);
+        if (err != ESP_OK) {
+            return err;
+        }
+    }
+    return i2s_channel_enable(s_tx_channel);
+}
+
 /** 写入前后静音并在播放结束时 disable，以减少旧 DMA 数据和复位爆音。 */
-static void write_silence(void)
+static esp_err_t write_silence(void)
 {
     static const int16_t silence[128] = {0};
     size_t written = 0;
-    (void)i2s_channel_write(s_tx_channel, silence, sizeof(silence), &written,
-                            pdMS_TO_TICKS(50));
+    return i2s_channel_write(s_tx_channel, silence, sizeof(silence), &written,
+                             pdMS_TO_TICKS(AUDIO_I2S_WRITE_TIMEOUT_MS));
 }
 
 static bool receive_preempting_command(audio_command_t *out)
@@ -282,14 +301,19 @@ static bool play_one(const audio_command_t *command, audio_command_t *out_next)
         return false;
     }
 
-    if (i2s_channel_enable(s_tx_channel) != ESP_OK) {
+    err = preload_and_enable_i2s();
+    if (err != ESP_OK) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "i2s_enable:%s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "%s", detail);
         fclose(file);
-        mark_playback(false, command->prompt, command->priority,
-                      "i2s_enable_failed");
+        mark_playback(false, command->prompt, command->priority, detail);
         return false;
     }
     mark_playback(true, command->prompt, command->priority, NULL);
-    write_silence();
+    if (write_silence() != ESP_OK) {
+        ESP_LOGW(TAG, "leading silence write failed");
+    }
 
     int16_t mono[AUDIO_MONO_SAMPLES_PER_CHUNK];
     int16_t stereo[AUDIO_MONO_SAMPLES_PER_CHUNK * 2U];
@@ -311,12 +335,16 @@ static bool play_one(const audio_command_t *command, audio_command_t *out_next)
             stereo[i * 2 + 1] = mono[i];
         }
         size_t written = 0;
-        err = i2s_channel_write(s_tx_channel, stereo,
-                                samples * 2U * sizeof(stereo[0]), &written,
-                                pdMS_TO_TICKS(50));
-        if (err != ESP_OK || written != samples * 2U * sizeof(stereo[0])) {
-            mark_playback(false, command->prompt, command->priority,
-                          "i2s_write_failed");
+        size_t expected = samples * 2U * sizeof(stereo[0]);
+        err = i2s_channel_write(s_tx_channel, stereo, expected, &written,
+                                pdMS_TO_TICKS(AUDIO_I2S_WRITE_TIMEOUT_MS));
+        if (err != ESP_OK || written != expected) {
+            char detail[64];
+            snprintf(detail, sizeof(detail), "i2s_write:%s",
+                     esp_err_to_name(err != ESP_OK ? err : ESP_ERR_INVALID_SIZE));
+            ESP_LOGE(TAG, "%s written=%u expected=%u", detail,
+                     (unsigned)written, (unsigned)expected);
+            mark_playback(false, command->prompt, command->priority, detail);
             break;
         }
         remaining -= (uint32_t)received;
@@ -325,7 +353,7 @@ static bool play_one(const audio_command_t *command, audio_command_t *out_next)
             break;
         }
     }
-    write_silence();
+    (void)write_silence();
     (void)i2s_channel_disable(s_tx_channel);
     fclose(file);
     mark_playback(false, command->prompt, command->priority, NULL);
