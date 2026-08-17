@@ -4,7 +4,7 @@
 
 Third-party clients that talk to the same LAN REST surface as Web and `scripts/desk-preset.sh`. None of them call a vendor I²C driver. Motion still goes through `desk_core` (STOP, child-lock, source ACL, ToF).
 
-How to move the desk: [`docs/guides/control-methods.md`](../docs/guides/control-methods.md). HTTP contract: [`docs/guides/rest-api.md`](../docs/guides/rest-api.md).
+How to move the desk: [`docs/guides/control-methods.md`](../docs/guides/control-methods.md). HTTP contract: [`docs/guides/rest-api.md`](../docs/guides/rest-api.md). Clone-then-configure IP, password, and repo paths: [`docs/guides/local-multi-client-setup.en.md`](../docs/guides/local-multi-client-setup.en.md).
 
 | Directory | What it is | Talks to Desk Gateway with |
 |---|---|---|

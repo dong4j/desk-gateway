@@ -4,7 +4,7 @@ GoatRemote 与 Karabiner 共用 [`scripts/desk-preset.sh`](../scripts/desk-prese
 登录接口。当前硬件 I²C 产品固件支持手动升、降、STOP 和档位 1/4。档位使用 TOF400C
 高度闭环，并由最高高度和低位右侧间距策略统一保护；高度未知或不满足上升条件时不会盲目运动。
 
-脚本已经直接配置局域网参数，换机器或改密码时改这两个值：
+脚本已经直接配置局域网参数，换机器或改密码时改这两个值。完整对照表（脚本、Karabiner 路径、手机、Watch、小智、D200H）见 [本地多端部署清单](./guides/local-multi-client-setup.md)。
 
 ```sh
 DESK_BASE_URL='http://<设备IP>'

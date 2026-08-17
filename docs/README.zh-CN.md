@@ -11,6 +11,7 @@ Phase 1（模拟面板 + 平台骨架 + 多入口控桌）已经完成。现在�
 | 你想做什么 | 文档 |
 |---|---|
 | 了解项目能做什么、怎么接线烧录 | 仓库根目录 [README.zh-CN.md](../README.zh-CN.md) |
+| 在自己的局域网上把多端控桌跑起来 | [本地多端部署清单](./guides/local-multi-client-setup.md) |
 | 用已有入口控桌 | [多种方式控制升降桌](./guides/control-methods.md) |
 | 写脚本或接第三方工具 | [REST API](./guides/rest-api.md) |
 | 接线、上电、排障 | [真机验收清单](./bringup-checklist.md) |
@@ -21,6 +22,7 @@ Phase 1（模拟面板 + 平台骨架 + 多入口控桌）已经完成。现在�
 | 文档 | 说明 |
 |---|---|
 | [多种方式控制升降桌](./guides/control-methods.md) | Web、REST、串口、手机、Watch、键盘、旋钮、语音、Ulanzi |
+| [本地多端部署清单](./guides/local-multi-client-setup.md) | 改 IP、密码、仓库路径，把各端指到同一台网关 |
 | [REST API](./guides/rest-api.md) | 鉴权、运动、档位、童锁、Bond、番茄时钟 |
 | [键盘、旋钮与语音控制](./keyboard-voice-control.md) | GoatRemote、Karabiner、旋钮 jog |
 | [小智 AI 控桌](./11-xiaozhi-ai-desk-control.md) | 语音到 MCP 再到 REST |

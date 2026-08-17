@@ -99,6 +99,8 @@ Serial: `up` / `down` / `stop` (type a full line, then Enter). Web hold buttons:
 ./scripts/desk-preset.sh stop
 ```
 
+Point Web, scripts, phone, Watch, keyboard, and voice at your own IP and password: [local multi-client setup](./docs/guides/local-multi-client-setup.en.md).
+
 ## Architecture
 
 ![Software architecture: clients share desk_core, then desk_driver and mxtark to the I²C controller](docs/architecture/images/software-architecture.png)
@@ -123,6 +125,7 @@ Start at [docs/README.md](./docs/README.md) ([中文](./docs/README.zh-CN.md)). 
 | Doc | Description |
 |-----|-------------|
 | [docs/guides/control-methods.md](./docs/guides/control-methods.md) | All ways to move the desk |
+| [docs/guides/local-multi-client-setup.en.md](./docs/guides/local-multi-client-setup.en.md) | IP, password, and path checklist |
 | [docs/guides/rest-api.md](./docs/guides/rest-api.md) | REST contract |
 | [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | What is done vs still to accept |
 | [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 release gates |

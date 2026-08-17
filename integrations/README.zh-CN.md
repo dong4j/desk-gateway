@@ -4,7 +4,7 @@
 
 这里放走同一套局域网 REST 的第三方入口，和 Web、`scripts/desk-preset.sh` 共用控制面。它们都不直接调厂商 I²C Driver。运动仍然经过 `desk_core`（STOP、童锁、来源权限、ToF）。
 
-怎么控桌见 [`docs/guides/control-methods.md`](../docs/guides/control-methods.md)。HTTP 契约见 [`docs/guides/rest-api.md`](../docs/guides/rest-api.md)。
+怎么控桌见 [`docs/guides/control-methods.md`](../docs/guides/control-methods.md)。HTTP 契约见 [`docs/guides/rest-api.md`](../docs/guides/rest-api.md)。克隆后要改的 IP、密码和仓库路径见 [`docs/guides/local-multi-client-setup.md`](../docs/guides/local-multi-client-setup.md)。
 
 | 目录 | 做什么 | 怎么接到 Desk Gateway |
 |---|---|---|

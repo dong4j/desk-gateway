@@ -5,6 +5,7 @@
 | 日期 | 2026-08-17 |
 | 适用阶段 | Phase 1 与 Phase 2 透传已完成；V1 发布还差内测包等 P1 门禁 |
 | REST 细节 | [REST API](./rest-api.md) |
+| 本地把多端跑起来 | [本地多端部署清单](./local-multi-client-setup.md) |
 | 接线烧录 | [真机验收清单](../bringup-checklist.md)、[固件 README](../../firmware/desk-gateway/README.zh-CN.md) |
 
 Desk Gateway 把厂商协议收进 `mxtark` Driver。下面这些入口都走同一套 `desk_core`：急停、童锁、来源权限、ToF 上升保护对所有入口生效。

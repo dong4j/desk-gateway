@@ -17,6 +17,7 @@
 | 已完成 / 待验收 / 未实现 | [`docs/5-current-status-and-priorities.md`](docs/5-current-status-and-priorities.md) |
 | V1 能否发布 | [`docs/12-v1-release-acceptance.md`](docs/12-v1-release-acceptance.md)（当前 **NO-GO**） |
 | 怎么控桌 | [`docs/guides/control-methods.md`](docs/guides/control-methods.md) |
+| 本地多端部署（改 IP / 密码 / 路径） | [`docs/guides/local-multi-client-setup.md`](docs/guides/local-multi-client-setup.md) |
 | REST 契约 | [`docs/guides/rest-api.md`](docs/guides/rest-api.md)，路由以 `firmware/desk-gateway/components/connectivity/web/desk_web.c` 为准 |
 | 接线、GPIO、真机步骤 | [`docs/bringup-checklist.md`](docs/bringup-checklist.md)、[`firmware/desk-gateway/README.md`](firmware/desk-gateway/README.md) |
 | 分层与硬件拓扑 | [`docs/architecture/overview.md`](docs/architecture/overview.md) |

@@ -99,6 +99,8 @@ idf.py -p 串口 flash monitor
 ./scripts/desk-preset.sh stop
 ```
 
+把 Web、脚本、手机、Watch、键盘、语音指到你自己的 IP 和密码：见 [本地多端部署清单](./docs/guides/local-multi-client-setup.md)。
+
 ## 架构
 
 ![软件分层：客户端经 desk_core、desk_driver、mxtark 到达控制盒](docs/architecture/images/software-architecture.png)
@@ -123,6 +125,7 @@ docs/                      需求、架构、使用说明
 | 文档 | 说明 |
 |------|------|
 | [docs/guides/control-methods.md](./docs/guides/control-methods.md) | 多种方式控桌 |
+| [docs/guides/local-multi-client-setup.md](./docs/guides/local-multi-client-setup.md) | 改 IP、密码、路径，把多端部署到本机局域网 |
 | [docs/guides/rest-api.md](./docs/guides/rest-api.md) | REST 契约 |
 | [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | 已完成与待验收 |
 | [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 发布门禁 |

@@ -11,6 +11,7 @@ Phase 1 (panel emulation + platform skeleton + multi-client control) is done. We
 | You want to | Doc |
 |---|---|
 | See what the project does and how to flash | Root [README.md](../README.md) |
+| Point every client at your LAN gateway | [Local multi-client setup](./guides/local-multi-client-setup.en.md) |
 | Move the desk with an existing client | [Control methods](./guides/control-methods.md) |
 | Script or integrate over HTTP | [REST API](./guides/rest-api.md) |
 | Wire, power, and debug hardware | [Bring-up checklist](./bringup-checklist.md) |
@@ -21,6 +22,7 @@ Phase 1 (panel emulation + platform skeleton + multi-client control) is done. We
 | Doc | What it covers |
 |---|---|
 | [Control methods](./guides/control-methods.md) | Web, REST, UART, phone, Watch, keyboard, knob, voice, Ulanzi |
+| [Local multi-client setup](./guides/local-multi-client-setup.en.md) | IP, password, and repo-path checklist for every client |
 | [REST API](./guides/rest-api.md) | Auth, motion, presets, child-lock, bonds, Pomodoro |
 | [Keyboard, knob, and voice](./keyboard-voice-control.md) | GoatRemote, Karabiner, knob jog |
 | [XiaoZhi AI desk control](./11-xiaozhi-ai-desk-control.md) | Voice → MCP → REST |
