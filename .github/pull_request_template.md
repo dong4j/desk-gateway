@@ -15,7 +15,11 @@
 ## Verification
 
 - [ ] `./scripts/check-firmware.sh` passes, or this change does not affect firmware.
-- [ ] Relevant documentation has been updated, or no documentation change is needed.
+- [ ] `cd mobile/app && npm run typecheck && npm test` passes, or this change does not affect the phone app.
+- [ ] `cd mobile/watch && swift test` passes, or this change does not affect Watch.
+- [ ] `cd integrations/xiaozhi-mcp && python3 -m unittest discover -s tests -p 'test_*.py' -v` passes, or this change does not affect the XiaoZhi bridge.
+- [ ] `cd integrations/ulanzi-d200h && npm test` passes, or this change does not affect the D200H plugin.
+- [ ] Relevant documentation and [CHANGELOG.md](../CHANGELOG.md) have been updated, or no documentation change is needed.
 
 | Check | Result / evidence | Not run reason |
 |-------|-------------------|----------------|

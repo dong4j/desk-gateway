@@ -1,0 +1,20 @@
+# Dependabot
+
+# Firmware Component Manager is not covered here. npm and Actions are.
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: /mobile/app
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: /integrations/ulanzi-d200h
+    schedule:
+      interval: weekly

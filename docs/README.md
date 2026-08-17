@@ -81,5 +81,9 @@ These have designs. They are not delivered features:
 
 | Doc | What it covers |
 |---|---|
+| [CHANGELOG](../CHANGELOG.md) | Unreleased snapshot; V1 is not tagged |
+| [Contributing](../CONTRIBUTING.md) | IDF v6.0.2 install, layer checks, PR expectations |
+| [Security](../SECURITY.md) | How to report vulnerabilities privately |
+| [Support](../SUPPORT.md) | Issue channels and hardware evidence |
 | [Standards](./standards/README.md) | Mandatory agent rules |
 | [Git commit convention](./standards/git-commit-convention.md) | Conventional Commits and staging bounds |

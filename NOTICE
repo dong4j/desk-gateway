@@ -2,26 +2,65 @@
 
 This repository’s **original** code is under the MIT License (see [LICENSE](./LICENSE)).
 
-It builds on and/or redistributes ideas and dependencies that remain under their own terms:
+Dependencies and adjacent projects keep their own terms. They are **not** all
+vendored here. Install or fetch them as documented.
 
-## ESP-IDF
+## Firmware
 
-- Project: [Espressif IoT Development Framework](https://github.com/espressif/esp-idf)
+### ESP-IDF
+
+- [Espressif IoT Development Framework](https://github.com/espressif/esp-idf) v6.0.2
 - License: Apache License 2.0
-- Not vendored in this repo; install separately to build the firmware.
+- Not vendored; install separately. NimBLE is part of ESP-IDF.
 
-## cJSON (via ESP Component Registry)
+### cJSON (ESP Component Registry)
 
-- Dependency: `espressif/cjson` (see `firmware/desk-gateway/components/connectivity/web/idf_component.yml`)
+- `espressif/cjson` — see `firmware/desk-gateway/components/connectivity/web/idf_component.yml`
 - Upstream: [DaveGamble/cJSON](https://github.com/DaveGamble/cJSON) (MIT)
 - Fetched at build time into `managed_components/` (gitignored).
 
+### mDNS (ESP Component Registry)
+
+- `espressif/mdns` — see `firmware/desk-gateway/components/connectivity/wifi/idf_component.yml`
+- License: Apache License 2.0 / Espressif terms for that component
+- Fetched at build time into `managed_components/` (gitignored).
+
+### VL53L1X (TOF400C)
+
+- `grrtzm/vl53l1x_library` 0.3.1 — see `firmware/desk-gateway/components/sensors/desk_tof/idf_component.yml`
+- ST VL53L1X silicon and vendor docs remain ST’s. This component is fetched at
+  build time into `managed_components/` (gitignored).
+
+### Audio assets
+
+- See [`firmware/desk-gateway/audio_assets/LICENSE.md`](firmware/desk-gateway/audio_assets/LICENSE.md).
+- Chinese spoken prompts are macOS `say` placeholders and are **not** claimed
+  as extra-licensed TTS output. Replace them before a product firmware drop.
+
+## Mobile and Watch
+
+- [Expo](https://expo.dev/) SDK 57, [React Native](https://reactnative.dev/),
+  and npm packages in `mobile/app/package.json` — each keeps its own license.
+  `node_modules/` is not committed.
+- `react-native-ble-manager` and other native modules: see their upstream repos.
+- Apple Watch app uses Apple watchOS / Swift / SwiftUI. Those SDKs are not
+  redistributed here. Bundle IDs and `DEVELOPMENT_TEAM` in `project.yml` /
+  `app.json` are the maintainer’s; forks must replace them.
+
+## Integrations (not vendored)
+
+- XiaoZhi official MCP pipe sample: [78/mcp-calculator](https://github.com/78/mcp-calculator) — clone separately.
+- Python package `mcp` (see `integrations/xiaozhi-mcp/requirements.txt`) — install into a local venv.
+- [UlanziDeckPlugin-SDK](https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK) — required to package the D200H plugin; not copied into this tree.
+- `ws` (Ulanzi plugin `package.json`) — MIT; install with npm when packaging.
+- Karabiner-Elements and GoatRemote are host apps the user installs; this repo only ships config / prompt extras.
+
 ## Protocol / product inspiration
 
-- [Upsy Desky](https://github.com/tjhorner/upsy-desky) — open standing-desk bridge concepts (UART-oriented). Desk Gateway targets a different physical/protocol path (I²C panel emulation / future MITM) for the desks documented here.
+- [Upsy Desky](https://github.com/tjhorner/upsy-desky) — open standing-desk bridge concepts (UART-oriented). Desk Gateway uses a different physical/protocol path (I²C panel emulation / MITM) for the desks documented here.
 
 ## Optional tooling (not vendored)
 
-- Protocol capture hardware: **[nanoDLA](https://github.com/wuxx/nanoDLA)** (open-source FX2 logic analyzer; use with PulseView / `fx2lafw`). Not required to build the firmware.
+- Protocol capture: **[nanoDLA](https://github.com/wuxx/nanoDLA)** (open-source FX2 logic analyzer; PulseView / `fx2lafw`). Not required to build firmware.
 
 If you add new third-party code, update this file and keep license headers intact.

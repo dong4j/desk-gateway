@@ -81,5 +81,9 @@ Phase 1（模拟面板 + 平台骨架 + 多入口控桌）已经完成。现在�
 
 | 文档 | 说明 |
 |---|---|
+| [CHANGELOG](../CHANGELOG.md) | 未发布快照；V1 尚未打 tag |
+| [参与贡献](../CONTRIBUTING.zh-CN.md) | IDF v6.0.2 安装、分层检查、PR 期望 |
+| [安全政策](../SECURITY.zh-CN.md) | 如何私下报告漏洞 |
+| [支持](../SUPPORT.zh-CN.md) | Issue 渠道和真机证据 |
 | [开发规范](./standards/README.zh-CN.md) | Agent 强制规范入口 |
 | [代码提交规范](./standards/git-commit-convention.md) | Conventional Commits 与暂存边界 |

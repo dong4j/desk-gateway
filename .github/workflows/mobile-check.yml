@@ -1,0 +1,39 @@
+name: Mobile Check
+
+on:
+  push:
+    paths:
+      - "mobile/app/**"
+      - ".github/workflows/mobile-check.yml"
+  pull_request:
+    paths:
+      - "mobile/app/**"
+      - ".github/workflows/mobile-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: mobile/app
+
+jobs:
+  typecheck-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/app/package-lock.json
+
+      - name: Install and check
+        run: |
+          npm ci
+          npm run typecheck
+          npm test

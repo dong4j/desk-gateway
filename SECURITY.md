@@ -1,5 +1,7 @@
 # Security Policy
 
+**Language:** English · [简体中文](./SECURITY.zh-CN.md)
+
 ## Supported versions
 
 This project is early-stage. Security fixes are applied on a best-effort basis to the default branch.
@@ -14,9 +16,11 @@ vulnerabilities that could put users at risk. Relevant examples include:
 - Protocol behavior that can cause uncontrolled or unexpectedly prolonged motion
 - A bypass of stop, timeout, or other motion-safety controls
 
-Private vulnerability reporting is not currently enabled for this repository.
-Use a private contact method published on the
-[maintainer's GitHub profile](https://github.com/dong4j) for an initial report.
+**Preferred:** GitHub [Private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-vulnerability)
+on this repository (Security tab → Report a vulnerability).
+
+**Otherwise:** use a private contact method on the
+[maintainer's GitHub profile](https://github.com/dong4j).
 If no private contact method is available, open the `Private contact request`
 issue form **without technical details**, logs, captures, or proof-of-concept
 material. A private channel can then be agreed upon.
@@ -38,4 +42,4 @@ to investigate and coordinate disclosure before publishing details.
 - Change the default Web password (`desk-gateway`) after first login
 - Keep the device on a trusted LAN; **do not** port-forward or expose HTTP to the Internet
 - Stay near the desk when commanding motion; rely on the motion timeout as a backstop, not the only safety measure
-- Treat reverse‑engineered protocols as incomplete; unexpected firmware on the desk host may behave differently
+- Treat reverse-engineered protocols as incomplete; unexpected firmware on the desk host may behave differently

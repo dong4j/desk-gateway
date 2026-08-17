@@ -15,11 +15,11 @@ idf.py build
 idf.py -p PORT flash monitor
 ```
 
-需要 ESP-IDF v6.0.2。Component Manager 首次构建会拉取 `espressif/cjson`。
+需要 ESP-IDF v6.0.2。克隆者按官方文档安装并设置 `IDF_PATH`，不要复制别人机器上的 Espressif 路径。Component Manager 首次构建会拉取 `espressif/cjson`。
 
 默认配置启用原生 NimBLE 外设，广播名为 `DeskGateway`。BLE 命令需要 Just Works 加密/绑定连接。UUID 和 LightBlue 步骤见 [ble-accessory-profile.md](../../docs/architecture/ble-accessory-profile.md)。
 
-日常完整烧录（含 `audio.bin`、保留 NVS）用仓库根目录的 `./scripts/flash-firmware.sh <串口>`。
+日常完整烧录（含 `audio.bin`、保留 NVS）用仓库根目录的 `./scripts/flash-firmware.sh <串口>`。脚本优先用环境里的 `IDF_PATH` / `IDF_PYTHON_ENV_PATH`。
 
 ## 配网
 

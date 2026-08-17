@@ -16,3 +16,5 @@
 
 构建前由 `scripts/check-audio-assets.sh` 检查格式与必需文件。固件只接受上述
 资源 ID，不开放文件路径或上传入口。
+
+授权与再分发限制见 [LICENSE.md](./LICENSE.md)。

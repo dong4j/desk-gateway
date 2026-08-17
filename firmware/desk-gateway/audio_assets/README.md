@@ -14,3 +14,5 @@ Asset IDs:
 - `attention_chime`: quiet preview chime.
 
 `scripts/check-audio-assets.sh` checks format and required files before build. Firmware only accepts these IDs. There is no file-path or upload API.
+
+Licensing and redistribution limits: [LICENSE.md](./LICENSE.md).

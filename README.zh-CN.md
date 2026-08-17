@@ -58,7 +58,7 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 - [ESP-IDF](https://docs.espressif.com/projects/esp-idf/) **v6.0.2**（本仓库不混用其他版本）
 - 目标芯片：`esp32s3`
 
-任何构建、烧录、监视命令都必须在**同一个 Shell**里先激活 IDF 环境，并确认 `idf.py --version` 输出 `ESP-IDF v6.0.2`。
+请按官方文档安装工具链，不要复制别人机器上的 `/Users/.../.espressif` 路径。任何构建、烧录、监视命令都必须在**同一个 Shell**里先激活 IDF 环境，并确认 `idf.py --version` 输出 `ESP-IDF v6.0.2`。细节见 [CONTRIBUTING.zh-CN.md](./CONTRIBUTING.zh-CN.md)。
 
 ### 编译烧录
 
@@ -124,6 +124,7 @@ docs/                      需求、架构、使用说明
 
 | 文档 | 说明 |
 |------|------|
+| [CHANGELOG.md](./CHANGELOG.md) | 未发布快照；V1 尚未打 tag |
 | [docs/guides/control-methods.md](./docs/guides/control-methods.md) | 多种方式控桌 |
 | [docs/guides/local-multi-client-setup.md](./docs/guides/local-multi-client-setup.md) | 改 IP、密码、路径，把多端部署到本机局域网 |
 | [docs/guides/rest-api.md](./docs/guides/rest-api.md) | REST 契约 |
@@ -155,11 +156,11 @@ docs/                      需求、架构、使用说明
 
 ## 参与贡献
 
-提交 Issue 或 PR 前，请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md) 和 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)，并通过 [SUPPORT.md](./SUPPORT.md) 确认渠道和所需证据。
+提交 Issue 或 PR 前，请阅读 [CONTRIBUTING.zh-CN.md](./CONTRIBUTING.zh-CN.md)（[English](./CONTRIBUTING.md)）和 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)，并通过 [SUPPORT.zh-CN.md](./SUPPORT.zh-CN.md) 确认渠道和所需证据。
 
 ## 安全说明
 
-见 [SECURITY.md](./SECURITY.md)。请修改默认 Web 密码，勿映射公网。
+见 [SECURITY.zh-CN.md](./SECURITY.zh-CN.md)（[English](./SECURITY.md)）。请修改默认 Web 密码，勿映射公网。
 
 ## 许可证
 

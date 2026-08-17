@@ -16,7 +16,13 @@ idf.py build
 idf.py -p PORT flash monitor
 ```
 
-Requires ESP-IDF v6.0.2. Component Manager pulls `espressif/cjson` on first build.
+Requires ESP-IDF v6.0.2. Clones must install the official toolchain and set
+`IDF_PATH`; do not copy another machine's Espressif paths. Component Manager
+pulls `espressif/cjson` on first build.
+
+Full flash (bootloader, partition table, app, `audio.bin`, NVS preserved):
+from the repo root, `./scripts/flash-firmware.sh PORT`. The script prefers
+`IDF_PATH` / `IDF_PYTHON_ENV_PATH` when set.
 
 The default configuration also enables the native NimBLE peripheral. It
 advertises as `DeskGateway`; BLE commands require a Just Works encrypted/bonded

@@ -1,0 +1,28 @@
+name: Watch Check
+
+on:
+  push:
+    paths:
+      - "mobile/watch/**"
+      - ".github/workflows/watch-check.yml"
+  pull_request:
+    paths:
+      - "mobile/watch/**"
+      - ".github/workflows/watch-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  swift-test:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mobile/watch
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run host Swift tests
+        run: swift test

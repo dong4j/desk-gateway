@@ -58,7 +58,7 @@ Wiring checklist: [docs/bringup-checklist.md](./docs/bringup-checklist.md)
 - [ESP-IDF](https://docs.espressif.com/projects/esp-idf/) **v6.0.2** (this repo does not support mixing other versions)
 - Target: `esp32s3`
 
-Activate the IDF environment in the **same shell** before any build, flash, or monitor command, then confirm `idf.py --version` prints `ESP-IDF v6.0.2`.
+Install the official toolchain. Do not copy another machine's `/Users/.../.espressif` paths. Activate IDF in the **same shell** before any build, flash, or monitor command, then confirm `idf.py --version` prints `ESP-IDF v6.0.2`. Details: [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ### Build and flash
 
@@ -124,7 +124,8 @@ Start at [docs/README.md](./docs/README.md) ([中文](./docs/README.zh-CN.md)). 
 
 | Doc | Description |
 |-----|-------------|
-| [docs/guides/control-methods.md](./docs/guides/control-methods.md) | All ways to move the desk |
+| [CHANGELOG.md](./CHANGELOG.md) | Unreleased snapshot; V1 is not tagged |
+| [docs/guides/control-methods.md](./docs/guides/control-methods.md) | All ways to move the desk (Chinese) |
 | [docs/guides/local-multi-client-setup.en.md](./docs/guides/local-multi-client-setup.en.md) | IP, password, and path checklist |
 | [docs/guides/rest-api.md](./docs/guides/rest-api.md) | REST contract |
 | [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | What is done vs still to accept |
@@ -155,11 +156,11 @@ Start at [docs/README.md](./docs/README.md) ([中文](./docs/README.zh-CN.md)). 
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). Before opening an issue, use the [support guide](./SUPPORT.md).
+See [CONTRIBUTING.md](./CONTRIBUTING.md) ([中文](./CONTRIBUTING.zh-CN.md)) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). Before opening an issue, use the [support guide](./SUPPORT.md) ([中文](./SUPPORT.zh-CN.md)).
 
 ## Security
 
-See [SECURITY.md](./SECURITY.md). Do not port-forward the Web UI. Change the default password after first login.
+See [SECURITY.md](./SECURITY.md) ([中文](./SECURITY.zh-CN.md)). Do not port-forward the Web UI. Change the default password after first login.
 
 ## License
 

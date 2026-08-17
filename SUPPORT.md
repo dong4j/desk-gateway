@@ -1,20 +1,21 @@
 # Support
 
+**Language:** English · [简体中文](./SUPPORT.zh-CN.md)
+
 Desk Gateway is an early-stage, community-maintained hardware project. Support
 is best-effort; there is no guaranteed response time or private one-to-one
 support channel.
-
-**中文说明：** 本项目当前为早期硬件项目，支持由社区尽力提供，不承诺响应时限。提交问题前请先查看文档和已有 Issue，并按下面的边界选择渠道。
 
 ## Before asking for help
 
 1. Read the [README](./README.md),
    [documentation index](./docs/README.md),
+   [local multi-client setup](./docs/guides/local-multi-client-setup.en.md),
    [control methods](./docs/guides/control-methods.md),
    [bring-up checklist](./docs/bringup-checklist.md), and relevant protocol
    notes in [`docs/`](./docs/).
 2. Search existing issues for the same hardware, firmware version, or symptom.
-3. Run `./scripts/check-firmware.sh` for firmware build failures.
+3. Run `./scripts/check-firmware.sh` for firmware build failures (ESP-IDF v6.0.2).
 4. Remove Wi-Fi passwords, tokens, MAC addresses, and other private data from
    logs or captures before sharing them.
 

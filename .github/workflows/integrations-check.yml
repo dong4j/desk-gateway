@@ -1,0 +1,52 @@
+name: Integrations Check
+
+on:
+  push:
+    paths:
+      - "integrations/xiaozhi-mcp/**"
+      - "integrations/ulanzi-d200h/**"
+      - ".github/workflows/integrations-check.yml"
+  pull_request:
+    paths:
+      - "integrations/xiaozhi-mcp/**"
+      - "integrations/ulanzi-d200h/**"
+      - ".github/workflows/integrations-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  xiaozhi-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run MCP bridge tests
+        working-directory: integrations/xiaozhi-mcp
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+  ulanzi-d200h:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: integrations/ulanzi-d200h/package-lock.json
+
+      - name: Install and test plugin logic
+        working-directory: integrations/ulanzi-d200h
+        run: |
+          npm ci
+          npm test

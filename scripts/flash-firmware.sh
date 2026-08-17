@@ -10,8 +10,27 @@ REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
 PROJECT_DIR="${REPO_ROOT}/firmware/desk-gateway"
 SDKCONFIG_FILE="${PROJECT_DIR}/sdkconfig"
 PARTITION_FILE="${PROJECT_DIR}/partitions.csv"
-IDF_ROOT="/Users/dong4j/.espressif/v6.0.2/esp-idf"
-IDF_VENV="/Users/dong4j/.espressif/tools/python/v6.0.2/venv"
+
+# Prefer a caller-provided IDF so clones are not stuck on the maintainer's
+# absolute paths. Fall back to this machine's Espressif v6.0.2 install.
+DEFAULT_IDF_ROOT="/Users/dong4j/.espressif/v6.0.2/esp-idf"
+DEFAULT_IDF_VENV="/Users/dong4j/.espressif/tools/python/v6.0.2/venv"
+
+if [[ -n "${IDF_PATH:-}" && -f "${IDF_PATH}/export.sh" ]]; then
+    IDF_ROOT="${IDF_PATH}"
+elif [[ -f "${DEFAULT_IDF_ROOT}/export.sh" ]]; then
+    IDF_ROOT="${DEFAULT_IDF_ROOT}"
+else
+    IDF_ROOT=""
+fi
+
+if [[ -n "${IDF_PYTHON_ENV_PATH:-}" && -d "${IDF_PYTHON_ENV_PATH}" ]]; then
+    IDF_VENV="${IDF_PYTHON_ENV_PATH}"
+elif [[ -d "${DEFAULT_IDF_VENV}" ]]; then
+    IDF_VENV="${DEFAULT_IDF_VENV}"
+else
+    IDF_VENV=""
+fi
 
 # 参数保持简单且显式，避免多串口环境下自动选择错误设备。
 usage() {
@@ -48,12 +67,14 @@ if (( $# == 2 )); then
 fi
 
 [[ -c "${SERIAL_PORT}" ]] || die "serial port is not a character device: ${SERIAL_PORT}"
-[[ -f "${IDF_ROOT}/export.sh" ]] || die "ESP-IDF v6.0.2 not found at ${IDF_ROOT}"
-[[ -d "${IDF_VENV}" ]] || die "ESP-IDF Python venv not found at ${IDF_VENV}"
+[[ -n "${IDF_ROOT}" && -f "${IDF_ROOT}/export.sh" ]] || \
+    die "ESP-IDF v6.0.2 not found. Install it, set IDF_PATH, and see CONTRIBUTING.md"
 
-export IDF_PYTHON_ENV_PATH="${IDF_VENV}"
 export IDF_PYTHON_CHECK_CONSTRAINTS=no
-# shellcheck disable=SC1091 -- 固定绝对路径由上面的存在性检查保护。
+if [[ -n "${IDF_VENV}" ]]; then
+    export IDF_PYTHON_ENV_PATH="${IDF_VENV}"
+fi
+# shellcheck disable=SC1091 -- path is validated above.
 source "${IDF_ROOT}/export.sh" >/dev/null
 
 IDF_VERSION="$(idf.py --version)"
