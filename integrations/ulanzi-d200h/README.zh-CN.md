@@ -1,6 +1,6 @@
 # Desk Gateway Ulanzi D200H 插件
 
-**语言：** [English](./README.md) · 简体中文
+**语言：** [English](README.md) · 简体中文
 
 该目录只保存插件源码，不包含 Ulanzi SDK、第三方运行库和构建产物。源码不能直接复制到
 UlanziStudio 安装目录；编译前需要自行下载官方 `UlanziDeckPlugin-SDK`。

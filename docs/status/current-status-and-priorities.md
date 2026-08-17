@@ -8,11 +8,11 @@
 | 作用 | 当前完成度和后续任务的唯一汇总入口 |
 
 本文汇总当前代码状态和用户真机验证结果。协议细节、接线步骤和分层设计仍分别以
-[协议逆向笔记](./3-protocol-reverse-notes.md)、[真机验收清单](./bringup-checklist.md)和
-[架构总览](./architecture/overview.md)为准。
-怎么控桌见 [多种方式控制升降桌](./guides/control-methods.md)。
+[协议逆向笔记](../architecture/protocol-reverse-notes.md)、[真机验收清单](../guides/bringup-checklist.md)和
+[架构总览](../architecture/overview.md)为准。
+怎么控桌见 [多种方式控制升降桌](../guides/control-methods.md)。
 V1 的执行顺序、证据记录和最终 GO/NO-GO 签署统一使用
-[V1 版本验收](./12-v1-release-acceptance.md)，本文不重复记录逐次验收结果。
+[V1 版本验收](v1-release-acceptance.md)，本文不重复记录逐次验收结果。
 
 **Phase 1 已完成。** 网关可以模拟原厂面板，并在局域网 / BLE 上用 Web、REST、串口、
 iPhone App、Android App、Watch、键盘、旋钮、GoatRemote、小智 MCP 和 Ulanzi D200H
@@ -32,7 +32,7 @@ iPhone App、Android App、Watch、键盘、旋钮、GoatRemote、小智 MCP 和
 | ⛔ 外部阻塞 | 继续工作依赖待到货硬件、抓包或第三方条件 |
 
 “已完成”表示代码已落地，并且对应核心真机路径已由负责人确认通过。
-V1 是否发布仍以 [V1 版本验收](./12-v1-release-acceptance.md) 的必选门禁签署为准。
+V1 是否发布仍以 [V1 版本验收](v1-release-acceptance.md) 的必选门禁签署为准。
 
 ## 2. 已完成
 
@@ -118,7 +118,7 @@ Phase 1 多入口控桌、Phase 2 透传和 P0 真机安全矩阵已经可用。
 
 - 新功能只有在代码完成且核心真机路径通过后，才能从“待验收”移动到“已完成”。
 - 仅通过编译、单元测试或模拟器不能替代桌子、手机或传感器真机验收。
-- 任务优先级发生变化时先更新本文，再同步 README、[文档索引](./README.md) 和架构总览摘要。
-- 详细测试证据写入 `bringup-checklist.md`，本文只保留结论和下一步。
+- 任务优先级发生变化时先更新本文，再同步 README、[文档索引](../README.md) 和架构总览摘要。
+- 详细测试证据写入 `guides/bringup-checklist.md`，本文只保留结论和下一步。
 - 使用方式和 REST 契约分别维护在 `guides/control-methods.md` 与 `guides/rest-api.md`。
-- V1 发布只以 `12-v1-release-acceptance.md` 的必选门禁和最终签署为准。
+- V1 发布只以 `status/v1-release-acceptance.md` 的必选门禁和最终签署为准。

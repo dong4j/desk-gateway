@@ -1,6 +1,6 @@
 # 小智 AI MCP 桥接
 
-**语言：** [English](./README.md) · 简体中文
+**语言：** [English](README.md) · 简体中文
 
 本目录把小智智能体提供的 MCP Endpoint 连接到 Desk Gateway REST。小智硬件继续使用官方
 固件，Desk Gateway 不需要公网地址，也不需要重新实现固件运动控制。

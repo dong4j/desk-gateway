@@ -4,7 +4,7 @@ All notable changes to Desk Gateway are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project is early-stage hardware. **V1 is not released** (see
-[`docs/12-v1-release-acceptance.md`](docs/12-v1-release-acceptance.md)).
+[`docs/status/v1-release-acceptance.md`](docs/status/v1-release-acceptance.md)).
 
 ## [Unreleased]
 

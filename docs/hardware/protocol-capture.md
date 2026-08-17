@@ -7,7 +7,7 @@
 | 日期 | 2026-08-05 |
 | 状态 | 草案 |
 | 对应阶段 | Phase 0（协议逆向） |
-| 前置文档 | [需求文档](./0-requirements.md) |
+| 前置文档 | [需求文档](../status/requirements.md) |
 
 本文说明如何在 **不断开原厂面板与主机正常连接** 的前提下，用逻辑分析仪旁路抓取 `CLK` / `DAT`，为后续 ESP32 模拟发令提供依据。
 
@@ -379,9 +379,9 @@ CLK 来源： 主机 / 面板 / 不明
 
 相关文档：
 
-- [需求文档](./0-requirements.md)
-- [协议逆向笔记](./3-protocol-reverse-notes.md)（已确认 I²C / TM1650）
-- [ESP32-S3 N16R8 主控选型](./2-esp32-s3-n16r8-platform.md)
+- [需求文档](../status/requirements.md)
+- [协议逆向笔记](../architecture/protocol-reverse-notes.md)（已确认 I²C / TM1650）
+- [ESP32-S3 N16R8 主控选型](esp32-s3-n16r8.md)
 
 ---
 

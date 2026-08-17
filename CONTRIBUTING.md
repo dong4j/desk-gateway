@@ -5,12 +5,12 @@
 Thanks for your interest in contributing.
 
 Participation in this project is governed by the
-[Code of Conduct](./CODE_OF_CONDUCT.md). Potential vulnerabilities must follow
-[SECURITY.md](./SECURITY.md) and must not be disclosed in a public issue.
+[Code of Conduct](CODE_OF_CONDUCT.md). Potential vulnerabilities must follow
+[SECURITY.md](SECURITY.md) and must not be disclosed in a public issue.
 
-Before opening an issue, read [SUPPORT.md](./SUPPORT.md) and pick the right
+Before opening an issue, read [SUPPORT.md](SUPPORT.md) and pick the right
 template. To put Web, scripts, phone, Watch, and keyboard on **your** LAN, follow
-[local multi-client setup](./docs/guides/local-multi-client-setup.en.md).
+[local multi-client setup](docs/guides/local-multi-client-setup.en.md).
 
 ## How to contribute
 
@@ -20,9 +20,9 @@ template. To put Web, scripts, phone, Watch, and keyboard on **your** LAN, follo
 4. Run the checks that match the layer you changed (below) before opening a PR.
 5. Complete the pull request template, including automated and hardware verification boundaries.
 6. Document protocol discoveries in `docs/` (what was verified vs unknown).
-   Start from [docs/README.md](./docs/README.md); usage changes go in
+   Start from [docs/README.md](docs/README.md); usage changes go in
    `docs/guides/control-methods.md` or `docs/guides/rest-api.md`.
-7. Record user-visible changes in [CHANGELOG.md](./CHANGELOG.md).
+7. Record user-visible changes in [CHANGELOG.md](CHANGELOG.md).
 
 ## ESP-IDF (firmware)
 
@@ -77,4 +77,4 @@ Compile or unit tests are not a substitute for real-desk motion, BLE radio, or T
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the MIT License (see [LICENSE](./LICENSE)).
+By contributing, you agree that your contributions are licensed under the MIT License (see [LICENSE](LICENSE)).

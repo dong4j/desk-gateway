@@ -7,7 +7,7 @@
 | 日期 | 2026-08-15 |
 | 状态 | 采集、显示、档位闭环与上升保护已实现；档位、最高高度和右侧障碍物真机安全矩阵已通过 |
 | 对应阶段 | 距离感知 / 高度闭环 / 上升保护 |
-| 前置文档 | [ESP32-S3 N16R8 主控选型与开发板说明](./2-esp32-s3-n16r8-platform.md) |
+| 前置文档 | [ESP32-S3 N16R8 主控选型与开发板说明](../hardware/esp32-s3-n16r8.md) |
 
 本文记录 Desk Gateway 当前使用的 TOF050C 和 TOF400C 接线、初始化、数据处理及运动限制。
 文中的数值以当前固件实现为准。2026-08-17 负责人确认第 7 节档位、最高高度和右侧障碍物
@@ -239,5 +239,5 @@ REST 状态包含：
 - [ST VL6180X 数据手册](https://www.st.com/resource/en/datasheet/vl6180x.pdf)
 - [ST VL53L1X](https://www.st.com/en/imaging-and-photonics-solutions/vl53l1x.html)
 - [ST VL53L1X 数据手册](https://www.st.com/resource/en/datasheet/vl53l1x.pdf)
-- [ESP32-S3 N16R8 主控选型与开发板说明](./2-esp32-s3-n16r8-platform.md)
-- [Desk Gateway 架构总览](./architecture/overview.md)
+- [ESP32-S3 N16R8 主控选型与开发板说明](../hardware/esp32-s3-n16r8.md)
+- [Desk Gateway 架构总览](overview.md)

@@ -1,12 +1,12 @@
 # Desk Gateway GoatRemote
 
-**Language:** English · [简体中文](./README.zh-CN.md)
+**Language:** English · [简体中文](README.zh-CN.md)
 
 GoatRemote spoken shortcuts for sit and stand. They run [`scripts/desk-preset.sh`](../../scripts/desk-preset.sh) the same way Karabiner does. There is no extra motion protocol.
 
 `prompt_template_completion_xml_desk.txt` is extra system prompt text for GoatRemote. It tells the model to treat injected custom commands as authoritative and not to invent a second shell path.
 
-Usage detail: [`docs/keyboard-voice-control.md`](../../docs/keyboard-voice-control.md). Parent index: [`../README.md`](../README.md).
+Usage detail: [`docs/guides/keyboard-voice-control.md`](../../docs/guides/keyboard-voice-control.md). Parent index: [`../README.md`](../README.md).
 
 ## Custom commands
 

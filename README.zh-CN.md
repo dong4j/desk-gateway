@@ -1,6 +1,6 @@
 # Desk Gateway
 
-**语言：** [English](./README.md) · 简体中文
+**语言：** [English](README.md) · 简体中文
 
 开源的 **升降桌智能网关**（ESP32-S3）。厂商协议收进可插拔 **Desk Driver**。Web、串口、BLE、手机、Watch、键盘、语音和 Stream Deck 类按键共用控制面 `desk_core`。
 
@@ -22,7 +22,7 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 | 小智 AI | 五个固定 MCP 工具 |
 | Ulanzi D200H | 请坐 / 站立 / 番茄时刻 |
 
-用法见 [多种方式控制升降桌](./docs/guides/control-methods.md)。REST 契约见 [REST API](./docs/guides/rest-api.md)。文档总目录：[docs/README.md](./docs/README.md)。
+用法见 [多种方式控制升降桌](docs/guides/control-methods.md)。REST 契约见 [REST API](docs/guides/rest-api.md)。文档总目录：[docs/README.md](docs/README.md)。
 
 ## 当前能力
 
@@ -35,7 +35,7 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 - **BLE Accessory Profile：** 最多三个 Central、单一运动所有者、加密 Client Info、配对窗口、Bond 管理、长按租约、断连停止
 - **高度一致：** Web / REST / BLE / OLED / 原厂面板都用处理后的 TOF400C 距离
 
-主固件用 **ESP-IDF v6.0.2** 构建。Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵已在真桌验收。V1 发布还取决于移动端内测包等剩余门禁，见 [当前状态与任务优先级](./docs/5-current-status-and-priorities.md)。
+主固件用 **ESP-IDF v6.0.2** 构建。Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵已在真桌验收。V1 发布还取决于移动端内测包等剩余门禁，见 [当前状态与任务优先级](docs/status/current-status-and-priorities.md)。
 
 ## 硬件
 
@@ -49,7 +49,7 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 
 红线只作为两个上拉电阻的电源端，**不得直接连接 ESP32 的 `3V3`**。拔掉原厂面板也会拿掉面板上实测为 `1.99 kΩ` 的两只上拉，ESP32 替代面板时必须补回。
 
-接线与验收：[docs/bringup-checklist.md](./docs/bringup-checklist.md)
+接线与验收：[docs/guides/bringup-checklist.md](docs/guides/bringup-checklist.md)
 
 ## 快速开始
 
@@ -58,7 +58,7 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 - [ESP-IDF](https://docs.espressif.com/projects/esp-idf/) **v6.0.2**（本仓库不混用其他版本）
 - 目标芯片：`esp32s3`
 
-请按官方文档安装工具链，不要复制别人机器上的 `/Users/.../.espressif` 路径。任何构建、烧录、监视命令都必须在**同一个 Shell**里先激活 IDF 环境，并确认 `idf.py --version` 输出 `ESP-IDF v6.0.2`。细节见 [CONTRIBUTING.zh-CN.md](./CONTRIBUTING.zh-CN.md)。
+请按官方文档安装工具链，不要复制别人机器上的 `/Users/.../.espressif` 路径。任何构建、烧录、监视命令都必须在**同一个 Shell**里先激活 IDF 环境，并确认 `idf.py --version` 输出 `ESP-IDF v6.0.2`。细节见 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。
 
 ### 编译烧录
 
@@ -99,7 +99,7 @@ idf.py -p 串口 flash monitor
 ./scripts/desk-preset.sh stop
 ```
 
-把 Web、脚本、手机、Watch、键盘、语音指到你自己的 IP 和密码：见 [本地多端部署清单](./docs/guides/local-multi-client-setup.md)。
+把 Web、脚本、手机、Watch、键盘、语音指到你自己的 IP 和密码：见 [本地多端部署清单](docs/guides/local-multi-client-setup.md)。
 
 ## 架构
 
@@ -120,20 +120,20 @@ docs/                      需求、架构、使用说明
 
 ## 文档
 
-从 [docs/README.zh-CN.md](./docs/README.zh-CN.md) 进入（[English](./docs/README.md)）。常用页：
+从 [docs/README.zh-CN.md](docs/README.zh-CN.md) 进入（[English](docs/README.md)）。常用页：
 
 | 文档 | 说明 |
 |------|------|
-| [CHANGELOG.md](./CHANGELOG.md) | 未发布快照；V1 尚未打 tag |
-| [docs/guides/control-methods.md](./docs/guides/control-methods.md) | 多种方式控桌 |
-| [docs/guides/local-multi-client-setup.md](./docs/guides/local-multi-client-setup.md) | 改 IP、密码、路径，把多端部署到本机局域网 |
-| [docs/guides/rest-api.md](./docs/guides/rest-api.md) | REST 契约 |
-| [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | 已完成与待验收 |
-| [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 发布门禁 |
-| [docs/architecture/overview.md](./docs/architecture/overview.md) | 架构总览 |
-| [docs/bringup-checklist.md](./docs/bringup-checklist.md) | 接线与真机检查 |
-| [docs/3-protocol-reverse-notes.md](./docs/3-protocol-reverse-notes.md) | 协议逆向笔记 |
-| [integrations/README.zh-CN.md](./integrations/README.zh-CN.md) | 第三方入口 |
+| [CHANGELOG.md](CHANGELOG.md) | 未发布快照；V1 尚未打 tag |
+| [docs/guides/control-methods.md](docs/guides/control-methods.md) | 多种方式控桌 |
+| [docs/guides/local-multi-client-setup.md](docs/guides/local-multi-client-setup.md) | 改 IP、密码、路径，把多端部署到本机局域网 |
+| [docs/guides/rest-api.md](docs/guides/rest-api.md) | REST 契约 |
+| [docs/status/current-status-and-priorities.md](docs/status/current-status-and-priorities.md) | 已完成与待验收 |
+| [docs/status/v1-release-acceptance.md](docs/status/v1-release-acceptance.md) | V1 发布门禁 |
+| [docs/architecture/overview.md](docs/architecture/overview.md) | 架构总览 |
+| [docs/guides/bringup-checklist.md](docs/guides/bringup-checklist.md) | 接线与真机检查 |
+| [docs/architecture/protocol-reverse-notes.md](docs/architecture/protocol-reverse-notes.md) | 协议逆向笔记 |
+| [integrations/README.zh-CN.md](integrations/README.zh-CN.md) | 第三方入口 |
 
 ## 路线图
 
@@ -156,15 +156,15 @@ docs/                      需求、架构、使用说明
 
 ## 参与贡献
 
-提交 Issue 或 PR 前，请阅读 [CONTRIBUTING.zh-CN.md](./CONTRIBUTING.zh-CN.md)（[English](./CONTRIBUTING.md)）和 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)，并通过 [SUPPORT.zh-CN.md](./SUPPORT.zh-CN.md) 确认渠道和所需证据。
+提交 Issue 或 PR 前，请阅读 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)（[English](CONTRIBUTING.md)）和 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)，并通过 [SUPPORT.zh-CN.md](SUPPORT.zh-CN.md) 确认渠道和所需证据。
 
 ## 安全说明
 
-见 [SECURITY.zh-CN.md](./SECURITY.zh-CN.md)（[English](./SECURITY.md)）。请修改默认 Web 密码，勿映射公网。
+见 [SECURITY.zh-CN.md](SECURITY.zh-CN.md)（[English](SECURITY.md)）。请修改默认 Web 密码，勿映射公网。
 
 ## 许可证
 
-本项目采用 **MIT License**，见 [LICENSE](./LICENSE)。ESP-IDF、cJSON 等第三方组件遵循各自许可证，见 [NOTICE](./NOTICE)。
+本项目采用 **MIT License**，见 [LICENSE](LICENSE)。ESP-IDF、cJSON 等第三方组件遵循各自许可证，见 [NOTICE](NOTICE)。
 
 ## 免责声明
 

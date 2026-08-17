@@ -6,9 +6,9 @@
 | 版本 | 0.18 |
 | 日期 | 2026-08-16 |
 | 状态 | BLE / REST 双通道代码、测试、通用构建和 Apple Watch 真机验收已完成 |
-| 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
-| 移动端方案 | [移动端技术选型与 Phase 0 方案](./mobile-app-technology-selection.md) |
-| 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
+| 关联协议 | [BLE 外设扩展 Profile v1](ble-accessory-profile.md) |
+| 移动端方案 | [移动端技术选型与 Phase 0 方案](../history/mobile-app-technology-selection.md) |
+| 多客户端设计 | [BLE 三客户端并发与配对设备管理](ble-multi-client-bond-management.md) |
 
 本文定义 Desk Gateway 的 Apple Watch 控制方案、已确认原型和实现验收边界。
 首版创建独立 watchOS App，直接复用 ESP32 GATT v1 和现有鉴权 REST，不修改固件协议。

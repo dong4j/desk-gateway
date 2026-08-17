@@ -173,7 +173,7 @@ xcodebuild -project DeskGatewayWatch.xcodeproj \
 8. 番茄时钟、语音设置和设备配置不触发意外运动；
 9. 双 ToF 上升限制和真实桌体 STOP 矩阵完成。
 
-详细签署入口使用 [`docs/12-v1-release-acceptance.md`](../12-v1-release-acceptance.md)。自动化、
+详细签署入口使用 [`docs/status/v1-release-acceptance.md`](../status/v1-release-acceptance.md)。自动化、
 模拟器、通用构建或一次安装成功都不能替代这些真机门禁。
 
 ## 5. iPhone：TestFlight 到 App Store

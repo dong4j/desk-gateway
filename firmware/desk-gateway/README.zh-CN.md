@@ -1,6 +1,6 @@
 # Desk Gateway 固件
 
-**语言：** [English](./README.md) · 简体中文
+**语言：** [English](README.md) · 简体中文
 
 升降桌网关的 ESP-IDF 工程。上级文档：[../../README.md](../../README.md) · [中文](../../README.zh-CN.md)。Web / REST / BLE / 手机 / Watch / 键盘 / 语音 / D200H 的用法见 [多种方式控制升降桌](../../docs/guides/control-methods.md)。REST 契约见 [REST API](../../docs/guides/rest-api.md)。
 
@@ -50,11 +50,13 @@ idf.py -p PORT flash monitor
 
 电阻是上拉，不是串联：白线和黑线仍直接接到对应 GPIO。ESP32 用 USB 独立供电。
 
-验收清单：[docs/bringup-checklist.md](../../docs/bringup-checklist.md)
+验收清单：[docs/guides/bringup-checklist.md](../../docs/guides/bringup-checklist.md)
 
 ## 番茄语音提醒（MAX98357A）
 
 默认固件带 ESP 本地番茄时钟和中文 WAV 语音。I2S 功放接线：
+
+![YD-ESP32-S3 与 MAX98357A 接线](../../docs/architecture/images/max98357a-wiring.png)
 
 | ESP32-S3 | MAX98357A |
 |----------|-----------|
@@ -98,7 +100,7 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 I (...) mxtark: I2C slave @0x24 SCL=4 SDA=5
 ```
 
-历史上的控制盒 digit 解码器和软件 I²C Slave 只在显式实验 Kconfig 后面，不会编进默认组件源列表。GPIO10/11 上的独立 TOF400C 现在提供滤波后的控制高度，并供给 Web / OLED / 原厂面板显示。TOF050C 只在高度低于 `800 mm` 且右侧间距低于 `80 mm` 时禁止上升；`940 mm` 上限始终生效。控制盒侧回退证据见 `docs/7-hardware-i2c-restoration-investigation.md`。
+历史上的控制盒 digit 解码器和软件 I²C Slave 只在显式实验 Kconfig 后面，不会编进默认组件源列表。GPIO10/11 上的独立 TOF400C 现在提供滤波后的控制高度，并供给 Web / OLED / 原厂面板显示。TOF050C 只在高度低于 `800 mm` 且右侧间距低于 `80 mm` 时禁止上升；`940 mm` 上限始终生效。控制盒侧回退证据见 `docs/hardware/i2c-restoration.md`。
 
 ## 最高安全高度
 

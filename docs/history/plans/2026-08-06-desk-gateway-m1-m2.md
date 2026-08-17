@@ -12,7 +12,7 @@
 
 **Tech Stack:** ESP-IDF ≥ 5.2，目标 `esp32s3`（YD-ESP32-S3 N16R8），`esp_http_server`，NVS，FreeRTOS，原生 HTML/CSS/JS（无 CDN）。
 
-**Spec:** `docs/superpowers/specs/2026-08-06-desk-gateway-platform-design.md`（已批准 v0.4）
+**Spec:** `docs/architecture/platform-design.md`（已批准 v0.4）
 
 ## Global Constraints
 
@@ -124,7 +124,7 @@ idf.py set-target esp32s3
 idf.py build
 ```
 
-Expected: Build complete，无 error。若本机无 IDF：先按 `docs/2-esp32-s3-n16r8-platform.md` 安装，再继续后续 Task。
+Expected: Build complete，无 error。若本机无 IDF：先按 `docs/hardware/esp32-s3-n16r8.md` 安装，再继续后续 Task。
 
 - [ ] **Step 5: Commit**
 
@@ -498,7 +498,7 @@ EOF
 - Create: `drivers/loctek`、`drivers/jiecang` stub（`get_caps` 全 false；动作为 `ESP_ERR_NOT_SUPPORTED`）
 - Modify: `firmware/phase1-panel-slave/README.md` → 指向 `../desk-gateway/`，注明停止维护
 - Modify: `firmware/desk-gateway/README.md` — 完整接线、命令、默认密码、安全警告
-- Modify: `docs/2-esp32-s3-n16r8-platform.md` — 主工程路径改为 `firmware/desk-gateway/`
+- Modify: `docs/hardware/esp32-s3-n16r8.md` — 主工程路径改为 `firmware/desk-gateway/`
 
 - [ ] **Step 1: 加 stub，Kconfig 选驱动仅 mxtark 默认可编译**
 
@@ -543,7 +543,7 @@ EOF
 
 ## Execution handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-08-06-desk-gateway-m1-m2.md`.
+Plan complete and saved to `docs/history/plans/2026-08-06-desk-gateway-m1-m2.md`.
 
 **Two execution options:**
 

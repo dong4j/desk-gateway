@@ -7,8 +7,8 @@
 | 日期 | 2026-08-17 |
 | 产品范围 | Mxtark 升降桌、ESP32-S3 Gateway、Web、iPhone、Android、Apple Watch |
 | 状态 | P0 真机门禁已通过；P1 发布门禁未完成 |
-| 状态汇总 | [当前状态与任务优先级](./5-current-status-and-priorities.md) |
-| 详细操作 | [真机接线、排障与验收清单](./bringup-checklist.md) |
+| 状态汇总 | [当前状态与任务优先级](current-status-and-priorities.md) |
+| 详细操作 | [真机接线、排障与验收清单](../guides/bringup-checklist.md) |
 
 本文是 Desk Gateway V1 的最终验收入口。代码实现、自动化测试、固件启动和真机验收必须
 分别记录；编译或单元测试通过不能替代桌体运动、BLE 射频、传感器和异常停止验收。
@@ -102,7 +102,7 @@ V1 发布判定：
 
 ### V1-04 双 ToF 档位与上升安全矩阵
 
-详细步骤以[双 ToF 距离传感器接入与安全策略](./4-tof-distance-sensor-plan.md)第 7 节为准。
+详细步骤以[双 ToF 距离传感器接入与安全策略](../architecture/tof-safety.md)第 7 节为准。
 
 - [x] 连续冷启动 20 次，两颗 ToF 地址、采样和 OLED 共存稳定。
 - [x] 550 / 870 mm 档位和 940 mm 最高高度闭环停止。
@@ -114,7 +114,7 @@ V1 发布判定：
 
 ### V1-05 原厂面板代理与童锁
 
-详细接线以[真机验收清单 B.4](./bringup-checklist.md#b4-phase-2-双口-rj45-透传接线)为准。
+详细接线以[真机验收清单 B.4](../guides/bringup-checklist.md#b4-phase-2-双口-rj45-透传接线)为准。
 
 - [x] 原厂面板短按/按住上升、下降和松手停止正常。
 - [x] 面板显示与 TOF400C 四舍五入后的厘米高度一致。

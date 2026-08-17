@@ -1,6 +1,6 @@
 # Desk Gateway Watch
 
-**Language:** English · [简体中文](./README.zh-CN.md)
+**Language:** English · [简体中文](README.zh-CN.md)
 
 Independent watchOS app. Apple Watch talks to Desk Gateway over BLE or LAN REST. Product interaction, Digital Crown stop timing, Pomodoro Reminder v1, and hardware gates: [`docs/architecture/apple-watch-control.md`](../../docs/architecture/apple-watch-control.md).
 

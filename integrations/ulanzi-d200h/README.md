@@ -1,6 +1,6 @@
 # Desk Gateway Ulanzi D200H plugin
 
-**Language:** English · [简体中文](./README.zh-CN.md)
+**Language:** English · [简体中文](README.zh-CN.md)
 
 This directory is plugin **source only**. It does not vendor the Ulanzi SDK, third-party runtimes, or build output. Do not copy this tree straight into the UlanziStudio plugins folder. Download official `UlanziDeckPlugin-SDK` before compiling.
 

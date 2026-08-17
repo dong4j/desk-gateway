@@ -1061,7 +1061,7 @@ python mcp_pipe.py desk_mcp.py
 | 最终完全离线 | 本地 Server + 本地 ASR/LLM/TTS + 本地 MCP |
 
 完整的 Desk MCP 工具、安全语义和桥接代码设计见
-[通过小智 AI 控制升降桌](./11-xiaozhi-ai-desk-control.md)。
+[通过小智 AI 控制升降桌](xiaozhi-ai-desk-control.md)。
 
 ## 9. 通过小智控制 Desk Gateway
 
@@ -1083,7 +1083,7 @@ flowchart LR
 上限的语音工具。
 
 完整架构、MCP Endpoint 部署、桥接代码、工具语义、安全前提和验收步骤见
-[通过小智 AI 控制升降桌](./11-xiaozhi-ai-desk-control.md)。
+[通过小智 AI 控制升降桌](xiaozhi-ai-desk-control.md)。
 
 ## 10. 验收清单
 

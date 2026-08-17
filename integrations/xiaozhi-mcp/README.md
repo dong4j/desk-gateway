@@ -1,6 +1,6 @@
 # XiaoZhi AI MCP bridge
 
-**Language:** English · [简体中文](./README.zh-CN.md)
+**Language:** English · [简体中文](README.zh-CN.md)
 
 This directory connects a XiaoZhi agent MCP endpoint to Desk Gateway REST. XiaoZhi hardware keeps using the official firmware. Desk Gateway does not need a public URL and does not reimplement motion control.
 

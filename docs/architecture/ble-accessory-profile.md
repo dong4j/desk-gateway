@@ -5,8 +5,8 @@
 | 文档 | DG-ARCH-BLE-ACC-001 |
 | 日期 | 2026-08-15 |
 | 状态 | 三连接、Client Info、运动所有权与 Bond 管理已实现；iPhone、Watch、Android 真机并发已通过 |
-| 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
-| 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
+| 关联 | [平台设计定稿](platform-design.md) |
+| 多客户端设计 | [BLE 三客户端并发与配对设备管理](ble-multi-client-bond-management.md) |
 
 > **当前固件边界（2026-08-15）**：协议 UUID 和字节布局保持不变，硬件 I²C 产品路径不解析
 > 控制盒 digit 高度。State 使用 TOF400C 高度，PRESET_1 / PRESET_4 已恢复闭环；高度未知或
@@ -58,7 +58,7 @@ Gateway 广播名为 `DeskGateway`，广播包包含 Desk Accessory Service UUID
 
 当前固件最多允许三个 BLE Central 同时在线，既有 UUID 和字节布局保持不变，并以可选的
 Client Info Characteristic 做向后兼容扩展；连接表、运动所有权和 Bond 管理语义以
-[三客户端方案](./ble-multi-client-bond-management.md)为准。
+[三客户端方案](ble-multi-client-bond-management.md)为准。
 
 | Attribute | UUID | Properties | 说明 |
 |---|---|---|---|

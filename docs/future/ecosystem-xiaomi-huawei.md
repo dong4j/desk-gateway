@@ -5,7 +5,7 @@
 | 文档 | DG-ARCH-ECO-001 |
 | 日期 | 2026-08-06 |
 | 状态 | 调研结论（会随官方政策变更；接入前再核实） |
-| 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md)、[需求](../0-requirements.md) |
+| 关联 | [平台设计定稿](../architecture/platform-design.md)、[需求](../status/requirements.md) |
 
 > 问题：Desk Gateway **后续接入小米、华为智能家居**时，是只要在现有 ESP32 上实现协议，还是必须加其他硬件？  
 > 结论摘要见 §1；细节与推荐路径见后文。

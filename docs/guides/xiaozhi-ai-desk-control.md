@@ -15,7 +15,7 @@
 指令转换成受控的 MCP 工具调用，再由局域网桥接程序访问 Desk Gateway REST 接口。
 
 小智固件、本地 Server 和两块硬件的烧录说明见
-[小智 AI 固件选择与本地 Server 部署](./10-xiaozhi-ai-firmware-and-local-server.md)。本文只讨论
+[小智 AI 固件选择与本地 Server 部署](xiaozhi-firmware-and-local-server.md)。本文只讨论
 语音控制升降桌的接入链路。
 
 ## 1. 结论
@@ -263,7 +263,7 @@ curl 'http://192.168.21.10:8004/mcp_endpoint/health?key=replace-with-key'
 ## 6. 创建 Desk MCP 桥接
 
 本文复用官方示例仓库的 `mcp_pipe.py`。Desk Gateway 专用桥接已经实现于
-[`integrations/xiaozhi-mcp/`](../integrations/xiaozhi-mcp/README.zh-CN.md)，包括固定 REST 客户端、
+[`integrations/xiaozhi-mcp/`](../../integrations/xiaozhi-mcp/README.zh-CN.md)，包括固定 REST 客户端、
 MCP Server、启动脚本、launchd 模板和 Mock 测试。以下内嵌代码只用于解释工具语义，实际
 部署以仓库实现为准。
 
@@ -640,5 +640,5 @@ driver
 - [MCP 接入点使用指南](https://github.com/xinnan-tech/xiaozhi-esp32-server/blob/main/docs/mcp-endpoint-integration.md)
 - [MCP Endpoint Server](https://github.com/xinnan-tech/mcp-endpoint-server)
 - [小智 MCP 示例](https://github.com/78/mcp-calculator)
-- [Desk Gateway 固件说明](../firmware/desk-gateway/README.zh-CN.md)
-- [键盘、旋钮与语音控制](./keyboard-voice-control.md)
+- [Desk Gateway 固件说明](../../firmware/desk-gateway/README.zh-CN.md)
+- [键盘、旋钮与语音控制](keyboard-voice-control.md)

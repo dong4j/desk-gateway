@@ -8,12 +8,12 @@ support channel.
 
 ## Before asking for help
 
-1. Read the [README](./README.md),
-   [documentation index](./docs/README.md),
-   [local multi-client setup](./docs/guides/local-multi-client-setup.en.md),
-   [control methods](./docs/guides/control-methods.md),
-   [bring-up checklist](./docs/bringup-checklist.md), and relevant protocol
-   notes in [`docs/`](./docs/).
+1. Read the [README](README.md),
+   [documentation index](docs/README.md),
+   [local multi-client setup](docs/guides/local-multi-client-setup.en.md),
+   [control methods](docs/guides/control-methods.md),
+   [bring-up checklist](docs/guides/bringup-checklist.md), and relevant protocol
+   notes in [`docs/`](docs).
 2. Search existing issues for the same hardware, firmware version, or symptom.
 3. Run `./scripts/check-firmware.sh` for firmware build failures (ESP-IDF v6.0.2).
 4. Remove Wi-Fi passwords, tokens, MAC addresses, and other private data from
@@ -26,8 +26,8 @@ support channel.
 | Documented behavior fails or a reproducible defect exists | Open a **Bug report** using the issue form |
 | A capability, desk driver, integration, or documentation workflow is missing | Open a **Feature request** using the issue form |
 | General setup or usage question | Check documentation and existing issues first; if the documented path fails, file a Bug report with complete environment details |
-| Potential vulnerability or unsafe unauthorized control | Follow [SECURITY.md](./SECURITY.md); do **not** publish details in an issue |
-| Community conduct incident | Follow [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) |
+| Potential vulnerability or unsafe unauthorized control | Follow [SECURITY.md](SECURITY.md); do **not** publish details in an issue |
+| Community conduct incident | Follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 
 ## Hardware and protocol evidence
 

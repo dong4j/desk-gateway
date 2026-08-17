@@ -4,11 +4,11 @@
 
 欢迎提 Issue / PR。
 
-参与本项目须遵守 [行为准则](./CODE_OF_CONDUCT.md)。潜在漏洞按 [SECURITY.zh-CN.md](./SECURITY.zh-CN.md)
+参与本项目须遵守 [行为准则](CODE_OF_CONDUCT.md)。潜在漏洞按 [SECURITY.zh-CN.md](SECURITY.zh-CN.md)
 处理，**不要**发到公开 Issue。
 
-提交问题前先读 [SUPPORT.zh-CN.md](./SUPPORT.zh-CN.md) 并选对模板。要把 Web、脚本、手机、Watch、键盘
-接到**你自己的**局域网，按 [本地多端部署清单](./docs/guides/local-multi-client-setup.md) 改 IP、密码和路径。
+提交问题前先读 [SUPPORT.zh-CN.md](SUPPORT.zh-CN.md) 并选对模板。要把 Web、脚本、手机、Watch、键盘
+接到**你自己的**局域网，按 [本地多端部署清单](docs/guides/local-multi-client-setup.md) 改 IP、密码和路径。
 
 ## 怎么贡献
 
@@ -17,9 +17,9 @@
 3. diff 保持聚焦，不要夹带无关重构。
 4. 按下面「分层检查」跑过对应命令再开 PR。
 5. 填完整 PR 模板，写清自动化和真机验证边界。
-6. 协议发现记在 `docs/`，写明已验证 vs 未知。入口见 [docs/README.zh-CN.md](./docs/README.zh-CN.md)；
+6. 协议发现记在 `docs/`，写明已验证 vs 未知。入口见 [docs/README.zh-CN.md](docs/README.zh-CN.md)；
    用法改动放 `docs/guides/control-methods.md` 或 `docs/guides/rest-api.md`。
-7. 用户可见变化写入 [CHANGELOG.md](./CHANGELOG.md)。
+7. 用户可见变化写入 [CHANGELOG.md](CHANGELOG.md)。
 
 ## ESP-IDF（固件）
 
@@ -73,4 +73,4 @@ idf.py --version                   # 必须输出: ESP-IDF v6.0.2
 
 ## 许可证
 
-提交即表示同意按 MIT License 授权，见 [LICENSE](./LICENSE)。
+提交即表示同意按 MIT License 授权，见 [LICENSE](LICENSE)。

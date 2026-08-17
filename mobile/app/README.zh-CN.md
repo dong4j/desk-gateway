@@ -1,18 +1,18 @@
 # Desk Gateway Mobile
 
-**语言：** [English](./README.md) · 简体中文
+**语言：** [English](README.md) · 简体中文
 
 Desk Gateway 的跨平台移动端工程，采用 React Native、Expo Development Build 和 TypeScript。
 
 当前状态是 **Phase 1 多入口控桌已可用，Android 与三客户端并发已通过**：已按确认原型实现
 Home / Pomodoro / Settings，并通过统一客户端支持 BLE GATT 与局域网 REST。技术决策和真机门禁见
-[`docs/architecture/mobile-app-technology-selection.md`](../../docs/architecture/mobile-app-technology-selection.md)。
+[`docs/history/mobile-app-technology-selection.md`](../../docs/history/mobile-app-technology-selection.md)。
 
 BLE 优先、Wi-Fi 回退、mDNS 和安全边界见
 [`docs/architecture/mobile-connection-transport.md`](../../docs/architecture/mobile-connection-transport.md)。
 
 项目完成度和剩余任务优先级见
-[`docs/5-current-status-and-priorities.md`](../../docs/5-current-status-and-priorities.md)。
+[`docs/status/current-status-and-priorities.md`](../../docs/status/current-status-and-priorities.md)。
 
 日常控桌入口见
 [`docs/guides/control-methods.md`](../../docs/guides/control-methods.md)。

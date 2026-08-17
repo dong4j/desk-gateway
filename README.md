@@ -1,6 +1,6 @@
 # Desk Gateway
 
-**Language:** English · [简体中文](./README.zh-CN.md)
+**Language:** English · [简体中文](README.zh-CN.md)
 
 Open-source **standing-desk smart gateway** for ESP32-S3. Vendor protocols live behind pluggable **Desk Drivers**. Web, UART, BLE, phone, Watch, keyboard, voice, and Stream Deck-style keys share one control plane (`desk_core`).
 
@@ -22,7 +22,7 @@ Phase 1 is complete: the gateway can emulate the original Mxtark panel and move 
 | XiaoZhi AI | Five fixed MCP tools over REST |
 | Ulanzi D200H | Sit / stand / Pomodoro keys |
 
-How to use each client: [docs/guides/control-methods.md](./docs/guides/control-methods.md) (Chinese). REST contract: [docs/guides/rest-api.md](./docs/guides/rest-api.md).
+How to use each client: [docs/guides/control-methods.md](docs/guides/control-methods.md) (Chinese). REST contract: [docs/guides/rest-api.md](docs/guides/rest-api.md).
 
 ## Features
 
@@ -35,7 +35,7 @@ How to use each client: [docs/guides/control-methods.md](./docs/guides/control-m
 - **BLE Accessory Profile:** up to three Centrals, one motion owner, encrypted Client Info, pairing windows, Bond management, hold leases, disconnect-stop
 - **Same height everywhere:** Web / REST / BLE / OLED / original panel use the filtered TOF400C distance
 
-The main firmware builds with **ESP-IDF v6.0.2**. Phase 2 pass-through, the abnormal-stop matrix, three-client concurrency, and the dual-ToF safety matrix have been accepted on the real desk. V1 release still depends on remaining gates such as mobile beta builds; see [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md).
+The main firmware builds with **ESP-IDF v6.0.2**. Phase 2 pass-through, the abnormal-stop matrix, three-client concurrency, and the dual-ToF safety matrix have been accepted on the real desk. V1 release still depends on remaining gates such as mobile beta builds; see [docs/status/current-status-and-priorities.md](docs/status/current-status-and-priorities.md).
 
 ## Hardware
 
@@ -49,7 +49,7 @@ The main firmware builds with **ESP-IDF v6.0.2**. Phase 2 pass-through, the abno
 
 The red 3.3V wire is only the pull-up source. **Never connect it directly to the ESP32 3V3 pin.** Removing the original panel also removes its two measured `1.99 kΩ` pull-ups; restore them on the ESP32 setup.
 
-Wiring checklist: [docs/bringup-checklist.md](./docs/bringup-checklist.md)
+Wiring checklist: [docs/guides/bringup-checklist.md](docs/guides/bringup-checklist.md)
 
 ## Quick start
 
@@ -58,7 +58,7 @@ Wiring checklist: [docs/bringup-checklist.md](./docs/bringup-checklist.md)
 - [ESP-IDF](https://docs.espressif.com/projects/esp-idf/) **v6.0.2** (this repo does not support mixing other versions)
 - Target: `esp32s3`
 
-Install the official toolchain. Do not copy another machine's `/Users/.../.espressif` paths. Activate IDF in the **same shell** before any build, flash, or monitor command, then confirm `idf.py --version` prints `ESP-IDF v6.0.2`. Details: [CONTRIBUTING.md](./CONTRIBUTING.md).
+Install the official toolchain. Do not copy another machine's `/Users/.../.espressif` paths. Activate IDF in the **same shell** before any build, flash, or monitor command, then confirm `idf.py --version` prints `ESP-IDF v6.0.2`. Details: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Build and flash
 
@@ -99,7 +99,7 @@ Serial: `up` / `down` / `stop` (type a full line, then Enter). Web hold buttons:
 ./scripts/desk-preset.sh stop
 ```
 
-Point Web, scripts, phone, Watch, keyboard, and voice at your own IP and password: [local multi-client setup](./docs/guides/local-multi-client-setup.en.md).
+Point Web, scripts, phone, Watch, keyboard, and voice at your own IP and password: [local multi-client setup](docs/guides/local-multi-client-setup.en.md).
 
 ## Architecture
 
@@ -120,20 +120,20 @@ docs/                      Requirements, architecture, user guides
 
 ## Documentation
 
-Start at [docs/README.md](./docs/README.md) ([中文](./docs/README.zh-CN.md)). High-traffic pages:
+Start at [docs/README.md](docs/README.md) ([中文](docs/README.zh-CN.md)). High-traffic pages:
 
 | Doc | Description |
 |-----|-------------|
-| [CHANGELOG.md](./CHANGELOG.md) | Unreleased snapshot; V1 is not tagged |
-| [docs/guides/control-methods.md](./docs/guides/control-methods.md) | All ways to move the desk (Chinese) |
-| [docs/guides/local-multi-client-setup.en.md](./docs/guides/local-multi-client-setup.en.md) | IP, password, and path checklist |
-| [docs/guides/rest-api.md](./docs/guides/rest-api.md) | REST contract |
-| [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | What is done vs still to accept |
-| [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 release gates |
-| [docs/architecture/overview.md](./docs/architecture/overview.md) | Architecture overview |
-| [docs/bringup-checklist.md](./docs/bringup-checklist.md) | Wiring and hardware checks |
-| [docs/3-protocol-reverse-notes.md](./docs/3-protocol-reverse-notes.md) | Protocol reverse notes |
-| [integrations/README.md](./integrations/README.md) | Third-party clients |
+| [CHANGELOG.md](CHANGELOG.md) | Unreleased snapshot; V1 is not tagged |
+| [docs/guides/control-methods.md](docs/guides/control-methods.md) | All ways to move the desk (Chinese) |
+| [docs/guides/local-multi-client-setup.en.md](docs/guides/local-multi-client-setup.en.md) | IP, password, and path checklist |
+| [docs/guides/rest-api.md](docs/guides/rest-api.md) | REST contract |
+| [docs/status/current-status-and-priorities.md](docs/status/current-status-and-priorities.md) | What is done vs still to accept |
+| [docs/status/v1-release-acceptance.md](docs/status/v1-release-acceptance.md) | V1 release gates |
+| [docs/architecture/overview.md](docs/architecture/overview.md) | Architecture overview |
+| [docs/guides/bringup-checklist.md](docs/guides/bringup-checklist.md) | Wiring and hardware checks |
+| [docs/architecture/protocol-reverse-notes.md](docs/architecture/protocol-reverse-notes.md) | Protocol reverse notes |
+| [integrations/README.md](integrations/README.md) | Third-party clients |
 
 ## Roadmap
 
@@ -156,15 +156,15 @@ Start at [docs/README.md](./docs/README.md) ([中文](./docs/README.zh-CN.md)). 
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) ([中文](./CONTRIBUTING.zh-CN.md)) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). Before opening an issue, use the [support guide](./SUPPORT.md) ([中文](./SUPPORT.zh-CN.md)).
+See [CONTRIBUTING.md](CONTRIBUTING.md) ([中文](CONTRIBUTING.zh-CN.md)) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Before opening an issue, use the [support guide](SUPPORT.md) ([中文](SUPPORT.zh-CN.md)).
 
 ## Security
 
-See [SECURITY.md](./SECURITY.md) ([中文](./SECURITY.zh-CN.md)). Do not port-forward the Web UI. Change the default password after first login.
+See [SECURITY.md](SECURITY.md) ([中文](SECURITY.zh-CN.md)). Do not port-forward the Web UI. Change the default password after first login.
 
 ## License
 
-**MIT License** — [LICENSE](./LICENSE). Third-party components keep their own licenses — [NOTICE](./NOTICE).
+**MIT License** — [LICENSE](LICENSE). Third-party components keep their own licenses — [NOTICE](NOTICE).
 
 ## Disclaimer
 

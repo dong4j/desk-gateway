@@ -42,6 +42,18 @@ DATABASE = ((76, 29, 149, 102), (167, 139, 250, 255))
 SECURITY = ((136, 19, 55, 102), (251, 113, 133, 255))
 BUS = ((251, 146, 60, 76), (251, 146, 60, 255))
 EXTERNAL = ((30, 41, 59, 128), (148, 163, 184, 255))
+AMP = ((88, 28, 135, 120), (192, 132, 252, 255))  # purple MAX98357A module
+BOARD = ((15, 23, 42, 255), (71, 85, 105, 255))
+
+# Fritzing-style wire colors, shifted for the dark canvas.
+WIRE_5V = (239, 68, 68, 255)       # red
+WIRE_GND = (148, 163, 184, 255)    # slate; true black disappears on #020617
+WIRE_BCLK = (156, 163, 175, 255)   # grey
+WIRE_LRC = (168, 85, 247, 255)     # purple
+WIRE_DIN = (226, 232, 240, 255)    # white
+WIRE_SPK = (248, 113, 113, 255)    # speaker pair
+PIN_GOLD = (251, 191, 36, 255)
+NC = (71, 85, 105, 255)
 
 FONT_SANS = "/System/Library/Fonts/Hiragino Sans GB.ttc"
 FONT_MONO = "/System/Library/Fonts/SFNSMono.ttf"
@@ -198,6 +210,23 @@ class Canvas:
             [(px(x1), px(y1)), (px(p1[0]), px(p1[1])), (px(p2[0]), px(p2[1]))],
             fill=ARROW,
         )
+
+    def circle(self, x: float, y: float, r: float, fill, outline=None, width: float = 1.5) -> None:
+        xy = [px(x - r), px(y - r), px(x + r), px(y + r)]
+        self.draw.ellipse(xy, fill=fill, outline=outline, width=max(1, px(width)) if outline else 0)
+
+    def pin(self, x: float, y: float, fill=PIN_GOLD, r: float = 5) -> None:
+        """Header pin: gold pad with a dark via so wires have a clear endpoint."""
+        self.circle(x, y, r, fill, WHITE, 1.0)
+        self.circle(x, y, 1.6, MASK, None)
+
+    def wire(self, points: list[tuple[float, float]], color, width: float = 3.5, label: str = "") -> None:
+        """Orthogonal (or mixed) polyline. Label sits on the longest segment."""
+        xy = [(px(x), px(y)) for x, y in points]
+        self.draw.line(xy, fill=color, width=max(2, px(width)), joint="curve")
+        if label and len(points) >= 2:
+            mid = points[len(points) // 2]
+            self.text(mid[0], mid[1] - 12, label, color, font_mono_small())
 
     def _dashed_rounded(self, box: Box, color, radius: float, dash: float, gap: float, width: float) -> None:
         """Approximate a dashed rounded-rect by walking the perimeter.
@@ -403,11 +432,170 @@ def render_hardware() -> Path:
     return c.save("hardware-topology.png")
 
 
+def render_audio_wiring() -> Path:
+    """Fritzing-style I2S wiring: YD-ESP32-S3 → MAX98357A → speaker.
+
+    Why this exists:
+        The bring-up reference photo is a Raspberry Pi Zero + MAX98357A +
+        SPH0645 mic. Desk Gateway only plays local WAV; there is no I2S
+        microphone. GPIO14/15/16 and USB 5V are the frozen pin map.
+
+    Layout mirrors the reference: MCU left, amp center, speaker right,
+    color-coded wires, GAIN/SD left floating.
+    """
+    c = Canvas(1400, 900)
+    c.header(
+        "Desk Gateway · MAX98357A Wiring",
+        "YD-ESP32-S3 I2S TX  →  MAX98357A  →  4 Ω / 3 W speaker. Playback only; no SPH0645 mic.",
+    )
+
+    # Pin rows shared by ESP right edge and amp left edge so I2S wires stay straight.
+    y_lrc, y_bclk, y_din = 292, 336, 380
+    y_gain, y_sd = 424, 456
+    y_vin, y_gnd = 508, 548
+
+
+    # --- ESP32-S3 development board ---
+    esp = Box(48, 108, 380, 500)
+    c.rounded(esp, BOARD[0], BOARD[1], width=2, radius=10)
+    c.text(esp.cx, esp.y + 22, "YD-ESP32-S3  N16R8", WHITE, font_name())
+    c.text(esp.cx, esp.y + 42, "USB-C 独立供电", MUTED, font_tiny())
+
+    uart_usb = Box(esp.x + 28, esp.y + 58, 140, 28)
+    otg_usb = Box(esp.x + 212, esp.y + 58, 140, 28)
+    c.rounded(uart_usb, (30, 41, 59, 255), MUTED, width=1.2, radius=6)
+    c.rounded(otg_usb, (30, 41, 59, 255), MUTED, width=1.2, radius=6)
+    c.text(uart_usb.cx, uart_usb.cy, "USB UART", MUTED, font_tiny())
+    c.text(otg_usb.cx, otg_usb.cy, "USB OTG", MUTED, font_tiny())
+
+    module = Box(esp.x + 70, esp.y + 100, 240, 72)
+    c.component(module, BACKEND, "ESP32-S3-WROOM-1", "I2S TX · no MCLK")
+
+    # Occupied desk / sensor pins stay on the left so they are not reused for I2S.
+    occupied = [
+        (400, "GPIO4", "Desk CLK"),
+        (424, "GPIO5", "Desk DAT"),
+        (448, "GPIO6", "Panel CLK"),
+        (472, "GPIO7", "Panel DAT"),
+        (496, "GPIO10", "I2C1 SCL"),
+        (520, "GPIO11", "I2C1 SDA"),
+    ]
+    left_x = esp.x + 18
+    for y, gpio, use in occupied:
+        c.pin(left_x, y, NC, r=4)
+        c.text(left_x + 12, y, f"{gpio}  {use}", NC, font_mono_small(), anchor="lm")
+
+    right_x = esp.right - 16
+    esp_pins = {
+        "lrc": (right_x, y_lrc, "GPIO15", "LRC / WS", WIRE_LRC),
+        "bclk": (right_x, y_bclk, "GPIO14", "BCLK", WIRE_BCLK),
+        "din": (right_x, y_din, "GPIO16", "DIN", WIRE_DIN),
+        "5v": (right_x, y_vin, "5V", "USB VBUS", WIRE_5V),
+        "gnd": (right_x, y_gnd, "GND", "common ground", WIRE_GND),
+    }
+    for x, y, gpio, role, color in esp_pins.values():
+        c.pin(x, y, color)
+        c.text(x - 12, y - 11, gpio, WHITE, font_mono(), anchor="rm")
+        c.text(x - 12, y + 11, role, MUTED, font_tiny(), anchor="rm")
+
+    c.text(esp.cx, esp.bottom - 18, "勿用 3V3 给功放供电", SECURITY[1], font_tiny())
+
+    # --- MAX98357A breakout ---
+    amp = Box(640, 148, 300, 460)
+    c.rounded(amp, AMP[0], AMP[1], width=2, radius=10)
+    c.text(amp.cx, amp.y + 20, "MAX98357A", WHITE, font_name())
+    c.text(amp.cx, amp.y + 40, "I2S Mono Amp  ·  9 dB default", MUTED, font_tiny())
+
+    term = Box(amp.x + 54, amp.y + 58, 192, 40)
+    c.rounded(term, (22, 101, 52, 180), (52, 211, 153, 255), width=1.5, radius=4)
+    c.text(term.x + 40, term.cy, "SPK −", WHITE, font_mono_small())
+    c.text(term.right - 40, term.cy, "SPK +", WHITE, font_mono_small())
+
+    amp_left = amp.x + 16
+    amp_pins = {
+        "lrc": (amp_left, y_lrc, "LRC", WIRE_LRC),
+        "bclk": (amp_left, y_bclk, "BCLK", WIRE_BCLK),
+        "din": (amp_left, y_din, "DIN", WIRE_DIN),
+        "gain": (amp_left, y_gain, "GAIN", NC),
+        "sd": (amp_left, y_sd, "SD", NC),
+        "vin": (amp_left, y_vin, "Vin", WIRE_5V),
+        "gnd": (amp_left, y_gnd, "GND", WIRE_GND),
+    }
+    for key, (x, y, name, color) in amp_pins.items():
+        c.pin(x, y, color)
+        suffix = "  悬空" if key in {"gain", "sd"} else ""
+        c.text(x + 14, y, name + suffix, MUTED if suffix else WHITE, font_mono(), anchor="lm")
+
+    c.text(amp.cx, amp.bottom - 18, "丝印顺序: LRC  BCLK  DIN  GAIN  SD  GND  Vin", MUTED, font_tiny())
+
+    def hop(esp_key: str, amp_key: str, color, label: str) -> None:
+        x0, y0 = esp_pins[esp_key][0], esp_pins[esp_key][1]
+        x1, y1 = amp_pins[amp_key][0], amp_pins[amp_key][1]
+        c.wire([(x0, y0), (x1, y1)], color)
+        c.text((x0 + x1) / 2, y0 - 14, label, color, font_mono_small())
+
+    hop("lrc", "lrc", WIRE_LRC, "LRC")
+    hop("bclk", "bclk", WIRE_BCLK, "BCLK")
+    hop("din", "din", WIRE_DIN, "DIN")
+    hop("5v", "vin", WIRE_5V, "5V")
+    hop("gnd", "gnd", WIRE_GND, "GND")
+
+    # Speaker sits to the right of the amp, same as the Pi Fritzing photo.
+    spk_cx, spk_cy = 1196, 240
+    for r, col in ((76, (30, 41, 59, 255)), (56, (15, 23, 42, 255)), (20, (51, 65, 85, 255))):
+        c.circle(spk_cx, spk_cy, r, col, MUTED, 1.5)
+    c.circle(spk_cx, spk_cy, 8, PIN_GOLD, None)
+    c.text(spk_cx, spk_cy + 98, "4 Ω / 3 W", WHITE, font_name())
+    c.text(spk_cx, spk_cy + 118, "差分 · 两端不接 GND", MUTED, font_tiny())
+
+    spk_left = (term.right, term.cy - 8)
+    spk_right = (term.right, term.cy + 8)
+    c.wire(
+        [spk_left, (amp.right + 28, spk_left[1]), (amp.right + 28, spk_cy - 24), (spk_cx - 70, spk_cy - 24)],
+        WIRE_SPK,
+        width=3,
+    )
+    c.wire(
+        [spk_right, (amp.right + 44, spk_right[1]), (amp.right + 44, spk_cy + 24), (spk_cx - 70, spk_cy + 24)],
+        WIRE_5V,
+        width=3,
+    )
+    c.text(amp.right + 36, spk_cy - 38, "SPK−", WIRE_SPK, font_mono_small())
+    c.text(amp.right + 52, spk_cy + 40, "SPK+", WIRE_5V, font_mono_small())
+
+    notes = Box(48, 632, 1304, 132)
+    c.rounded(notes, MASK, GRID, width=1, radius=8)
+    c.text(notes.x + 18, notes.y + 22, "接线约束", AMBER, font_sub(), anchor="lm")
+    lines = [
+        "GAIN / SD 悬空：模块默认 9 dB，声道 (L+R)/2。固件不占用 GPIO17。",
+        "VIN 接开发板 USB 侧 5V，禁止接 3V3，禁止用桌子 RJ45 红线供电。",
+        "SPK+ / SPK− 是 Class-D 差分输出，任意一端都不得接 GND。",
+        "I2S 三根线尽量短，远离 GPIO4/5/6/7 桌控总线和板载天线。参考图中的 SPH0645 麦克风不属于本方案。",
+    ]
+    for i, line in enumerate(lines):
+        c.text(notes.x + 18, notes.y + 48 + i * 20, line, MUTED, font_tiny(), anchor="lm")
+
+    c.legend(
+        788,
+        [
+            ((WIRE_5V, WIRE_5V), "5V / SPK+"),
+            ((WIRE_GND, WIRE_GND), "GND"),
+            ((WIRE_BCLK, WIRE_BCLK), "BCLK GPIO14"),
+            ((WIRE_LRC, WIRE_LRC), "LRC GPIO15"),
+            ((WIRE_DIN, WIRE_DIN), "DIN GPIO16"),
+        ],
+    )
+    c.footer("First power-on: 20% Web volume  ·  full idf.py flash (audio partition)  ·  GAIN/SD floating")
+    return c.save("max98357a-wiring.png")
+
+
 def main() -> None:
     software = render_software()
     hardware = render_hardware()
+    audio = render_audio_wiring()
     print(f"wrote {software}")
     print(f"wrote {hardware}")
+    print(f"wrote {audio}")
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@
 | 日期 | 2026-08-17 |
 | 状态 | Phase 1 已完成；Phase 2 透传与 P0 真机安全矩阵已通过 |
 | 仓库 | 本 Git 仓库根目录 |
-| 架构 | [architecture/overview.md](./architecture/overview.md)、[平台设计定稿](./superpowers/specs/2026-08-06-desk-gateway-platform-design.md)、[MQTT / Home Assistant](./architecture/mqtt-home-assistant.md)、[小米/华为生态调研](./architecture/ecosystem-xiaomi-huawei.md)、[BLE 外设](./architecture/ble-accessory-profile.md) |
+| 架构 | [architecture/overview.md](../architecture/overview.md)、[平台设计定稿](../architecture/platform-design.md)、[MQTT / Home Assistant](../future/mqtt-home-assistant.md)、[小米/华为生态调研](../future/ecosystem-xiaomi-huawei.md)、[BLE 外设](../architecture/ble-accessory-profile.md) |
 
 本文是本项目的第一篇正式文档，定义要做什么、做到什么算完成，以及分阶段怎么推进。硬件原理图、协议细节、固件实现另立文档。**平台分层与 Web/Driver 契约以架构设计定稿为准**；本文侧重需求与门禁。
 
@@ -17,9 +17,9 @@
 > I²C Slave `@0x24` 输出升、降和停止键码；TOF400C 作为产品高度，TOF050C 提供低位右侧保护。
 > Phase 2 双 RJ45 透传、断线 STOP、仲裁和童锁真屏蔽已在真桌通过。异常停止矩阵、
 > 三客户端并发和双 ToF 安全矩阵已通过。唯一汇总状态以
-> [当前状态与任务优先级](./5-current-status-and-priorities.md) 为准；用法见
-> [多种方式控制升降桌](./guides/control-methods.md)。
-> [多种方式控制升降桌](./guides/control-methods.md)。
+> [当前状态与任务优先级](current-status-and-priorities.md) 为准；用法见
+> [多种方式控制升降桌](../guides/control-methods.md)。
+> [多种方式控制升降桌](../guides/control-methods.md)。
 
 ---
 
@@ -31,7 +31,7 @@
 
 RJ45 只是物理接口形态，**不是以太网**。面板 PCB 背面已标出测试点：
 
-![image-20260805165105669](./images/image-20260805165105669.png)
+![image-20260805165105669](../images/image-20260805165105669.png)
 
 | 丝印 | 含义 |
 |---|---|
@@ -79,7 +79,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 
 ### 2.2 产品形态（终局）
 
-![Desk Gateway 终局形态：原厂面板与控制盒经 ESP32-S3 网关隔离](architecture/images/hardware-topology.png)
+![Desk Gateway 终局形态：原厂面板与控制盒经 ESP32-S3 网关隔离](../architecture/images/hardware-topology.png)
 
 盒子对外接口（终局硬件）：
 
@@ -129,7 +129,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 ### 3.2 明确不在首版范围
 
 - Home Assistant / MQTT / HomeKit / Matter / Siri / OTA（预留边界，首版不交付）
-- **小米米家 / 华为智慧生活原生上架**（通常需认证模组与合作；见 [生态调研](./architecture/ecosystem-xiaomi-huawei.md)；Phase 3+）
+- **小米米家 / 华为智慧生活原生上架**（通常需认证模组与合作；见 [生态调研](../future/ecosystem-xiaomi-huawei.md)；Phase 3+）
 - 盒子上的旋钮、OLED / 数码管（**板载**不做；外接配件使用已实现的 BLE Accessory Profile）
 - 从 RJ45 取电作为主供电
 - 云端账号体系、远程公网控制（**仅局域网**；Web 有简单密码，仍勿做端口映射）
@@ -139,7 +139,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 ### 3.3 后续扩展（Backlog）
 
 当前完成度和实施顺序统一维护在
-[《当前状态与任务优先级》](./5-current-status-and-priorities.md)，本节只保留产品范围。
+[《当前状态与任务优先级》](current-status-and-priorities.md)，本节只保留产品范围。
 
 - **Matter**（现有 ESP32 软件栈；进米家/华为 App 的默认开放路径，见生态调研）
 - **小米米家原生**：MIIO 认证模组 + IoT 开放平台 + 认证（可选独立硬件 SKU）
@@ -152,7 +152,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 - 旋钮面板或一体智能面板变体（板载，非 MVP）
 - 更多桌型协议驱动（Loctek / Jiecang / Upsy 兼容 UART 等）
 
-> 小米/华为要不要加硬件：原生上架 **通常要加各自认证模组**；若走 Matter 配件形态，**多数情况不必换主控**。详见 [ecosystem-xiaomi-huawei.md](./architecture/ecosystem-xiaomi-huawei.md)。
+> 小米/华为要不要加硬件：原生上架 **通常要加各自认证模组**；若走 Matter 配件形态，**多数情况不必换主控**。详见 [ecosystem-xiaomi-huawei.md](../future/ecosystem-xiaomi-huawei.md)。
 
 ---
 
@@ -343,10 +343,10 @@ MQTT / HA / 久坐提醒 / 更多桌型等，另开需求修订，不阻塞 Phas
 
 | 项 | 要求 |
 |---|---|
-| MCU | **YD-ESP32-S3 N16R8**（见 [主控选型文档](./2-esp32-s3-n16r8-platform.md)） |
+| MCU | **YD-ESP32-S3 N16R8**（见 [主控选型文档](../hardware/esp32-s3-n16r8.md)） |
 | 连接 | 飞线/转接至主机 CLK、DAT、GND；按需电平保护 |
 | 供电 | USB |
-| 工具 | 万用表；3.3V 逻辑分析仪（推荐 PulseView/sigrok）；示波器更佳；流程见 [抓包文档](./1-protocol-capture-with-logic-analyzer.md) |
+| 工具 | 万用表；3.3V 逻辑分析仪（推荐 PulseView/sigrok）；示波器更佳；流程见 [抓包文档](../hardware/protocol-capture.md) |
 | 参考 | Upsy Desky 思路可参考，协议不可照搬 |
 
 ### 7.2 Phase 2（网关成品方向）
@@ -381,7 +381,7 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 
 ### 8.2 HTTP API
 
-局域网 REST 以固件已注册路由为准，见 [REST API](./guides/rest-api.md)。常用运动入口：
+局域网 REST 以固件已注册路由为准，见 [REST API](../guides/rest-api.md)。常用运动入口：
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -396,7 +396,7 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 | POST | `/api/v1/desk/access` | 设置来源权限 `{ "source": "rest|bluetooth|panel", "enabled": bool }` |
 | GET | `/api/v1/desk/status` | 高度、运动、童锁、`raise_to_max_supported` 及 `control_sources` 等 |
 
-请求/响应 JSON 字段以 [REST API](./guides/rest-api.md) 为准。
+请求/响应 JSON 字段以 [REST API](../guides/rest-api.md) 为准。
 
 ### 8.3 与外部系统关系
 
@@ -466,14 +466,14 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 
 | 顺序 | 文档 | 说明 |
 |---|---|---|
-| 0 | [本文《需求文档》](./0-requirements.md) | 范围与阶段门禁 |
-| 1 | [《用逻辑分析仪破解协议》](./1-protocol-capture-with-logic-analyzer.md) | Phase 0 抓包流程 |
-| 2 | [《ESP32-S3 N16R8 主控选型》](./2-esp32-s3-n16r8-platform.md) | 开发板与主控冻结 |
-| 3 | [《协议逆向笔记》](./3-protocol-reverse-notes.md) | 抓包结论、帧格式、命令表、复现算法 |
-| — | [多种方式控制升降桌](./guides/control-methods.md) | Phase 1 多入口用法 |
-| — | [REST API](./guides/rest-api.md) | 局域网 HTTP 契约 |
+| 0 | [本文《需求文档》](requirements.md) | 范围与阶段门禁 |
+| 1 | [《用逻辑分析仪破解协议》](../hardware/protocol-capture.md) | Phase 0 抓包流程 |
+| 2 | [《ESP32-S3 N16R8 主控选型》](../hardware/esp32-s3-n16r8.md) | 开发板与主控冻结 |
+| 3 | [《协议逆向笔记》](../architecture/protocol-reverse-notes.md) | 抓包结论、帧格式、命令表、复现算法 |
+| — | [多种方式控制升降桌](../guides/control-methods.md) | Phase 1 多入口用法 |
+| — | [REST API](../guides/rest-api.md) | 局域网 HTTP 契约 |
 | — | 《硬件设计》 | 原理图 / BOM / 接口（待写） |
-| — | [V1 版本验收](./12-v1-release-acceptance.md) | 含 Phase 2 真机门禁 |
+| — | [V1 版本验收](v1-release-acceptance.md) | 含 Phase 2 真机门禁 |
 
 ---
 

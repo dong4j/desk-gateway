@@ -1,10 +1,10 @@
 # Desk Gateway Karabiner-Elements
 
-**Language:** English · [简体中文](./README.zh-CN.md)
+**Language:** English · [简体中文](README.zh-CN.md)
 
 Complex Modifications that call [`scripts/desk-preset.sh`](../../scripts/desk-preset.sh). They do not log in first. Sit is preset 1, stop is `stop`, stand is preset 4. Knob ticks send jog up/down.
 
-Usage detail: [`docs/keyboard-voice-control.md`](../../docs/keyboard-voice-control.md). Parent index: [`../README.md`](../README.md).
+Usage detail: [`docs/guides/keyboard-voice-control.md`](../../docs/guides/keyboard-voice-control.md). Parent index: [`../README.md`](../README.md).
 
 Edit `DESK_BASE_URL` and `DESK_KEY` inside `scripts/desk-preset.sh` before enabling the rules. The JSON currently embeds an absolute `shell_command` path; change it to this machine’s repo path after copying.
 

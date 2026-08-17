@@ -1,6 +1,6 @@
 # Desk Gateway 集成
 
-**语言：** [English](./README.md) · 简体中文
+**语言：** [English](README.md) · 简体中文
 
 这里放走同一套局域网 REST 的第三方入口，和 Web、`scripts/desk-preset.sh` 共用控制面。它们都不直接调厂商 I²C Driver。运动仍然经过 `desk_core`（STOP、童锁、来源权限、ToF）。
 
@@ -8,10 +8,10 @@
 
 | 目录 | 做什么 | 怎么接到 Desk Gateway |
 |---|---|---|
-| [xiaozhi-mcp](./xiaozhi-mcp/README.zh-CN.md) | 小智云 MCP Endpoint 到本机 REST 桥接 | 五个固定 MCP 工具 |
-| [ulanzi-d200h](./ulanzi-d200h/README.zh-CN.md) | Ulanzi D200H 插件源码 | 请坐 / 站立 / 番茄时刻 |
-| [karabiner](./karabiner/README.zh-CN.md) | Karabiner-Elements Complex Modifications | 键盘快捷键和旋钮 jog |
-| [goatremote](./goatremote/README.zh-CN.md) | GoatRemote 提示词补充 | 语音坐姿 / 站姿，经 `desk-preset.sh` |
+| [xiaozhi-mcp](xiaozhi-mcp/README.zh-CN.md) | 小智云 MCP Endpoint 到本机 REST 桥接 | 五个固定 MCP 工具 |
+| [ulanzi-d200h](ulanzi-d200h/README.zh-CN.md) | Ulanzi D200H 插件源码 | 请坐 / 站立 / 番茄时刻 |
+| [karabiner](karabiner/README.zh-CN.md) | Karabiner-Elements Complex Modifications | 键盘快捷键和旋钮 jog |
+| [goatremote](goatremote/README.zh-CN.md) | GoatRemote 提示词补充 | 语音坐姿 / 站姿，经 `desk-preset.sh` |
 
 ## 共用规则
 
@@ -23,4 +23,4 @@
 
 ## 不在本目录
 
-Home Assistant / MQTT、Matter、米家、华为目前只有方案文档。见 [`docs/architecture/mqtt-home-assistant.md`](../docs/architecture/mqtt-home-assistant.md) 和 [`docs/architecture/ecosystem-xiaomi-huawei.md`](../docs/architecture/ecosystem-xiaomi-huawei.md)。
+Home Assistant / MQTT、Matter、米家、华为目前只有方案文档。见 [`docs/future/mqtt-home-assistant.md`](../docs/future/mqtt-home-assistant.md) 和 [`docs/future/ecosystem-xiaomi-huawei.md`](../docs/future/ecosystem-xiaomi-huawei.md)。

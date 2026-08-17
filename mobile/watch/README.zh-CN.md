@@ -1,6 +1,6 @@
 # Desk Gateway Watch
 
-**语言：** [English](./README.md) · 简体中文
+**语言：** [English](README.md) · 简体中文
 
 独立 watchOS App 支持 Apple Watch 通过 BLE 或局域网 REST 直连 Desk Gateway。产品交互、
 Digital Crown 停止时序、番茄时钟 Reminder v1 和真机门禁见

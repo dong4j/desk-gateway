@@ -1,6 +1,6 @@
 # Desk Gateway firmware
 
-**Language:** English · [简体中文](./README.zh-CN.md)
+**Language:** English · [简体中文](README.zh-CN.md)
 
 ESP-IDF project for the standing-desk gateway. Parent docs: [../../README.md](../../README.md) · [中文](../../README.zh-CN.md). How to move the desk from Web, REST, BLE, phone, Watch, keyboard, voice, or D200H: [control methods](../../docs/guides/control-methods.md). REST contract: [REST API](../../docs/guides/rest-api.md).
 
@@ -60,12 +60,14 @@ green GND ───────────────────────�
 The resistors are pull-ups, not series resistors: white and black still connect
 directly to their GPIOs. Power the ESP32 independently over USB.
 
-Acceptance checklist: [docs/bringup-checklist.md](../../docs/bringup-checklist.md)
+Acceptance checklist: [docs/guides/bringup-checklist.md](../../docs/guides/bringup-checklist.md)
 
 ## Pomodoro voice reminder (MAX98357A)
 
 The default firmware includes an ESP-local Pomodoro timer and real Chinese WAV
 voice prompts. Wire the I2S amplifier as follows:
+
+![YD-ESP32-S3 to MAX98357A I2S wiring](../../docs/architecture/images/max98357a-wiring.png)
 
 | ESP32-S3 | MAX98357A |
 |----------|-----------|
@@ -145,7 +147,7 @@ the default component source list. The separate TOF400C on GPIO10/11 now
 supplies the raw, filtered control height as well as the Web/OLED/original-panel
 display. TOF050C blocks upward motion only while height is below `800 mm` and
 the right gap is below `80 mm`; the `940 mm` ceiling is always enforced. See
-`docs/7-hardware-i2c-restoration-investigation.md` for the controller-side
+`docs/hardware/i2c-restoration.md` for the controller-side
 rollback evidence.
 
 ## Maximum safe height

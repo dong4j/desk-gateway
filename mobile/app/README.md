@@ -1,14 +1,14 @@
 # Desk Gateway Mobile
 
-**Language:** English · [简体中文](./README.zh-CN.md)
+**Language:** English · [简体中文](README.zh-CN.md)
 
 Cross-platform phone app for Desk Gateway. React Native, Expo Development Build, and TypeScript.
 
-Phase 1 multi-client control is available. Android and the three-client concurrent matrix have passed on hardware. Home / Pomodoro / Settings follow the confirmed prototype and share one client for BLE GATT and LAN REST. Decisions and hardware gates: [`docs/architecture/mobile-app-technology-selection.md`](../../docs/architecture/mobile-app-technology-selection.md).
+Phase 1 multi-client control is available. Android and the three-client concurrent matrix have passed on hardware. Home / Pomodoro / Settings follow the confirmed prototype and share one client for BLE GATT and LAN REST. Decisions and hardware gates: [`docs/history/mobile-app-technology-selection.md`](../../docs/history/mobile-app-technology-selection.md).
 
 BLE-first, Wi-Fi fallback, mDNS, and the LAN security boundary: [`docs/architecture/mobile-connection-transport.md`](../../docs/architecture/mobile-connection-transport.md).
 
-Status and remaining work: [`docs/5-current-status-and-priorities.md`](../../docs/5-current-status-and-priorities.md).
+Status and remaining work: [`docs/status/current-status-and-priorities.md`](../../docs/status/current-status-and-priorities.md).
 
 How to move the desk: [`docs/guides/control-methods.md`](../../docs/guides/control-methods.md).
 

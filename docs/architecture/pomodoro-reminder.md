@@ -7,7 +7,7 @@
 | 日期 | 2026-08-15 |
 | 状态 | 固件、Web、iPhone/Android 与 Watch 已实现并通过自动化；MAX98357A 与移动真机待验收 |
 | 对应阶段 | 健康提醒 / 本地音频 |
-| 前置文档 | [ESP32-S3 N16R8 主控选型与开发板说明](./2-esp32-s3-n16r8-platform.md) |
+| 前置文档 | [ESP32-S3 N16R8 主控选型与开发板说明](../hardware/esp32-s3-n16r8.md) |
 
 本文定义 Desk Gateway 番茄时钟与久坐提醒的第一版产品、音频硬件和软件方案。第一版由 ESP32-S3 独立计时，并通过真正的扬声器播放本地中文语音和普通提示音；即使 Web 页面关闭或 Wi-Fi 暂时断开，也能按时播放。
 
@@ -200,6 +200,10 @@ CONFIG_DESK_AUDIO_DEFAULT_VOLUME_PERCENT=60
 ```
 
 ### 3.3 接线
+
+![YD-ESP32-S3 与 MAX98357A、扬声器的 I2S 接线（无麦克风）](images/max98357a-wiring.png)
+
+布局对应常见的树莓派 Fritzing 接法：MCU 在左、功放在中、喇叭在右，线色区分 5V / GND / BCLK / LRC / DIN。Desk Gateway 只播放本地 WAV，**不接 SPH0645 麦克风**，也不把 `GAIN` / `SD` 接到 GPIO。
 
 ```text
 ESP32-S3 / 开发板             MAX98357A                    扬声器
@@ -741,8 +745,8 @@ git diff --check
 - [ESP-IDF 6.0.2：ESP32-S3 I2S](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/i2s.html)
 - [Analog Devices：MAX98357A 产品资料](https://www.analog.com/en/products/max98357a.html)
 - [Analog Devices：MAX98357A/MAX98357B Datasheet](https://www.analog.com/media/en/technical-documentation/data-sheets/MAX98357A-MAX98357B.pdf)
-- [ESP32-S3 N16R8 主控选型与开发板说明](./2-esp32-s3-n16r8-platform.md)
-- [双 ToF 距离传感器接入方案](./4-tof-distance-sensor-plan.md)
-- [Desk Gateway 当前状态与优先级](./5-current-status-and-priorities.md)
-- [Desk Gateway 架构总览](./architecture/overview.md)
-- [Bring-up Checklist](./bringup-checklist.md)
+- [ESP32-S3 N16R8 主控选型与开发板说明](../hardware/esp32-s3-n16r8.md)
+- [双 ToF 距离传感器接入方案](tof-safety.md)
+- [Desk Gateway 当前状态与优先级](../status/current-status-and-priorities.md)
+- [Desk Gateway 架构总览](overview.md)
+- [Bring-up Checklist](../guides/bringup-checklist.md)

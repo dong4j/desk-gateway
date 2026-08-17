@@ -7,9 +7,9 @@
 | 日期 | 2026-08-13 |
 | 状态 | 双平台代码、多客户端握手与配对管理 UI 已完成；Android 与三客户端真机矩阵已通过 |
 | 目标平台 | iOS + Android |
-| 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
-| 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
-| 视觉依据 | [`mobile/prototypes/`](../../mobile/prototypes/) |
+| 关联协议 | [BLE 外设扩展 Profile v1](../architecture/ble-accessory-profile.md) |
+| 多客户端设计 | [BLE 三客户端并发与配对设备管理](../architecture/ble-multi-client-bond-management.md) |
+| 视觉依据 | [`mobile/prototypes/`](../../mobile/prototypes) |
 
 本文冻结 Desk Gateway 移动端的总体技术方向，并记录 BLE 技术验证和正式 UI 的分阶段
 边界。iOS 已按原型实现 Home / Settings，继续消费现有 ESP32 GATT v1；设备设置写入、
@@ -265,7 +265,7 @@ ESP32 回读值。旧固件缺少 Config 时仍可连接和运动控制，但相
 
 当前状态：尚未进入 Phase 3。iPhone 日常控制路径已完成，但 Android、连续连接/断开、
 BLE 超距自动回退和发布签名仍是 P1 任务。统一任务顺序见
-[`5-current-status-and-priorities.md`](../5-current-status-and-priorities.md)。
+[`status/current-status-and-priorities.md`](../status/current-status-and-priorities.md)。
 
 ---
 

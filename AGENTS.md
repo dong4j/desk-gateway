@@ -14,14 +14,14 @@
 
 | 问题 | 以谁为准 |
 |---|---|
-| 已完成 / 待验收 / 未实现 | [`docs/5-current-status-and-priorities.md`](docs/5-current-status-and-priorities.md) |
-| V1 能否发布 | [`docs/12-v1-release-acceptance.md`](docs/12-v1-release-acceptance.md)（当前 **NO-GO**） |
+| 已完成 / 待验收 / 未实现 | [`docs/status/current-status-and-priorities.md`](docs/status/current-status-and-priorities.md) |
+| V1 能否发布 | [`docs/status/v1-release-acceptance.md`](docs/status/v1-release-acceptance.md)（当前 **NO-GO**） |
 | 怎么控桌 | [`docs/guides/control-methods.md`](docs/guides/control-methods.md) |
 | 本地多端部署（改 IP / 密码 / 路径） | [`docs/guides/local-multi-client-setup.md`](docs/guides/local-multi-client-setup.md) |
 | REST 契约 | [`docs/guides/rest-api.md`](docs/guides/rest-api.md)，路由以 `firmware/desk-gateway/components/connectivity/web/desk_web.c` 为准 |
-| 接线、GPIO、真机步骤 | [`docs/bringup-checklist.md`](docs/bringup-checklist.md)、[`firmware/desk-gateway/README.md`](firmware/desk-gateway/README.md) |
+| 接线、GPIO、真机步骤 | [`docs/guides/bringup-checklist.md`](docs/guides/bringup-checklist.md)、[`firmware/desk-gateway/README.md`](firmware/desk-gateway/README.md) |
 | 分层与硬件拓扑 | [`docs/architecture/overview.md`](docs/architecture/overview.md) |
-| 协议键码与时序 | [`docs/3-protocol-reverse-notes.md`](docs/3-protocol-reverse-notes.md) |
+| 协议键码与时序 | [`docs/architecture/protocol-reverse-notes.md`](docs/architecture/protocol-reverse-notes.md) |
 | 文档总目录 | [`docs/README.md`](docs/README.md) / [`docs/README.zh-CN.md`](docs/README.zh-CN.md) |
 | 对外说明 | [`README.zh-CN.md`](README.zh-CN.md) / [`README.md`](README.md) |
 
@@ -43,7 +43,7 @@ mobile/app/                iPhone / Android（React Native + Expo Development Bu
 mobile/watch/              独立 Apple Watch App（XcodeGen + SPM）
 integrations/              第三方入口（MCP、D200H、Karabiner、GoatRemote）
 scripts/                   固件检查、完整烧录、desk-preset.sh
-docs/                      需求、架构、使用说明、验收
+docs/                      文档（status / guides / architecture / hardware / future / history / standards）
 docs/architecture/images/  架构 PNG 与生成脚本
 ```
 
@@ -162,8 +162,8 @@ zsh -lc 'export IDF_PYTHON_ENV_PATH=/Users/dong4j/.espressif/tools/python/v6.0.2
 
 行为或口径变了，按需更新，不要只改代码：
 
-1. [`docs/5-current-status-and-priorities.md`](docs/5-current-status-and-priorities.md)
-2. 若动到 V1 门禁：[`docs/12-v1-release-acceptance.md`](docs/12-v1-release-acceptance.md)
+1. [`docs/status/current-status-and-priorities.md`](docs/status/current-status-and-priorities.md)
+2. 若动到 V1 门禁：[`docs/status/v1-release-acceptance.md`](docs/status/v1-release-acceptance.md)
 3. 用户路径：[`docs/guides/`](docs/guides/) 与 README
-4. 接线 / 高度策略：固件 README 与 `docs/bringup-checklist.md`
+4. 接线 / 高度策略：固件 README 与 `docs/guides/bringup-checklist.md`
 5. 架构事实：`docs/architecture/overview.md`；需要改图时重跑 PNG 生成脚本

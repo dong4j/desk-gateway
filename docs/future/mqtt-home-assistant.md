@@ -10,7 +10,7 @@
 
 > 本文定义 MQTT v1 的产品边界、Topic 契约、安全约束和实施门禁。
 > “方案已确认”不表示固件、Web 配置页或 Home Assistant 实体已经实现；当前实现状态仍以
-> [架构总览](./overview.md)和[当前状态与任务优先级](../5-current-status-and-priorities.md)为准。
+> [架构总览](../architecture/overview.md)和[当前状态与任务优先级](../status/current-status-and-priorities.md)为准。
 
 ## 1. 结论
 

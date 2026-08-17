@@ -6,7 +6,7 @@
  * ESP32-S3 硬件 I²C Slave 响应 0x24。软件多地址和 GPIO 高度嗅探仅保留为
  * 协议实验，不得进入正常控桌固件；产品路径使用 TOF400C 高度与 TOF050C
  * 右侧距离执行档位闭环和上升安全限制。
- * 键码契约见 docs/3-protocol-reverse-notes.md §18。
+ * 键码契约见 docs/architecture/protocol-reverse-notes.md §18。
  */
 #include "mxtark.h"
 #include "mxtark_panel_arbiter.h"

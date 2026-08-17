@@ -7,7 +7,7 @@
 | 日期 | 2026-08-12 |
 | 状态 | 协议研究保留；产品固件已恢复硬件 I²C `@0x24`，digit 软件解析停用 |
 | 对应阶段 | Phase 0 |
-| 前置文档 | [需求文档](./0-requirements.md)、[抓包指南](./1-protocol-capture-with-logic-analyzer.md) |
+| 前置文档 | [需求文档](../status/requirements.md)、[抓包指南](../hardware/protocol-capture.md) |
 
 本文记录升降桌 **原厂面板 ↔ 主机（控制盒）** 通信协议的实测结论，供 Desk Gateway 后续固件与博客成稿使用。随抓包推进持续更新。
 
@@ -152,13 +152,13 @@ Desk Gateway 要把原厂升降桌接到智能家居 / Agent 侧，需要先搞�
 厂家线从壳体引出四色线焊在板边。万用表已经确认 RJ45 pin1 红=`3.3V`、pin2 白=`CLK`、
 pin3 绿=`GND`、pin4 黑=`DAT`；该映射适用于本台 `MXSK05_A V1.4`，其他桌型仍须重新实测。
 
-![面板正面：MXSK05_A V1.4，U2=TM1650](./images/panel-front-tm1650.png)
+![面板正面：MXSK05_A V1.4，U2=TM1650](../images/panel-front-tm1650.png)
 
 ### 4.2 面板背面与飞线说明
 
 背面几乎是焊盘与过孔。图中多出的飞线是 **作者焊给逻辑分析仪做旁路探针的**，不是厂家多出来的第五根通信线。原厂仍是四线进壳体；探针从测试点或焊盘引出 `GND` / `CLK` / `DAT`（必要时再引出 `3.3V` 作参考，分析仪供电端一般不接面板电源）。
 
-![面板背面：作者焊接的探针飞线（非厂家第五根线）](./images/panel-back-probe-wires.png)
+![面板背面：作者焊接的探针飞线（非厂家第五根线）](../images/panel-back-probe-wires.png)
 
 ### 4.3 原厂上拉与 Phase 1 替换约束
 
@@ -294,9 +294,9 @@ P
 
 键轮询周期约 **3.7 ms** / 完整写+读（100 M 窗内约 2240 次读）。
 
-![静置 I²C 总览：AW:24 / DW:01 与 AR:24 / DR:2E 交替](./images/idle-i2c-overview.png)
+![静置 I²C 总览：AW:24 / DW:01 与 AR:24 / DR:2E 交替](../images/idle-i2c-overview.png)
 
-![静置单次读写放大](./images/idle-i2c-zoom.png)
+![静置单次读写放大](../images/idle-i2c-zoom.png)
 
 ### 6.3 差分出按键码表
 
@@ -988,7 +988,7 @@ ESP32 内部待回传字节改变，不能证明控制盒已经发起 `0x24` 轮
 产品固件现已回到已知稳定提交 `3269faa` 的原则：ESP32-S3 硬件 I²C Slave 只应答 `0x24`，
 不 ACK、不解析 `0x34–0x37`。高度统一保持未知，档位闭环和最高安全高度等待 TOF200C。
 软件多地址实现、段码表和抓包结论继续保留为实验资料，不进入默认产品构建。完整复盘见
-[`7-hardware-i2c-restoration-investigation.md`](./7-hardware-i2c-restoration-investigation.md)。
+[`hardware/i2c-restoration.md`](../hardware/i2c-restoration.md)。
 
 ### 13.1 Phase 1 **必须**实现
 
@@ -1024,7 +1024,7 @@ ESP32 内部待回传字节改变，不能证明控制盒已经发起 `0x24` 轮
 
 连续出现 `AW:24` / `DW:01` 与 `AR:24` / `DR:2E` 交替。
 
-![静置 I²C 总览](./images/idle-i2c-overview.png)
+![静置 I²C 总览](../images/idle-i2c-overview.png)
 
 ### 14.2 静置单次读写放大
 
@@ -1036,7 +1036,7 @@ ESP32 内部待回传字节改变，不能证明控制盒已经发起 `0x24` 轮
 
 > 注：解析器仍可接受 Repeated Start，但当前硬件代理必须复刻上述实测 STOP 分隔时序。
 
-![静置 I²C 放大](./images/idle-i2c-zoom.png)
+![静置 I²C 放大](../images/idle-i2c-zoom.png)
 
 硬件照片见 [§4](#4-硬件解剖mxsk05_a-v14)。
 

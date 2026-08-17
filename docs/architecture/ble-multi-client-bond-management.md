@@ -7,8 +7,8 @@
 | 日期 | 2026-08-13 |
 | 状态 | 代码与自动化门禁已完成；iPhone、Watch、Android 三台真机安全矩阵已通过 |
 | 开发分支 | `codex/ble-multi-client-bond-management` |
-| 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
-| 客户端 | [Apple Watch](./apple-watch-control.md) / [移动端](./mobile-app-technology-selection.md) |
+| 关联协议 | [BLE 外设扩展 Profile v1](ble-accessory-profile.md) |
+| 客户端 | [Apple Watch](apple-watch-control.md) / [移动端](../history/mobile-app-technology-selection.md) |
 
 本文冻结 Desk Gateway 同时连接 iPhone、Apple Watch 和 Android 手机时的 BLE
 连接模型、运动控制权、配对设备身份、删除 API、Web / 手机端入口以及验收门禁。

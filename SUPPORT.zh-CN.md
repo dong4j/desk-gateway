@@ -6,11 +6,11 @@ Desk Gateway 是早期、社区维护的硬件项目。支持按尽力原则提�
 
 ## 提问前
 
-1. 先读 [README.zh-CN.md](./README.zh-CN.md)、
-   [文档索引](./docs/README.zh-CN.md)、
-   [本地多端部署清单](./docs/guides/local-multi-client-setup.md)、
-   [多种方式控制升降桌](./docs/guides/control-methods.md)、
-   [真机验收清单](./docs/bringup-checklist.md)，以及 `docs/` 里相关协议笔记。
+1. 先读 [README.zh-CN.md](README.zh-CN.md)、
+   [文档索引](docs/README.zh-CN.md)、
+   [本地多端部署清单](docs/guides/local-multi-client-setup.md)、
+   [多种方式控制升降桌](docs/guides/control-methods.md)、
+   [真机验收清单](docs/guides/bringup-checklist.md)，以及 `docs/` 里相关协议笔记。
 2. 搜索已有 Issue，看是否同一硬件、同一固件或同一现象。
 3. 固件构建失败时运行 `./scripts/check-firmware.sh`（需要 ESP-IDF v6.0.2）。
 4. 分享日志或抓包前去掉 Wi-Fi 密码、token、MAC 和其他隐私数据。
@@ -22,8 +22,8 @@ Desk Gateway 是早期、社区维护的硬件项目。支持按尽力原则提�
 | 文档写明的行为失败，或有可复现缺陷 | 用 **Bug report** 表单开 Issue |
 | 缺能力、缺 Driver、缺集成或文档流程 | 用 **Feature request** 表单开 Issue |
 | 一般安装或用法问题 | 先查文档和已有 Issue；若文档路径失败，再用 Bug report 写全环境 |
-| 潜在漏洞或不安全的未授权控制 | 按 [SECURITY.zh-CN.md](./SECURITY.zh-CN.md)，**不要**把细节发到 Issue |
-| 社区行为问题 | 按 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) |
+| 潜在漏洞或不安全的未授权控制 | 按 [SECURITY.zh-CN.md](SECURITY.zh-CN.md)，**不要**把细节发到 Issue |
+| 社区行为问题 | 按 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 
 ## 硬件和协议证据
 

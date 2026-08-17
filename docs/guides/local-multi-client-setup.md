@@ -4,16 +4,16 @@
 |---|---|
 | 日期 | 2026-08-17 |
 | 目的 | 在自己的局域网把 Desk Gateway 烧上、配上网，并让 Web / 脚本 / 手机 / Watch / 键盘 / 语音 / D200H 都能控同一张桌子 |
-| 详细用法 | [多种方式控制升降桌](./control-methods.md) |
-| REST 契约 | [REST API](./rest-api.md) |
-| 接线与排障 | [真机验收清单](../bringup-checklist.md) |
+| 详细用法 | [多种方式控制升降桌](control-methods.md) |
+| REST 契约 | [REST API](rest-api.md) |
+| 接线与排障 | [真机验收清单](bringup-checklist.md) |
 
 本文只回答一件事：**克隆仓库之后，要改哪些 IP、密码和路径，才能在本地真正控桌。**  
 接线细节、BLE 字节协议、各端 UI 说明仍看上表链接，不在这里重复。
 
 测试运动时必须有人站在桌旁，随时可以发 STOP 或切断控制盒电源。所有 HTTP 入口只走局域网，不要做公网端口映射。
 
-**语言：** English 见 [local-multi-client-setup.en.md](./local-multi-client-setup.en.md)。
+**语言：** English 见 [local-multi-client-setup.en.md](local-multi-client-setup.en.md)。
 
 ---
 
@@ -135,7 +135,7 @@ cp integrations/karabiner/desk-gateway.json \
 4. 在 **Complex Modifications** 里启用两组规则：档位 `⌃⌥⇧ + 1/2/3`，以及 `F18`/`F17`/`F16` 旋钮升/降/停。
 5. 旋钮本身配置为重复发送这些键，不要模拟按住。
 
-细节：[键盘、旋钮与语音控制](../keyboard-voice-control.md)、[Karabiner README](../../integrations/karabiner/README.zh-CN.md)。
+细节：[键盘、旋钮与语音控制](keyboard-voice-control.md)、[Karabiner README](../../integrations/karabiner/README.zh-CN.md)。
 
 ### 4.3 GoatRemote
 
@@ -155,7 +155,7 @@ cp integrations/karabiner/desk-gateway.json \
 
 ### 4.5 iPhone / Android
 
-1. 不能用 Expo Go。按 [iOS 真机部署](./mobile-ios-device-deployment.md) 或 [Android 真机部署](./mobile-android-device-deployment.md) 装 Development Build。
+1. 不能用 Expo Go。按 [iOS 真机部署](mobile-ios-device-deployment.md) 或 [Android 真机部署](mobile-android-device-deployment.md) 装 Development Build。
 2. 手机和网关同一局域网（REST 回退和 Bond 管理需要）。
 3. 设置里填写 REST 地址和 `X-Desk-Key`（当前 Web 密码）。自动模式优先 BLE，BLE 失败才走 REST。
 4. 首次 BLE 配对：在已登录 Web 或已有 App 里打开 **120 秒配对窗口**，扫描 `DeskGateway`，允许系统配对。iPhone 写 Client Info `01 02`，Android 写 `01 03`，不要用 STOP 当握手。

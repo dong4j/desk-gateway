@@ -226,5 +226,5 @@ REST 验收需要手机与 ESP32 位于同一局域网。优先访问
 
 - [Expo：本地创建 Debug Build](https://docs.expo.dev/guides/local-app-development/)
 - [Android：在真机上运行 App](https://developer.android.com/studio/run/device)
-- [移动端技术选型与真机门禁](../architecture/mobile-app-technology-selection.md)
+- [移动端技术选型与真机门禁](../history/mobile-app-technology-selection.md)
 - [移动端 BLE / REST 连接策略](../architecture/mobile-connection-transport.md)

@@ -1,10 +1,10 @@
 # Desk Gateway Karabiner-Elements
 
-**语言：** [English](./README.md) · 简体中文
+**语言：** [English](README.md) · 简体中文
 
 这是调用 [`scripts/desk-preset.sh`](../../scripts/desk-preset.sh) 的 Complex Modifications，不需要先登录。坐姿是档位 1，停止是 `stop`，站姿是档位 4。旋钮刻度发送 jog 升/降。
 
-用法细节见 [`docs/keyboard-voice-control.md`](../../docs/keyboard-voice-control.md)。上级目录见 [`../README.zh-CN.md`](../README.zh-CN.md)。
+用法细节见 [`docs/guides/keyboard-voice-control.md`](../../docs/guides/keyboard-voice-control.md)。上级目录见 [`../README.zh-CN.md`](../README.zh-CN.md)。
 
 启用规则前先改 `scripts/desk-preset.sh` 里的 `DESK_BASE_URL` 和 `DESK_KEY`。JSON 里的 `shell_command` 目前是绝对路径，复制后改成这台机器上的仓库路径。
 

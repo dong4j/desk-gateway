@@ -6,10 +6,10 @@
 | 日期 | 2026-08-06 |
 | 状态 | **已批准**（v0.4，2026-08-06 用户确认「文档通过」） |
 | 对应决策 | 方案 B + 板载 Web（局域网 + 简单认证 + 现代化 UI / 升降动效） |
-| 前置 | [需求文档](../../0-requirements.md)、[协议笔记](../../3-protocol-reverse-notes.md) |
+| 前置 | [需求文档](../status/requirements.md)、[协议笔记](protocol-reverse-notes.md) |
 
 本文最初是实现前的**架构定稿**。截至 2026-08-09，M1/M2 代码已落地并通过编译，
-但真机门禁仍未完成；当前状态以[架构总览](../../architecture/overview.md)和[验收清单](../../bringup-checklist.md)为准。
+但真机门禁仍未完成；当前状态以[架构总览](overview.md)和[验收清单](../guides/bringup-checklist.md)为准。
 
 ---
 
@@ -30,7 +30,7 @@
 - 双 RJ45 主动中间人硬件闭环（仍属 Phase 2；童锁对面板的**真正屏蔽**依赖 Phase 2 透传路径）
 - Loctek / Jiecang / Upsy 真协议实现（仅目录与 stub）
 - Matter / MQTT / Home Assistant / Siri / OTA 实现  
-- **米家 / 华为智慧生活「原生上架」**（需认证模组与合作流程；调研见 [ecosystem-xiaomi-huawei.md](../../architecture/ecosystem-xiaomi-huawei.md)）  
+- **米家 / 华为智慧生活「原生上架」**（需认证模组与合作流程；调研见 [ecosystem-xiaomi-huawei.md](../future/ecosystem-xiaomi-huawei.md)）  
 - 公网穿透、云账号、OAuth  
 - 量产认证（FCC/CE）  
 - **原厂「上+下同时按住 ≈5s → 重置」的 DR 键码**（用户已确认面板有此操作；**尚未抓包**，本设计只登记待逆向，禁止臆造码）
@@ -92,9 +92,9 @@ desk-gateway/
   docs/
     architecture/
       overview.md                 # 给人读的架构总览（本设计的精简版）
-    superpowers/specs/
-      2026-08-06-desk-gateway-platform-design.md  # 本文
-    0-requirements.md             # 需求（与本设计同步修订）
+      platform-design.md          # 本文
+    status/
+      requirements.md             # 需求（与本设计同步修订）
     …
   firmware/
     desk-gateway/                 # 唯一主固件（由 phase1-panel-slave 演进/迁入）
@@ -333,7 +333,7 @@ Phase 2 中间人、生态接入的其余部分仍按需求文档。
 
 目标生态除 HA / Matter / Siri 外，明确包含 **小米米家** 与 **华为智慧生活 / 鸿蒙智联**（可玩性与国内适用性）。
 
-调研结论（详见 [ecosystem-xiaomi-huawei.md](../../architecture/ecosystem-xiaomi-huawei.md)）：
+调研结论（详见 [ecosystem-xiaomi-huawei.md](../future/ecosystem-xiaomi-huawei.md)）：
 
 | 路径 | 额外硬件 | 说明 |
 |---|---|---|
@@ -342,7 +342,7 @@ Phase 2 中间人、生态接入的其余部分仍按需求文档。
 | **华为原生上架** | **通常需要** HarmonyOS Connect / HiLink 认证模组 | 伙伴流程 + SDK + 认证；与小米模组一般 **不能共用一颗** |
 | HA MQTT | 不需要 | 已规划中转路径 |
 
-架构预留：`connectivity/matter`、`connectivity/ble`（**Accessory Profile**，见 [ble-accessory-profile.md](../../architecture/ble-accessory-profile.md)）；可选硬件 SKU 预留米家/华为模组焊盘。`desk_core` 不绑定任一厂商云协议。
+架构预留：`connectivity/matter`、`connectivity/ble`（**Accessory Profile**，见 [ble-accessory-profile.md](ble-accessory-profile.md)）；可选硬件 SKU 预留米家/华为模组焊盘。`desk_core` 不绑定任一厂商云协议。
 
 **BLE 外设总线（摘要）**：Gateway 作 GATT Server，向 OLED+无极旋钮等配件 Notify 高度/状态，并接受升降 Write；与 Web 同级走 `desk_core`。盒子 MVP 仍无板载旋钮/屏——扩展靠外设，不靠把旋钮焊进网关。
 
@@ -350,7 +350,7 @@ Phase 2 中间人、生态接入的其余部分仍按需求文档。
 
 ## 9. 需求文档需同步的要点
 
-（实现前写入 `docs/0-requirements.md`）
+（实现前写入 `docs/status/requirements.md`）
 
 - 产品定位改为：**多厂商可适配的 Desk Gateway 平台**（先打通 mxtark）。
 - Phase 1 退出标准增加：局域网 Web + 简单认证 + 控制升降停 + 童锁 API/UI（面板屏蔽 Phase 2 生效）。  

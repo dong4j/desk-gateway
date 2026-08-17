@@ -1,7 +1,7 @@
 # Desk Gateway 架构总览
 
 > 精简给人读的版本。完整定稿见  
-> [`docs/superpowers/specs/2026-08-06-desk-gateway-platform-design.md`](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md)。
+> [`docs/architecture/platform-design.md`](./platform-design.md)。
 
 ## 一句话
 
@@ -23,8 +23,8 @@ Phase 2 是主动中间人：原厂面板走 GPIO6/7 软件代理，控制盒走
 
 > 截至 2026-08-17：Phase 1 已完成。Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵
 > 已在真桌通过。主固件可在 ESP-IDF 6.0.2 下编译。硬件结论以
-> [`bringup-checklist.md`](../bringup-checklist.md) 为准。完成度和后续优先级见
-> [`5-current-status-and-priorities.md`](../5-current-status-and-priorities.md)。
+> [`guides/bringup-checklist.md`](../guides/bringup-checklist.md) 为准。完成度和后续优先级见
+> [`status/current-status-and-priorities.md`](../status/current-status-and-priorities.md)。
 > 用法见 [`guides/control-methods.md`](../guides/control-methods.md)。
 
 | 层 | 状态 |
@@ -37,8 +37,8 @@ Phase 2 是主动中间人：原厂面板走 GPIO6/7 软件代理，控制盒走
 | BLE / Loctek / Jiecang | BLE 三连接、运动所有权、配对窗口和 Bond 管理已实现；iPhone、Watch、Android 真机并发已通过；Loctek / Jiecang 为 stub |
 | Apple Watch | SwiftUI/CoreBluetooth App 真机扫描、配对、Crown 与三客户端并发已通过 |
 | 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | GPIO6/7 主动事务代理、短行程、断线 STOP、仲裁和真屏蔽已在真桌通过 |
-| HA / Matter / Siri / OTA | Phase 3+；[MQTT / Home Assistant 方案](./mqtt-home-assistant.md)已确认、尚未实现，其余未实现 |
-| 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](./ecosystem-xiaomi-huawei.md) |
+| HA / Matter / Siri / OTA | Phase 3+；[MQTT / Home Assistant 方案](../future/mqtt-home-assistant.md)已确认、尚未实现，其余未实现 |
+| 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](../future/ecosystem-xiaomi-huawei.md) |
 
 ## 仓库形状（目标）
 
@@ -49,8 +49,9 @@ firmware/desk-gateway/
     desk_driver/
     drivers/mxtark|loctek|jiecang
     connectivity/wifi|web|ble
-docs/architecture/          ← 本目录
-docs/superpowers/specs/     ← 设计定稿
+docs/architecture/          ← 本目录与平台设计定稿
+docs/status/                ← 完成度与 V1 门禁
+docs/guides/                ← 用法与接线
 ```
 
 ## Web（本阶段）
@@ -67,7 +68,7 @@ docs/superpowers/specs/     ← 设计定稿
 - REST 使用现有 `X-Desk-Key`，默认访问 `desk-gateway.local`，也可手工填写 DHCP IP。
 - 通道切换不重放运动命令；长按续期、松手 STOP 和固件 `desk_core` 安全裁决保持不变。
 - 设置页通过独立 REST 通道管理 120 秒配对窗口、Bond 列表、单删和全删；BLE 控制链路不转发管理请求。
-- 详情：[移动端 BLE / Wi-Fi 双通道方案](./mobile-connection-transport.md)
+- 详情：[移动端 BLE / Wi-Fi 双通道方案](mobile-connection-transport.md)
 
 ## 童锁与仲裁
 
@@ -87,7 +88,7 @@ docs/superpowers/specs/     ← 设计定稿
 - HOLD 使用 `750ms` 短租约；松手停止续期或连接断开都会自动停止  
 - 最多三个 Central 同时在线；单一 BLE 运动所有者，非所有者收到 Desk Busy `0x80`，任意 STOP 始终有效  
 - 与 Web 同走 `desk_core`；**板载**仍无旋钮无屏  
-- 详情：[ble-accessory-profile.md](./ble-accessory-profile.md)
+- 详情：[ble-accessory-profile.md](ble-accessory-profile.md)
 
 ## 小米 / 华为生态（摘要）
 
@@ -95,23 +96,23 @@ docs/superpowers/specs/     ← 设计定稿
 |---|---|
 | 米家 / 智慧生活 **原生上架** | **通常要** 各自认证 Wi‑Fi 模组 + 合作认证 |
 | 手机 App 当 Matter 控制器添加本设备 | **一般不要**换主控（ESP32 上跑 Matter） |
-| 详情 | [ecosystem-xiaomi-huawei.md](./ecosystem-xiaomi-huawei.md) |
+| 详情 | [ecosystem-xiaomi-huawei.md](../future/ecosystem-xiaomi-huawei.md) |
 
 ## 相关文档
 
 | 文档 | 用途 |
 |---|---|
-| [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) | 实现依据 |
-| [当前状态与优先级](../5-current-status-and-priorities.md) | 已完成、待验收和剩余任务的统一清单 |
+| [平台设计定稿](platform-design.md) | 实现依据 |
+| [当前状态与优先级](../status/current-status-and-priorities.md) | 已完成、待验收和剩余任务的统一清单 |
 | [多种方式控制升降桌](../guides/control-methods.md) | Web、REST、BLE、手机、Watch、键盘、语音、D200H |
 | [REST API](../guides/rest-api.md) | 局域网 HTTP 契约 |
-| [小米/华为生态调研](./ecosystem-xiaomi-huawei.md) | 模组 vs Matter |
-| [BLE 外设 Profile](./ble-accessory-profile.md) | 旋钮/OLED 配件总线 |
-| [BLE 三客户端与配对管理](./ble-multi-client-bond-management.md) | iPhone、Apple Watch、Android 并发连接、运动所有权与 Bond 删除 |
-| [移动端技术选型](./mobile-app-technology-selection.md) | React Native 手机端与 BLE 验证门禁 |
-| [移动端双通道方案](./mobile-connection-transport.md) | BLE 优先、REST 回退、mDNS 与安全边界 |
-| [Apple Watch 控制方案](./apple-watch-control.md) | SwiftUI Watch App 与直连 BLE 安全边界 |
-| [需求](../0-requirements.md) | 做什么、阶段门禁 |
-| [主控板](../2-esp32-s3-n16r8-platform.md) | YD-ESP32-S3 N16R8 |
-| [协议逆向](../3-protocol-reverse-notes.md) | mxtark 契约 |
+| [小米/华为生态调研](../future/ecosystem-xiaomi-huawei.md) | 模组 vs Matter |
+| [BLE 外设 Profile](ble-accessory-profile.md) | 旋钮/OLED 配件总线 |
+| [BLE 三客户端与配对管理](ble-multi-client-bond-management.md) | iPhone、Apple Watch、Android 并发连接、运动所有权与 Bond 删除 |
+| [移动端技术选型](../history/mobile-app-technology-selection.md) | React Native 手机端与 BLE 验证门禁 |
+| [移动端双通道方案](mobile-connection-transport.md) | BLE 优先、REST 回退、mDNS 与安全边界 |
+| [Apple Watch 控制方案](apple-watch-control.md) | SwiftUI Watch App 与直连 BLE 安全边界 |
+| [需求](../status/requirements.md) | 做什么、阶段门禁 |
+| [主控板](../hardware/esp32-s3-n16r8.md) | YD-ESP32-S3 N16R8 |
+| [协议逆向](protocol-reverse-notes.md) | mxtark 契约 |
 | [Upsy Desky](https://github.com/tjhorner/upsy-desky) | 参考产品，非协议照搬 |

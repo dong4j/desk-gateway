@@ -4,16 +4,16 @@
 |---|---|
 | Date | 2026-08-17 |
 | Goal | Flash Desk Gateway, join your LAN, and point Web / scripts / phone / Watch / keyboard / voice / D200H at the same desk |
-| How to move the desk | [Control methods](./control-methods.md) (Chinese) |
-| REST contract | [REST API](./rest-api.md) (Chinese) |
-| Wiring and debug | [Bring-up checklist](../bringup-checklist.md) (Chinese) |
+| How to move the desk | [Control methods](control-methods.md) (Chinese) |
+| REST contract | [REST API](rest-api.md) (Chinese) |
+| Wiring and debug | [Bring-up checklist](bringup-checklist.md) (Chinese) |
 
 This page answers one question: **after you clone the repo, which IP, password, and path values must you change before anything will move the desk on your LAN.**  
 Wiring, BLE byte protocol, and per-client UI live in the links above.
 
 Stay next to the desk when testing motion. Be ready to send STOP or cut controller power. Keep HTTP on the LAN. Do not port-forward the gateway.
 
-**Language:** 中文见 [local-multi-client-setup.md](./local-multi-client-setup.md).
+**Language:** 中文见 [local-multi-client-setup.md](local-multi-client-setup.md).
 
 ---
 
@@ -135,7 +135,7 @@ cp integrations/karabiner/desk-gateway.json \
 4. Enable both rules in **Complex Modifications**: presets `⌃⌥⇧ + 1/2/3`, and knob `F18`/`F17`/`F16`.
 5. Configure the knob to repeat those keys. Do not emulate hold.
 
-Details: [keyboard-voice-control.md](../keyboard-voice-control.md), [Karabiner README](../../integrations/karabiner/README.md).
+Details: [keyboard-voice-control.md](keyboard-voice-control.md), [Karabiner README](../../integrations/karabiner/README.md).
 
 ### 4.3 GoatRemote
 
@@ -155,7 +155,7 @@ Open `http://<device-ip>/` or `http://desk-gateway.local/`. Hold to move, releas
 
 ### 4.5 iPhone / Android
 
-1. Do not use Expo Go. Install a Development Build: [iOS](./mobile-ios-device-deployment.md) or [Android](./mobile-android-device-deployment.md).
+1. Do not use Expo Go. Install a Development Build: [iOS](mobile-ios-device-deployment.md) or [Android](mobile-android-device-deployment.md).
 2. Phone and gateway on the same LAN (REST fallback and bond management need it).
 3. Settings: REST URL and `X-Desk-Key` (current Web password). Auto prefers BLE and falls back to REST.
 4. First BLE pair: open the **120 s pairing window** on authenticated Web or an already-paired app, scan `DeskGateway`, accept system pairing. iPhone writes Client Info `01 02`, Android `01 03`. Do not handshake with STOP.

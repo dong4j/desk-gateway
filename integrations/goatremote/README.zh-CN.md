@@ -1,12 +1,12 @@
 # Desk Gateway GoatRemote
 
-**语言：** [English](./README.md) · 简体中文
+**语言：** [English](README.md) · 简体中文
 
 GoatRemote 的坐姿 / 站姿语音快捷方式，和 Karabiner 一样调用 [`scripts/desk-preset.sh`](../../scripts/desk-preset.sh)，没有另一套运动协议。
 
 `prompt_template_completion_xml_desk.txt` 是给 GoatRemote 的补充系统提示词，要求把注入的自定义命令当权威映射，不要再发明第二条 shell 路径。
 
-用法细节见 [`docs/keyboard-voice-control.md`](../../docs/keyboard-voice-control.md)。上级目录见 [`../README.zh-CN.md`](../README.zh-CN.md)。
+用法细节见 [`docs/guides/keyboard-voice-control.md`](../../docs/guides/keyboard-voice-control.md)。上级目录见 [`../README.zh-CN.md`](../README.zh-CN.md)。
 
 ## 自定义命令
 

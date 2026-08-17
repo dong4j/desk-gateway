@@ -35,7 +35,7 @@
 - [x] 重启后手机 bond 仍保留，State Notify 能重新订阅
 
 完整 UUID、字节格式和操作步骤见
-[`architecture/ble-accessory-profile.md`](./architecture/ble-accessory-profile.md)。
+[`architecture/ble-accessory-profile.md`](../architecture/ble-accessory-profile.md)。
 
 ### A.2 BLE 三客户端与配对设备管理
 
@@ -69,7 +69,7 @@
 
 ### A.3 双 ToF、显示与上升保护
 
-接线和策略细节见[双 ToF 距离传感器接入与安全策略](./4-tof-distance-sensor-plan.md)。
+接线和策略细节见[双 ToF 距离传感器接入与安全策略](../architecture/tof-safety.md)。
 
 - [x] 启动日志确认 TOF050C / VL6180X 位于 `0x30`，TOF400C / VL53L1X 位于 `0x29`
 - [x] Web 与 OLED 实时显示处理后的高度和“桌面右侧 → 障碍物”距离
@@ -105,6 +105,8 @@
 
 MAX98357A 到货后的接线：
 
+![YD-ESP32-S3 与 MAX98357A 接线](../architecture/images/max98357a-wiring.png)
+
 | ESP32-S3 | MAX98357A | 说明 |
 |---|---|---|
 | USB 输入侧 `5V` | `VIN` | 不使用桌子 RJ45 红线 3.3V |
@@ -128,7 +130,7 @@ MAX98357A 到货后的接线：
 - [ ] 重启后回到 `idle`，时长、语音开关和音量配置保留，但不补播旧提醒
 
 本节真机项完成前，结论保持**代码 GO、语音与整机产品验收 NO-GO**。详细设计和错误边界见
-[`6-pomodoro-reminder-plan.md`](./6-pomodoro-reminder-plan.md)。
+[`architecture/pomodoro-reminder.md`](../architecture/pomodoro-reminder.md)。
 
 ## B. 接线（mxtark + RJ45）
 
@@ -210,7 +212,7 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 
 已知稳定提交 `3269faa` 证明硬件 I²C 键码返回可连续驱动桌子；本次恢复后的新固件仍需按
 上面的三项手动动作重新验收。完整原因和切换边界见
-[`7-hardware-i2c-restoration-investigation.md`](./7-hardware-i2c-restoration-investigation.md)。
+[`hardware/i2c-restoration.md`](../hardware/i2c-restoration.md)。
 
 当前可以验收 Web/REST/串口的全局童锁和 NVS 持久化；原厂面板入口已按 B.4 完成真屏蔽。
 
@@ -329,7 +331,7 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 
 本项目曾观察到“共 4 次启动高度探测”：第一次 USB 复位启动后连续发生 3 次 Brownout，
 第四次才完整启动。它对应 4 次启动、每次各探测一次，而不是一次启动内发出 4 组 DOWN/STOP。
-供电与双 Type-C 接法详见[主控选型文档 §3.1](./2-esp32-s3-n16r8-platform.md#31-双-type-c-供电与-brownout)。
+供电与双 Type-C 接法详见[主控选型文档 §3.1](../hardware/esp32-s3-n16r8.md#31-双-type-c-供电与-brownout)。
 
 ## D. 验收通过后再排期
 

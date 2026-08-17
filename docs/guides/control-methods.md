@@ -4,9 +4,9 @@
 |---|---|
 | 日期 | 2026-08-17 |
 | 适用阶段 | Phase 1 与 Phase 2 透传已完成；V1 发布还差内测包等 P1 门禁 |
-| REST 细节 | [REST API](./rest-api.md) |
-| 本地把多端跑起来 | [本地多端部署清单](./local-multi-client-setup.md) |
-| 接线烧录 | [真机验收清单](../bringup-checklist.md)、[固件 README](../../firmware/desk-gateway/README.zh-CN.md) |
+| REST 细节 | [REST API](rest-api.md) |
+| 本地把多端跑起来 | [本地多端部署清单](local-multi-client-setup.md) |
+| 接线烧录 | [真机验收清单](bringup-checklist.md)、[固件 README](../../firmware/desk-gateway/README.zh-CN.md) |
 
 Desk Gateway 把厂商协议收进 `mxtark` Driver。下面这些入口都走同一套 `desk_core`：急停、童锁、来源权限、ToF 上升保护对所有入口生效。
 
@@ -17,19 +17,19 @@ Desk Gateway 把厂商协议收进 `mxtark` Driver。下面这些入口都走同
 | 入口 | 通道 | 适合做什么 | 详细文档 |
 |---|---|---|---|
 | 局域网 Web | REST | 日常升降、档位、童锁、设置 | 下文 |
-| `desk-preset.sh` / curl | REST | 脚本、快捷键、旋钮 | [REST API](./rest-api.md) |
+| `desk-preset.sh` / curl | REST | 脚本、快捷键、旋钮 | [REST API](rest-api.md) |
 | USB 串口 | UART | 烧录后立刻验证、排障 | 下文 |
 | iPhone App | BLE 优先，REST 回退 | 随身控制、配对管理 | [手机 App](../../mobile/app/README.zh-CN.md) |
-| Android App | 同上 | 扫描、配对、长按控制和异常停止 | [Android 部署](./mobile-android-device-deployment.md) |
+| Android App | 同上 | 扫描、配对、长按控制和异常停止 | [Android 部署](mobile-android-device-deployment.md) |
 | Apple Watch | BLE 或 REST | Crown 连续升降 | [Watch README](../../mobile/watch/README.zh-CN.md) |
 | LightBlue | BLE GATT | 协议调试 | [BLE Profile](../architecture/ble-accessory-profile.md) |
-| Karabiner 快捷键 | REST | 键盘切坐姿 / 站姿 / 停止 | [键盘与旋钮](../keyboard-voice-control.md) |
-| 桌面旋钮 | REST jog | 手不离键微调高度 | [键盘与旋钮](../keyboard-voice-control.md) |
-| GoatRemote | REST 档位 | Mac 语音切坐站 | [键盘与旋钮](../keyboard-voice-control.md) |
-| 小智 AI | MCP → REST | 「站立」「坐姿」「停下」 | [小智控桌](../11-xiaozhi-ai-desk-control.md) |
+| Karabiner 快捷键 | REST | 键盘切坐姿 / 站姿 / 停止 | [键盘与旋钮](keyboard-voice-control.md) |
+| 桌面旋钮 | REST jog | 手不离键微调高度 | [键盘与旋钮](keyboard-voice-control.md) |
+| GoatRemote | REST 档位 | Mac 语音切坐站 | [键盘与旋钮](keyboard-voice-control.md) |
+| 小智 AI | MCP → REST | 「站立」「坐姿」「停下」 | [小智控桌](xiaozhi-ai-desk-control.md) |
 | Ulanzi D200H | REST | 实体键坐 / 站 / 番茄 | [D200H 插件](../../integrations/ulanzi-d200h/README.zh-CN.md) |
 | 原厂面板 | I²C 代理 | 桌边按键（Phase 2） | [固件 README](../../firmware/desk-gateway/README.zh-CN.md) |
-| OLED | I²C 显示 | 只看高度和状态，不控桌 | [OLED](../9-oled-status-display.md) |
+| OLED | I²C 显示 | 只看高度和状态，不控桌 | [OLED](../architecture/oled-status-display.md) |
 
 默认档位：坐姿 `550 mm`（档位 1），站姿 `870 mm`（档位 4），最高安全高度 `940 mm`。高度来自 TOF400C，不是控制盒数码管。
 
@@ -84,7 +84,7 @@ curl -s -X POST -H "X-Desk-Key: $DESK_KEY" \
   "http://$DESK_IP/api/v1/desk/stop"
 ```
 
-完整路径、鉴权和错误码见 [REST API](./rest-api.md)。
+完整路径、鉴权和错误码见 [REST API](rest-api.md)。
 
 ## USB 串口
 
@@ -114,8 +114,8 @@ Android 与 iPhone 使用同一套代码，真机已完成扫描、配对、Noti
 
 安装步骤：
 
-- [iOS 真机部署](./mobile-ios-device-deployment.md)
-- [Android 真机部署](./mobile-android-device-deployment.md)
+- [iOS 真机部署](mobile-ios-device-deployment.md)
+- [Android 真机部署](mobile-android-device-deployment.md)
 - [Watch README](../../mobile/watch/README.zh-CN.md)
 
 用 LightBlue 验证 GATT 时，按 [BLE Accessory Profile](../architecture/ble-accessory-profile.md) 的 UUID 和加密 Write 流程操作。未打开配对窗口时，新设备不能下发运动命令。
@@ -131,7 +131,7 @@ Karabiner-Elements 读取 `integrations/karabiner/desk-gateway.json`。启用后
 
 旋钮每个刻度只发一次 `/api/v1/desk/jog/up|down`。第一个刻度待命，`700 ms` 内第二个同向刻度才启动；停转后 ESP32 约 `500 ms` 自动停止。反向第一个刻度是 STOP。
 
-GoatRemote 把「桌子坐姿」「桌子站姿」指到 `scripts/desk-preset.sh 1` 和 `4`。安装细节见 [键盘、旋钮与语音控制](../keyboard-voice-control.md)。
+GoatRemote 把「桌子坐姿」「桌子站姿」指到 `scripts/desk-preset.sh 1` 和 `4`。安装细节见 [键盘、旋钮与语音控制](keyboard-voice-control.md)。
 
 ## 小智 AI 与 Ulanzi
 
