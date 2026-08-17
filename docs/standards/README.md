@@ -1,14 +1,16 @@
-# Desk Gateway 开发规范
+# Desk Gateway development standards
 
-本目录保存 Desk Gateway 项目的强制开发规范。所有参与本项目的 AI Agent 在开始分析、修改、测试或提交代码前，都必须阅读并遵守本目录下的全部规范。
+**Language:** English · [简体中文](./README.zh-CN.md)
 
-## 规范清单
+This directory holds mandatory development rules for Desk Gateway. Every AI agent must read and follow every file here before analyzing, changing, testing, or committing code.
 
-- [代码提交规范](git-commit-convention.md)：规定提交拆分、提交信息格式、提交前检查、暂存边界与远程操作限制。
+## Standards
 
-## 执行要求
+- [Git commit convention](git-commit-convention.md): commit splitting, message format, pre-commit checks, staging bounds, and remote-operation limits.
 
-1. 本目录内的规范适用于固件、Web、移动端、Watch、脚本、测试和文档等全部项目内容。
-2. 新增规范文件后，所有 AI Agent 必须在后续开发中一并遵守，不得只读取本索引而忽略具体规范。
-3. 若本目录规范与系统指令、用户明确指令冲突，应遵守优先级更高的指令；不存在冲突时，本目录规范为项目级强制要求。
-4. 发现实现与规范不一致时，应先修正不一致项，再报告任务完成。
+## How to apply them
+
+1. These rules cover firmware, Web, mobile, Watch, scripts, tests, and docs.
+2. After a new standards file is added, later agents must follow it too. Reading only this index is not enough.
+3. If a rule here conflicts with a system instruction or an explicit user instruction, follow the higher-priority instruction. Otherwise these project rules are mandatory.
+4. If implementation drifts from a rule, fix the drift before claiming the task done.

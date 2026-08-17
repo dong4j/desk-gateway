@@ -5,7 +5,7 @@
 | 文档编号 | DG-ARCH-WATCH-001 |
 | 版本 | 0.18 |
 | 日期 | 2026-08-16 |
-| 状态 | BLE / REST 双通道代码、测试和通用构建完成；Apple Watch 真机验收待完成 |
+| 状态 | BLE / REST 双通道代码、测试、通用构建和 Apple Watch 真机验收已完成 |
 | 关联协议 | [BLE 外设扩展 Profile v1](./ble-accessory-profile.md) |
 | 移动端方案 | [移动端技术选型与 Phase 0 方案](./mobile-app-technology-selection.md) |
 | 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
@@ -14,12 +14,12 @@
 首版创建独立 watchOS App，直接复用 ESP32 GATT v1 和现有鉴权 REST，不修改固件协议。
 
 当前 Watch 已写入加密 Client Info 代替正常连接时的配对 STOP；固件允许它与 iPhone、
-Android 同时保持连接，并以 Desk Busy `0x80` 拒绝非所有者的运动命令。三台真机并发
-仍待安全验收，不能由通用 watchOS 构建替代。
+Android 同时保持连接，并以 Desk Busy `0x80` 拒绝非所有者的运动命令。2026-08-17
+三台真机并发已通过。
 
-> **当前固件边界（2026-08-15）**：硬件 I²C 产品路径已通过 TOF400C 提供高度，并恢复
+> **当前固件边界（2026-08-17）**：硬件 I²C 产品路径已通过 TOF400C 提供高度，并恢复
 > “请坐/站立”闭环档位；最高高度和低位右侧障碍物限制由 ESP32 执行。Watch 真机与双 ToF
-> 安全矩阵仍待验收，通用 watchOS 构建不能替代这些结果。
+> 安全矩阵已通过。通用 watchOS 构建仍然不能替代这些结果。
 
 ---
 
@@ -268,12 +268,11 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
   显示橙色“模拟”标识；
 - Mock 的选择是 `DEBUG && targetEnvironment(simulator)` 编译期行为。真机 Debug 和所有
   Release 构建使用 `DeskConnectionManager` 管理真实 BLE / REST，连接失败不会降级到 Mock；
-- Simulator 不具备本项目所需的真实 BLE、物理 Digital Crown 和升降桌环境，因此扫描、
-  系统配对弹窗、Crown 手感和真实 STOP 时序仍是开放门禁。
+- Simulator 不具备本项目所需的真实 BLE、物理 Digital Crown 和升降桌环境，因此不能用模拟器替代真机。
 - Apple Watch 配对、签名、安装、首次 BLE 验收和常见问题统一维护在
-  [Watch 真机安装说明](../../mobile/watch/README.md#apple-watch-真机安装)。
+  [Watch 真机安装说明](../../mobile/watch/README.zh-CN.md#apple-watch-真机安装)。
 
-当前结论：**代码与静态构建 GO，真机/真实升降验收 NO-GO**。
+当前结论：**代码、静态构建和真机升降验收 GO**。Simulator 仍不能替代真机。
 
 ### W2：正式 UI 与辅助能力
 

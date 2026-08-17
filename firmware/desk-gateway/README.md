@@ -1,6 +1,8 @@
 # Desk Gateway firmware
 
-ESP-IDF project for the standing-desk gateway. Parent docs: [../../README.md](../../README.md) · [中文](../../README.zh-CN.md)
+**Language:** English · [简体中文](./README.zh-CN.md)
+
+ESP-IDF project for the standing-desk gateway. Parent docs: [../../README.md](../../README.md) · [中文](../../README.zh-CN.md). How to move the desk from Web, REST, BLE, phone, Watch, keyboard, voice, or D200H: [control methods](../../docs/guides/control-methods.md). REST contract: [REST API](../../docs/guides/rest-api.md).
 
 ## Build
 
@@ -112,10 +114,9 @@ later. The ESP-IDF 6 Master API combines write/read and enforces standard
 an isolated open-drain GPIO implementation and always attempts STOP on NACK or
 timeout. GPIO6/7 must not be shared with another peripheral.
 
-The original panel preset keys are intentionally **not accepted as safe-height
-validated yet**. Until their complete key/hold sequence has been captured on the
-new topology, first hardware acceptance is limited to short UP, DOWN, release,
-TOF400C height display, and disconnect-stop tests.
+The original panel preset keys 2 / 3 are still **not** treated as a validated
+safe-height path. UP, DOWN, release, TOF400C height display, disconnect-stop,
+arbitration, and child-lock lockout have been accepted on the real desk.
 
 ## Height status
 

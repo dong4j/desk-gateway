@@ -5,37 +5,38 @@
 
 ## 一句话
 
-Desk Gateway 是一套跑在 ESP32-S3 上的**升降桌智能平台**：厂商差异收进 **Desk Driver**，Web / 手机 App（BLE 或 Wi-Fi）/ 串口 / **BLE 外设** / 未来 HA·Matter 共用 **desk_core**。
+Desk Gateway 是一套跑在 ESP32-S3 上的**升降桌智能平台**：厂商差异收进 **Desk Driver**，Web / 手机 App（BLE 或 Wi-Fi）/ Watch / 串口 / 键盘旋钮 / 语音 / D200H 共用 **desk_core**。
 
 ## 分层
 
-```text
-Web UI + 手机 App（BLE/REST）+ UART + BLE 外设（OLED/旋钮）
-              │
-         desk_core          ← 急停、超时、统一命令、童锁
-              │
-        desk_driver API
-              │
-   mxtark / loctek* / jiecang* / …
-```
+所有控桌入口只调 `desk_core`，厂商 I²C 留在 Driver 里。
+
+![软件分层：客户端经 desk_core、desk_driver、mxtark 到达控制盒](images/software-architecture.png)
+
+## 硬件拓扑
+
+Phase 2 是主动中间人：原厂面板走 GPIO6/7 软件代理，控制盒走 GPIO4/5 硬件 I²C Slave `@0x24`。两组 CLK/DAT 不得短接。ToF 与 OLED 共用 GPIO10/11。
+
+![硬件拓扑：原厂面板、ESP32-S3 网关、控制盒与双 ToF](images/hardware-topology.png)
 
 ## 当前状态
 
-> 截至 2026-08-15：主固件可在 ESP-IDF 6.0.2 下编译通过。下面的“已实现”只表示代码已落地，
-> 不代表真机验收完成；硬件结论以 [`bringup-checklist.md`](../bringup-checklist.md) 为准。
-> 当前完成度和后续优先级统一记录在
+> 截至 2026-08-17：Phase 1 已完成。Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵
+> 已在真桌通过。主固件可在 ESP-IDF 6.0.2 下编译。硬件结论以
+> [`bringup-checklist.md`](../bringup-checklist.md) 为准。完成度和后续优先级见
 > [`5-current-status-and-priorities.md`](../5-current-status-and-priorities.md)。
+> 用法见 [`guides/control-methods.md`](../guides/control-methods.md)。
 
 | 层 | 状态 |
 |---|---|
 | `mxtark`（硬件 I²C Slave `@0x24`） | 稳定返回升降键码；控制盒 digit 高度解析停用，TOF400C 作为产品高度源 |
 | `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位、全局童锁和来源权限 |
 | WiFi + Web（局域网、密码、UI、升降动效） | 基础真机路径已完成；实时显示 TOF400C 高度和右侧 TOF050C 间距；ToF 已参与档位和上升保护 |
-| 手机 App 双通道 | iPhone BLE 真机控制已完成；Client Info、Desk Busy 和配对设备 REST 管理 UI 已实现；自动回退矩阵和 Android 待验收 |
-| 高度 | TOF400C 处理后距离直接作为产品高度，进入显示、档位闭环和最高高度保护；完整真机安全矩阵待验收 |
-| BLE / Loctek / Jiecang | BLE 三连接、运动所有权、配对窗口和 Bond 管理已实现并通过自动化；三台真机并发待验收；Loctek / Jiecang 为 stub |
-| Apple Watch | SwiftUI/CoreBluetooth App、Client Info 与 Busy 处理已通过单测和通用构建；真机与三客户端并发待验收 |
-| 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | GPIO6/7 主动事务代理、仲裁和权限代码已实现；短行程、断线 STOP 和真屏蔽待真机验收 |
+| 手机 App 双通道 | iPhone 与 Android BLE 真机控制已完成；Client Info、Desk Busy 和配对设备 REST 管理 UI 已实现；超距自动回退矩阵待验收 |
+| 高度 | TOF400C 处理后距离直接作为产品高度；档位、最高高度和右侧障碍物真机安全矩阵已通过 |
+| BLE / Loctek / Jiecang | BLE 三连接、运动所有权、配对窗口和 Bond 管理已实现；iPhone、Watch、Android 真机并发已通过；Loctek / Jiecang 为 stub |
+| Apple Watch | SwiftUI/CoreBluetooth App 真机扫描、配对、Crown 与三客户端并发已通过 |
+| 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | GPIO6/7 主动事务代理、短行程、断线 STOP、仲裁和真屏蔽已在真桌通过 |
 | HA / Matter / Siri / OTA | Phase 3+；[MQTT / Home Assistant 方案](./mqtt-home-assistant.md)已确认、尚未实现，其余未实现 |
 | 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](./ecosystem-xiaomi-huawei.md) |
 
@@ -102,6 +103,8 @@ docs/superpowers/specs/     ← 设计定稿
 |---|---|
 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) | 实现依据 |
 | [当前状态与优先级](../5-current-status-and-priorities.md) | 已完成、待验收和剩余任务的统一清单 |
+| [多种方式控制升降桌](../guides/control-methods.md) | Web、REST、BLE、手机、Watch、键盘、语音、D200H |
+| [REST API](../guides/rest-api.md) | 局域网 HTTP 契约 |
 | [小米/华为生态调研](./ecosystem-xiaomi-huawei.md) | 模组 vs Matter |
 | [BLE 外设 Profile](./ble-accessory-profile.md) | 旋钮/OLED 配件总线 |
 | [BLE 三客户端与配对管理](./ble-multi-client-bond-management.md) | iPhone、Apple Watch、Android 并发连接、运动所有权与 Bond 删除 |

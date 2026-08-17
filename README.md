@@ -2,36 +2,40 @@
 
 **Language:** English · [简体中文](./README.zh-CN.md)
 
-Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protocols live behind pluggable **Desk Drivers**; Web / UART / BLE (and later Matter / Home Assistant) share one control plane (`desk_core`).
+Open-source **standing-desk smart gateway** for ESP32-S3. Vendor protocols live behind pluggable **Desk Drivers**. Web, UART, BLE, phone, Watch, keyboard, voice, and Stream Deck-style keys share one control plane (`desk_core`).
 
-> **Safety:** Keep a person nearby when moving the desk. TOF400C height and TOF050C right-side clearance now participate in upward safety decisions: upward motion is blocked when height is unknown, the ceiling is reached, or height is below 80 cm while right-side clearance is unknown or below 8 cm. DOWN and STOP remain available. The full hardware safety matrix is still open. Use **LAN only** — do not expose the Web UI to the public Internet.
+Phase 1 is complete: the gateway can emulate the original Mxtark panel and move a real desk from multiple clients on the LAN and over BLE. Phase 2 original-panel pass-through, disconnect-STOP, arbitration, and lockout have been accepted on the real desk. Matter / Home Assistant are not in this release.
 
-## Features (current)
+> **Safety:** Keep a person nearby when the desk moves. TOF400C height and TOF050C right-side clearance take part in upward decisions: upward motion is blocked when height is unknown, the ceiling is reached, or height is below 80 cm while right-side clearance is unknown or below 8 cm. DOWN and STOP stay available. Use **LAN only** — do not expose the Web UI to the public Internet.
 
-- **Phase 1 — panel emulation:** ESP32-S3 hardware I²C Slave serves the key address `0x24`
+## What you can do now
+
+| Client | How it talks to the gateway |
+|--------|-----------------------------|
+| LAN Web UI | Hold to move, presets, child lock, settings |
+| REST / `scripts/desk-preset.sh` | Scripts, curl, automations |
+| USB serial | `up` / `down` / `stop` / `p1` / `p4` |
+| iPhone App | BLE first, REST fallback |
+| Apple Watch | BLE or REST, Digital Crown jog |
+| Karabiner / knob | Keyboard shortcuts and 500 ms jog leases |
+| GoatRemote | Spoken sit / stand presets |
+| XiaoZhi AI | Five fixed MCP tools over REST |
+| Ulanzi D200H | Sit / stand / Pomodoro keys |
+
+How to use each client: [docs/guides/control-methods.md](./docs/guides/control-methods.md) (Chinese). REST contract: [docs/guides/rest-api.md](./docs/guides/rest-api.md).
+
+## Features
+
+- **Panel emulation:** ESP32-S3 hardware I²C Slave at key address `0x24`
 - **Pluggable drivers:** `mxtark` implemented; Loctek / Jiecang stubs
-- **desk_core:** hold up/down and stop; global child-lock and per-source REST/Bluetooth/panel permissions are persisted in NVS
-- **Dual-ToF sensing:** TOF400C provides the product height directly; TOF050C measures right-side clearance; both paths include stabilization and stale-data detection
-- **Closed-loop height control:** the configurable preset floor, seated, standing, and ceiling settings are synchronized and persisted; current defaults are 550 / 550 / 870 / 940 mm, and the preset floor does not trigger a downward STOP
-- **Wi‑Fi + SoftAP provisioning** and password-protected **LAN Web UI**
-- **BLE Accessory Profile:** up to three connected Centrals, one motion owner, encrypted Client Info, explicit pairing windows, Bond management, hold leases, disconnect-stop, preset commands, and status notifications
-- **Consistent height state:** Web/REST/BLE/OLED/original panel use the stabilized TOF400C distance; SIM and control-box digit parsing are disabled
+- **desk_core:** hold up/down, jog, stop, presets, global child-lock, per-source REST/Bluetooth/panel permissions in NVS
+- **Dual-ToF:** TOF400C is the product height; TOF050C is right-side clearance; both paths debounce and expire
+- **Closed-loop presets:** configurable floor / sit / stand / ceiling, defaults 550 / 550 / 870 / 940 mm; the floor does not force a downward STOP
+- **Wi-Fi + SoftAP** and a password-protected **LAN Web UI**
+- **BLE Accessory Profile:** up to three Centrals, one motion owner, encrypted Client Info, pairing windows, Bond management, hold leases, disconnect-stop
+- **Same height everywhere:** Web / REST / BLE / OLED / original panel use the filtered TOF400C distance
 
-> The main firmware builds with ESP-IDF 6.0.2. The current `23f1c7d1` image was fully
-> flashed and its Mxtark `0x24`, panel proxy, BLE, Wi-Fi, Web, ToF, OLED, and audio
-> startup paths were observed on 2026-08-15. This is startup evidence, not motion
-> acceptance. On 2026-08-10, Web hold-to-move
-> UP/DOWN and release-to-stop passed on the real desk after restoring the panel's
-> two external pull-ups. Later multi-address software-I²C height work regressed
-> continuous movement, so the default firmware has returned to the hardware `0x24`
-> path validated by commit `3269faa`. LightBlue and an earlier iPhone App build passed
-> their core control paths, but the current App BLE long-press fix and firmware combination
-> still need a real-desk regression. Dual-ToF closed-loop presets and upward protection are now implemented;
-> the complete real-desk safety matrix remains open.
-> The consolidated abnormal-stop matrix, Android acceptance, and original-panel
-> pass-through / lockout remain open. The three-client firmware, Web/mobile Bond
-> management, and Watch/mobile Client Info code pass automated gates, but the
-> iPhone + Apple Watch + Android hardware matrix remains open; see the status below.
+The main firmware builds with **ESP-IDF v6.0.2**. Phase 2 pass-through, the abnormal-stop matrix, three-client concurrency, and the dual-ToF safety matrix have been accepted on the real desk. V1 release still depends on remaining gates such as mobile beta builds; see [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md).
 
 ## Hardware
 
@@ -43,9 +47,7 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor-specific protoc
 | I²C (mxtark) | RJ45 pin 2 / white CLK → GPIO4; pin 4 / black DAT → GPIO5 |
 | Pull-ups | RJ45 pin 1 / red 3.3V → **2 kΩ (2.2 kΩ acceptable)** → CLK, and another → DAT |
 
-The red 3.3V wire is only the pull-up source. **Never connect it directly to the
-ESP32 3V3 pin.** Removing the original panel also removes its two measured
-`1.99 kΩ` pull-ups; a replacement ESP32 setup must restore them.
+The red 3.3V wire is only the pull-up source. **Never connect it directly to the ESP32 3V3 pin.** Removing the original panel also removes its two measured `1.99 kΩ` pull-ups; restore them on the ESP32 setup.
 
 Wiring checklist: [docs/bringup-checklist.md](./docs/bringup-checklist.md)
 
@@ -53,10 +55,12 @@ Wiring checklist: [docs/bringup-checklist.md](./docs/bringup-checklist.md)
 
 ### Prerequisites
 
-- [ESP-IDF](https://docs.espressif.com/projects/esp-idf/) **5.2+** (developed on **6.0.x**)
+- [ESP-IDF](https://docs.espressif.com/projects/esp-idf/) **v6.0.2** (this repo does not support mixing other versions)
 - Target: `esp32s3`
 
-### Build & flash
+Activate the IDF environment in the **same shell** before any build, flash, or monitor command, then confirm `idf.py --version` prints `ESP-IDF v6.0.2`.
+
+### Build and flash
 
 ```bash
 cd firmware/desk-gateway
@@ -65,15 +69,13 @@ idf.py build
 idf.py -p PORT flash monitor
 ```
 
-On macOS with Espressif Install Manager, activate your IDF env first (example alias: `get-idf`).
-
-For a repeatable compile-only check that avoids stale local `build/` caches:
+For a repeatable compile-only check that avoids a stale local `build/` cache:
 
 ```bash
 ./scripts/check-firmware.sh
 ```
 
-### Wi‑Fi (SoftAP — recommended)
+### Wi-Fi (SoftAP)
 
 If no credentials are stored, the device opens:
 
@@ -83,73 +85,74 @@ If no credentials are stored, the device opens:
 | Password | `desk-gateway` |
 | Setup page | http://192.168.4.1/ |
 
-Then join your home **2.4 GHz** Wi‑Fi. Open `http://<device-ip>/` — default Web password: `desk-gateway`.
+Join your home **2.4 GHz** Wi-Fi, then open `http://<device-ip>/`. Default Web password: `desk-gateway`. Change it after the first login.
 
-Normal flash keeps NVS (Wi‑Fi usually survives). `idf.py erase-flash` clears it.
+A normal flash keeps NVS (Wi-Fi usually survives). `idf.py erase-flash` clears it.
 
-### Serial commands (debug)
+### First motion check
 
-`wifi <ssid> <pass>` · `up` / `down` / `stop` · `p1` / `p4` · `lock` / `unlock`
+Serial: `up` / `down` / `stop` (type a full line, then Enter). Web hold buttons: **press = move**, **release = stop**. Scripted presets:
 
-Web hold buttons: **press = move**, **release = stop** (DR held, not spammed).
+```bash
+# Edit DESK_BASE_URL and DESK_KEY inside the script first
+./scripts/desk-preset.sh 4
+./scripts/desk-preset.sh stop
+```
+
+## Architecture
+
+![Software architecture: clients share desk_core, then desk_driver and mxtark to the I²C controller](docs/architecture/images/software-architecture.png)
+
+![Hardware topology: original panel, ESP32-S3 gateway, desk controller, ToF and OLED](docs/architecture/images/hardware-topology.png)
 
 ## Repository layout
 
 ```text
-firmware/desk-gateway/     Main ESP-IDF firmware
-integrations/xiaozhi-mcp/  XiaoZhi cloud MCP to Desk Gateway REST bridge
-docs/                      Requirements, architecture, protocol notes, UI demos
-LICENSE                    MIT
-NOTICE                     Third-party attributions
+firmware/desk-gateway/     ESP-IDF firmware
+mobile/app/                iPhone / Android (React Native + Expo)
+mobile/watch/              Independent Apple Watch app
+integrations/              Third-party clients (MCP, D200H, Karabiner, GoatRemote)
+scripts/                   Firmware check, flash helpers, desk-preset.sh
+docs/                      Requirements, architecture, user guides
 ```
 
 ## Documentation
 
+Start at [docs/README.md](./docs/README.md) ([中文](./docs/README.zh-CN.md)). High-traffic pages:
+
 | Doc | Description |
 |-----|-------------|
-| [docs/0-requirements.md](./docs/0-requirements.md) | Requirements (Chinese) |
-| [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | Current status and prioritized backlog (Chinese) |
-| [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 release acceptance gates and sign-off record (Chinese) |
-| [docs/7-hardware-i2c-restoration-investigation.md](./docs/7-hardware-i2c-restoration-investigation.md) | Why the default firmware returned from software to hardware I²C (Chinese) |
-| [docs/4-tof-distance-sensor-plan.md](./docs/4-tof-distance-sensor-plan.md) | Dual-ToF wiring, filtering, presets, and upward safety policy (Chinese) |
+| [docs/guides/control-methods.md](./docs/guides/control-methods.md) | All ways to move the desk |
+| [docs/guides/rest-api.md](./docs/guides/rest-api.md) | REST contract |
+| [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | What is done vs still to accept |
+| [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 release gates |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | Architecture overview |
-| [docs/architecture/mqtt-home-assistant.md](./docs/architecture/mqtt-home-assistant.md) | MQTT / Home Assistant integration design (Chinese) |
-| [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUIDs, byte protocol, and LightBlue test flow |
-| [docs/architecture/ble-multi-client-bond-management.md](./docs/architecture/ble-multi-client-bond-management.md) | Three-client ownership, pairing windows, and Bond management |
-| [integrations/xiaozhi-mcp/README.md](./integrations/xiaozhi-mcp/README.md) | XiaoZhi cloud MCP bridge deployment and acceptance (Chinese) |
-| [docs/guides/mobile-android-device-deployment.md](./docs/guides/mobile-android-device-deployment.md) | Android physical-device build, installation, and troubleshooting (Chinese) |
-| [docs/guides/mobile-ios-device-deployment.md](./docs/guides/mobile-ios-device-deployment.md) | iPhone Development Build and physical-device installation (Chinese) |
-| [docs/guides/mobile-watch-production-release.md](./docs/guides/mobile-watch-production-release.md) | iPhone, Android, and Apple Watch production release workflow (Chinese) |
-| [mobile/watch/README.md](./mobile/watch/README.md) | Apple Watch build, signing, installation, and hardware gates (Chinese) |
-| [docs/bringup-checklist.md](./docs/bringup-checklist.md) | Bring-up / acceptance checklist |
-| [docs/ui-demos/](./docs/ui-demos/) | Static Web UI style demos |
+| [docs/bringup-checklist.md](./docs/bringup-checklist.md) | Wiring and hardware checks |
 | [docs/3-protocol-reverse-notes.md](./docs/3-protocol-reverse-notes.md) | Protocol reverse notes |
+| [integrations/README.md](./integrations/README.md) | Third-party clients |
 
 ## Roadmap
 
-- [x] Restore hardware I²C Slave `@0x24` as the stable movement transport
-- [x] Validate BLE control with LightBlue and the iPhone App on the real desk
-- [x] Deliver BLE-first / REST-fallback mobile control and synchronized device settings
-- [x] Implement the configurable 550 mm preset floor across firmware, Web, App, Watch, REST, and BLE Config v3
-- [x] Implement three-client BLE ownership, Client Info, pairing windows, and Web/mobile Bond management
-- [x] Implement the Phase 2 dual-RJ45 panel proxy, arbitration, and panel control gates
-- [ ] Complete Phase 2 real-desk pass-through, disconnect-STOP, arbitration, and true lockout acceptance
-- [ ] Revalidate current App BLE long-press UP/DOWN and release-to-STOP on the real desk
-- [ ] Complete the abnormal-stop matrix and Android hardware acceptance
-- [x] Integrate TOF400C height and TOF050C right-side clearance, restoring closed-loop presets and the safe ceiling
-- [x] Implement the Apple Watch app and multi-client handshake (hardware acceptance remains open)
-- [ ] Complete the iPhone + Apple Watch + Android three-client hardware matrix
-- [ ] Complete the dual-ToF preset, ceiling, and right-side obstacle hardware safety matrix
-- [ ] Matter / Home Assistant integrations
+**Phase 1 (done)**
+
+- [x] Hardware I²C Slave `@0x24` as the stable movement transport
+- [x] LAN Web, REST, UART, BLE, iPhone App, Watch, keyboard/knob, XiaoZhi MCP, Ulanzi D200H
+- [x] Configurable 550 mm preset floor across firmware, Web, App, Watch, REST, BLE Config v3
+- [x] Three-client BLE ownership, Client Info, pairing windows, Web/mobile Bond management
+- [x] Dual-ToF preset, ceiling, and right-side obstacle hardware safety matrix
+- [x] Phase 2 real-desk pass-through, disconnect-STOP, arbitration, true lockout
+- [x] Abnormal-stop matrix and Android hardware acceptance
+- [x] iPhone + Apple Watch + Android three-client hardware matrix
+
+**Still open**
+
+- [ ] Matter / Home Assistant
 - [ ] OTA firmware updates
 - [ ] Additional desk drivers (Loctek, Jiecang, …)
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) and
-[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). Before opening an issue, use the
-[support guide](./SUPPORT.md) to choose the correct channel and collect the
-required evidence.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). Before opening an issue, use the [support guide](./SUPPORT.md).
 
 ## Security
 
@@ -157,10 +160,8 @@ See [SECURITY.md](./SECURITY.md). Do not port-forward the Web UI. Change the def
 
 ## License
 
-This project is licensed under the **MIT License** — see [LICENSE](./LICENSE).
-
-Third-party components (ESP-IDF, cJSON, etc.) retain their own licenses — see [NOTICE](./NOTICE).
+**MIT License** — [LICENSE](./LICENSE). Third-party components keep their own licenses — [NOTICE](./NOTICE).
 
 ## Disclaimer
 
-Not affiliated with any desk manufacturer. Reverse‑engineered protocol notes are for interoperability on hardware you own. Use at your own risk; moving furniture can cause injury or damage.
+Not affiliated with any desk manufacturer. Reverse-engineered protocol notes are for interoperability on hardware you own. Use at your own risk; moving furniture can cause injury or damage.

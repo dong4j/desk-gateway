@@ -1,0 +1,211 @@
+# Desk Gateway Watch
+
+**语言：** [English](./README.md) · 简体中文
+
+独立 watchOS App 支持 Apple Watch 通过 BLE 或局域网 REST 直连 Desk Gateway。产品交互、
+Digital Crown 停止时序、番茄时钟 Reminder v1 和真机门禁见
+[`docs/architecture/apple-watch-control.md`](../../docs/architecture/apple-watch-control.md)。
+
+iPhone、Android 与独立 Apple Watch App 的统一签名、商店内测和正式发布流程见
+[`docs/guides/mobile-watch-production-release.md`](../../docs/guides/mobile-watch-production-release.md)。
+
+## 工具与工程边界
+
+Watch 工程使用 Swift Package Manager 和 XcodeGen。开始前检查：
+
+```bash
+xcodebuild -version
+xcodegen --version
+swift --version
+```
+
+如果缺少 XcodeGen，可以通过 `brew install xcodegen` 安装。Xcode 必须支持目标 Apple
+Watch 当前安装的 watchOS；只运行 `swift test` 不需要开发签名，安装到真机则需要 Xcode
+账号、Team、Provisioning Profile 和已注册设备。
+
+`project.yml` 是 Xcode 工程配置的事实来源，生成的 `DeskGatewayWatch.xcodeproj` 不提交。
+不要只在生成工程中持久修改 Team、Bundle ID、Info.plist 属性或 Build Settings，因为下次
+执行 `xcodegen generate` 会覆盖这些修改。
+
+## 本地验证
+
+从仓库根目录执行：
+
+```bash
+cd mobile/watch
+swift test
+xcodegen generate
+xcodebuild -project DeskGatewayWatch.xcodeproj \
+  -scheme DeskGatewayWatch \
+  -destination 'generic/platform=watchOS' \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+`swift test` 覆盖平台无关的 GATT、REST 状态映射和 Crown 状态机。通用 watchOS 构建
+只能证明 SwiftUI、CoreBluetooth 和 URLSession 代码可以编译，不能代替 Apple Watch
+真机上的扫描、配对、局域网连接、Digital Crown、触感和真实升降验收。
+
+上述 `CODE_SIGNING_ALLOWED=NO` 构建不会生成可直接安装到 Apple Watch 的已签名 App，
+也不会部署设备。真机安装必须继续执行下文的签名和 Xcode Run 流程。
+
+## Simulator Debug Mock
+
+在 Xcode 中使用 Watch Simulator 运行 `DeskGatewayWatch` 的 Debug 构建时，App 会自动
+使用本地 Mock，不再扫描 BLE。页面顶部的橙色“模拟”标识表示当前没有连接真实升降桌：
+
+- 初始高度为 `72.0 cm`，安全上限为 `94.0 cm`；
+- Digital Crown 可以模拟持续上升/下降；watchdog 每 `250 ms` 续期，`500 ms` 无输入 STOP；
+- “请坐”模拟移动到 `55 cm`，“站立”模拟移动到 `87 cm`；
+- 运动期间显示的 STOP 可以立即中断模拟动作。
+- 顶部计时器按钮进入番茄时钟页；Simulator 只模拟离散动作状态，不运行本地倒计时。
+
+Mock 仅在 `DEBUG && targetEnvironment(simulator)` 条件下编译为活动控制器。Watch 真机
+Debug 和所有 Release 构建始终使用真实的 `DeskConnectionManager`，不存在连接失败后
+自动切换 Mock 的运行时降级，避免把模拟成功误认为真实硬件验收。
+
+模拟器建议按以下顺序测试：
+
+1. 确认顶部显示“已连接”和橙色“模拟”，高度为 `72.0 cm`、安全上限为 `94.0 cm`；
+2. 旋转 Digital Crown，确认高度连续变化，停止旋转后状态回到“已连接”；
+3. 点击“请坐”或“站立”，确认高度向对应档位变化且界面出现 STOP；
+4. 在运动过程中点击 STOP，确认高度立即停止变化。
+
+## Apple Watch 真机安装
+
+### 1. 前置条件
+
+- Apple Watch 运行 watchOS 11 或更高版本，并已与 iPhone 配对；
+- Mac 上的 Xcode 必须支持 Watch 当前安装的 watchOS 版本；
+- 在 Xcode → Settings → Accounts 中登录 Apple ID；
+- iPhone 和 Apple Watch 都开启“设置 → 隐私与安全性 → 开发者模式”。首次开启需要
+  按系统提示重启；Watch 重启后选择 Turn On，并在出现提示时选择 Trust；
+- Watch 保持解锁，并与配对 iPhone、Mac 放在附近。
+
+Apple 官方说明：
+
+- [Enabling Developer Mode on a device](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)
+- [Managing devices in Device Hub](https://developer.apple.com/documentation/xcode/managing-your-simulated-and-physical-devices-in-device-hub)
+
+### 2. 生成并打开 Xcode 工程
+
+本目录不提交生成的 `.xcodeproj`。每次 `project.yml` 变化后重新生成：
+
+```bash
+cd mobile/watch
+xcodegen generate
+open DeskGatewayWatch.xcodeproj
+```
+
+这是使用 `WKWatchOnly` 的独立 Watch-only App，不需要先安装 iPhone companion App。
+
+### 3. 配置真机签名
+
+在 Xcode 中选择 `DeskGatewayWatch` Target → Signing & Capabilities：
+
+1. 勾选 Automatically manage signing；
+2. 确认 Team 是当前 Apple ID 可用的开发团队；
+3. 确认 Bundle Identifier 在该团队下唯一。
+
+仓库默认值位于 `project.yml`：
+
+```text
+DEVELOPMENT_TEAM = 8WCUMGCWMB
+PRODUCT_BUNDLE_IDENTIFIER = com.dong4j.deskgateway.watch
+```
+
+如果 Team 不匹配，应修改 `project.yml` 后重新执行 `xcodegen generate`。不要只在生成的
+Xcode 工程中修改，否则下次生成会覆盖手工设置。
+
+### 4. 在 Device Hub 准备 Apple Watch
+
+1. 打开 Xcode → Open Developer Tool → Device Hub，或从运行目标菜单选择
+   Manage Devices…；
+2. 必要时先用数据线连接配对 iPhone，并在 iPhone 上确认信任此电脑；
+3. 在 Physical Devices 中选择 Apple Watch；
+4. 根据右侧提示完成 Developer Mode、信任或设备注册；
+5. 等待 Preparing 结束并显示 Ready。
+
+Apple 官方真机运行流程见
+[Running your app on simulated or physical devices](https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices)。
+
+### 5. 安装并运行
+
+在 Xcode 顶部工具栏：
+
+1. Scheme 选择 `DeskGatewayWatch`；
+2. Run Destination 选择 Physical Devices 下的物理 Apple Watch，不选择 Simulator
+   或 Any watchOS Device；
+3. 点击 Run 或按 `⌘R`；
+4. 等待 Xcode 完成签名、安装并启动 App。
+
+真机 Debug 构建始终使用 `DeskConnectionManager` 管理 BLE / REST，不会启用 Simulator
+Mock，也不会显示橙色“模拟”标识。
+
+### 6. 日常修改与重新生成边界
+
+| 修改内容 | `swift test` | `xcodegen generate` | Xcode 重新 Build / Run |
+|---|---:|---:|---:|
+| `Sources/` 中的协议或状态机 | 需要 | 不需要 | 需要 |
+| `Tests/` 测试代码 | 需要 | 不需要 | 不需要 |
+| `App/` SwiftUI、BLE、REST 代码 | 按影响执行 | 不需要 | 需要 |
+| `App/Info.plist` 或资源 | 不需要 | 不需要 | 需要 |
+| `project.yml`、Team、Bundle ID、Build Settings | 按影响执行 | 需要 | 需要 |
+| 更换 Apple Watch 或 App 被删除 | 不需要 | 不需要 | 需要 |
+
+修改 `project.yml` 后先关闭旧工程，重新执行 `xcodegen generate` 并打开生成工程。普通
+Swift 源码修改不需要重复生成工程，直接在 Xcode 中重新 Run 即可。
+
+### 7. 首次 BLE 验收顺序
+
+首次绑定前先在已认证 Web 或手机设置页开启 120 秒配对窗口，并确认网关已通电和广播：
+
+1. 首次启动时允许蓝牙权限；
+2. 等待顶部显示“已连接”，并确认高度来自真实桌面；
+3. Watch 写入 `01 01` Client Info 触发系统配对提示时选择允许；正常握手不会发送 STOP；
+4. 让手保持在桌面原控制器旁，极短旋转 Crown 后立即点击 STOP；
+5. 确认停止链路后，再分别测试上升、下降、250 ms watchdog 续期和 500 ms 无输入 STOP；
+6. 最后测试“请坐”档位 1、“站立”档位 4、童锁和 Bluetooth 来源拒绝。
+7. 与 iPhone、Android 同时在线，验证非所有者显示“另一台设备正在控制”但不掉线，
+   任意客户端 STOP 都能立即停止。
+8. 打开番茄时钟页，验证剩余时间来自 ESP Notify，并依次测试开始、暂停、继续、跳过、
+   稍后提醒和停止；番茄操作不得触发桌体运动。
+9. 模拟或触发 B12 无位移提示，确认 Watch 只提示一次；确认桌下无遮挡后执行重置，验证
+   重置期间所有运动入口禁用，约 8 秒后恢复。
+
+自动化构建、Simulator 和 UI 截图都不能替代这一真机安全门禁。
+
+### 8. 首次 Wi-Fi / REST 验收顺序
+
+1. 确认 Watch 与 Desk Gateway 可访问同一局域网，网关能通过
+   `http://desk-gateway.local/` 或固定 IP 访问；
+2. 在 Watch 连接设置中选择“Wi-Fi”，填写网关地址和当前 REST 密码；密码只保存到
+   Watch Keychain；
+3. 保存重连后确认顶部显示“Wi-Fi”，高度、档位和番茄状态来自真实网关；
+4. 分别测试上升、下降、方向切换和 STOP；Crown 必须使用 `/api/v1/desk/jog/up|down`；
+5. 运动期间断开 Watch 网络，确认最后一次 Jog 后约 500 ms 内由设备租约自动停止；
+6. 测试密码错误、REST 来源关闭、童锁、上升受限和网关重启后的错误与重连；
+7. 选择“自动”，分别验证 BLE 正常时保持 BLE，以及 BLE 不可用时切换到 Wi-Fi；切换后
+   不得恢复或重放切换前的运动。
+
+自动化构建只能证明 REST 路径、状态解析和工程配置可编译，不能替代上述真机断网和
+500 ms 租约验收。
+
+### 9. 常见问题
+
+| 现象 | 检查项 |
+|---|---|
+| Xcode 看不到 Watch | 确认 iPhone 和 Watch 都开启 Developer Mode；Watch 已解锁并靠近 iPhone；在 Device Hub 查看具体提示 |
+| Preparing 长时间不结束 | 保持 iPhone 有线连接、Watch 解锁，确认 Xcode 支持当前 watchOS 版本 |
+| Signing 或 provisioning 失败 | 检查 Xcode 登录账号、Team、自动签名和 Bundle ID；持久修改必须写回 `project.yml` |
+| Watch 显示蓝牙不可用 | 在 Watch 的隐私与安全性设置中检查蓝牙授权；确认当前运行目标确实是物理 Watch |
+| 一直扫描不到 Desk Gateway | 确认网关正在广播、连接数未达到 3 台上限；首次绑定还需在手机 App 或 Web 开放 120 秒配对窗口 |
+| 配对或加密失败 | 按 Watch 弹窗操作：在手机 App 或 Web 删除此 Watch 的旧记录并开放配对窗口，在 Watch 蓝牙设置忽略 DeskGateway 后重连 |
+| 显示另一台设备正在控制 | 当前 Watch 不是 BLE 运动所有者；可继续查看状态或发送 STOP，等待所有者释放后再控制 |
+| Wi-Fi 连接失败 | 确认 Watch 能访问网关所在局域网；优先测试 `desk-gateway.local`，失败时填写网关 IP；检查 REST 密码和 REST 来源权限 |
+| 仍提示同时定义 `WKWatchOnly` 和 `WKRunsIndependentlyOfCompanionApp` | 删除 Watch 上的旧 App，确认生成配置只保留 `WKWatchOnly`，再执行 Product → Clean Build Folder 后重装 |
+
+## 正式发布边界
+
+当前 Watch 流程只覆盖 Debug 真机安装和验证。提交 App Store 前仍需单独确认版本号、
+Distribution 签名、Archive、隐私材料、独立 watchOS App 上架配置以及真实设备安全矩阵。
+通用构建、Simulator Mock 或一次 Xcode Run 都不能作为发布完成证据。

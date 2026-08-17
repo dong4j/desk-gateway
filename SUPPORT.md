@@ -9,6 +9,8 @@ support channel.
 ## Before asking for help
 
 1. Read the [README](./README.md),
+   [documentation index](./docs/README.md),
+   [control methods](./docs/guides/control-methods.md),
    [bring-up checklist](./docs/bringup-checklist.md), and relevant protocol
    notes in [`docs/`](./docs/).
 2. Search existing issues for the same hardware, firmware version, or symptom.

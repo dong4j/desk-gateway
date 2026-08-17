@@ -1,16 +1,16 @@
-# Desk Gateway 本地语音包
+# Desk Gateway local voice pack
 
-目录 `zh-CN-default/` 会在构建时打包为独立 `audio` SPIFFS 分区。完整执行
-`idf.py flash` 会同时烧录应用和语音镜像；只烧录 `app` 不会更新语音资源。
+**Language:** English · [简体中文](./README.zh-CN.md)
 
-固定格式：WAV、PCM signed 16-bit little-endian、16 kHz、Mono。
+`zh-CN-default/` is packed into a separate `audio` SPIFFS partition at build time. A full `idf.py flash` writes both the app and the voice image. Flashing `app` alone does not update the voice assets.
 
-资源 ID：
+Fixed format: WAV, PCM signed 16-bit little-endian, 16 kHz, Mono.
 
-- `focus_done`：专注结束语音。
-- `break_done`：休息结束语音。
-- `snooze_done`：延后结束语音。
-- `attention_chime`：柔和试听提示音。
+Asset IDs:
 
-构建前由 `scripts/check-audio-assets.sh` 检查格式与必需文件。固件只接受上述
-资源 ID，不开放文件路径或上传入口。
+- `focus_done`: focus session finished.
+- `break_done`: break finished.
+- `snooze_done`: snooze finished.
+- `attention_chime`: quiet preview chime.
+
+`scripts/check-audio-assets.sh` checks format and required files before build. Firmware only accepts these IDs. There is no file-path or upload API.

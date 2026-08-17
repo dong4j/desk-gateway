@@ -15,7 +15,8 @@ const entries = [
   "package.json",
   "zh_CN.json",
   "en.json",
-  "README.zh.md",
+  "README.md",
+  "README.zh-CN.md",
 ];
 
 await rm(path.dirname(releaseRoot), { recursive: true, force: true });

@@ -2,32 +2,40 @@
 
 **语言：** [English](./README.md) · 简体中文
 
-开源的 **升降桌智能网关**（ESP32-S3）。厂商协议收进可插拔 **Desk Driver**；Web / 串口 / BLE（以及后续 Matter / Home Assistant）共用控制面 `desk_core`。
+开源的 **升降桌智能网关**（ESP32-S3）。厂商协议收进可插拔 **Desk Driver**。Web、串口、BLE、手机、Watch、键盘、语音和 Stream Deck 类按键共用控制面 `desk_core`。
 
-> **安全：** 升降时请有人在旁。当前 TOF400C 高度和 TOF050C 右侧间距已进入上升安全裁决：高度未知、达到最高高度，或高度低于 80 cm 且右侧间距未知/小于 8 cm 时禁止上升；下降和 STOP 始终可用。完整真机安全矩阵仍待验收。Web **仅限局域网**，不要做公网端口映射。
+Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网和 BLE 上用多种客户端操作真实升降桌。Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌验收。Matter / Home Assistant 不在本阶段。
+
+> **安全：** 升降时请有人在旁。TOF400C 高度和 TOF050C 右侧间距已进入上升裁决：高度未知、达到最高高度，或高度低于 80 cm 且右侧间距未知/小于 8 cm 时禁止上升。下降和 STOP 始终可用。Web **仅限局域网**，不要做公网端口映射。
+
+## 现在能怎么控桌
+
+| 入口 | 通道 |
+|------|------|
+| 局域网 Web | 按住升降、档位、童锁、设置 |
+| REST / `scripts/desk-preset.sh` | 脚本、curl、自动化 |
+| USB 串口 | `up` / `down` / `stop` / `p1` / `p4` |
+| iPhone App | BLE 优先，REST 回退 |
+| Apple Watch | BLE 或 REST，Crown 微调 |
+| Karabiner / 旋钮 | 快捷键和 500 ms jog 租约 |
+| GoatRemote | 语音坐姿 / 站姿 |
+| 小智 AI | 五个固定 MCP 工具 |
+| Ulanzi D200H | 请坐 / 站立 / 番茄时刻 |
+
+用法见 [多种方式控制升降桌](./docs/guides/control-methods.md)。REST 契约见 [REST API](./docs/guides/rest-api.md)。文档总目录：[docs/README.md](./docs/README.md)。
 
 ## 当前能力
 
-- **Phase 1 — 模拟面板：** ESP32-S3 硬件 I²C Slave 只处理键地址 `0x24`
+- **模拟面板：** ESP32-S3 硬件 I²C Slave 处理键地址 `0x24`
 - **可插拔驱动：** `mxtark` 已实现；Loctek / Jiecang 为 stub
-- **desk_core：** 按住升/降与停止；全局童锁与 REST/蓝牙/面板来源权限使用 NVS 保存
-- **双 ToF 高度与侧距：** TOF400C 直接提供产品高度，TOF050C 提供桌面右侧间距；两路均完成防抖和失效检测
-- **高度闭环：** 最低档位、坐姿、站姿和最高安全高度跨 Web/App 同步并持久化，当前默认值为 550 / 550 / 870 / 940 mm；最低档位只约束输入，不触发下行 STOP
-- **Wi‑Fi + SoftAP 配网** 与带密码的 **局域网 Web**
-- **BLE Accessory Profile：** 最多三个 Central 同时在线、单一运动所有者、加密 Client Info、显式配对窗口和 Bond 管理，并保留长按租约、断连停止、档位命令与状态 Notify
-- **高度状态一致：** Web/REST/BLE/OLED/原厂面板统一使用处理后的 TOF400C 距离；关闭 SIM 和控制盒 digit 高度解析
+- **desk_core：** 按住升/降、jog、停止、档位；全局童锁与 REST/蓝牙/面板来源权限写入 NVS
+- **双 ToF：** TOF400C 作为产品高度，TOF050C 作为右侧间距；两路都有防抖和失效检测
+- **高度闭环：** 最低档位、坐姿、站姿、最高安全高度默认为 550 / 550 / 870 / 940 mm；最低档位不触发下行 STOP
+- **Wi-Fi + SoftAP** 与带密码的 **局域网 Web**
+- **BLE Accessory Profile：** 最多三个 Central、单一运动所有者、加密 Client Info、配对窗口、Bond 管理、长按租约、断连停止
+- **高度一致：** Web / REST / BLE / OLED / 原厂面板都用处理后的 TOF400C 距离
 
-> 当前主固件已通过 ESP-IDF 6.0.2 编译。2026-08-15 已完整烧录当前 `23f1c7d1` 固件，
-> 串口确认 Mxtark `0x24`、面板代理、BLE、Wi-Fi、Web、双 ToF、OLED 和音频组件启动；
-> 这只证明固件启动，不代表运动验收。2026-08-10 补回原厂面板上的两只外部上拉后，
-> Web 按住升/降与松手停止已通过真机验证。后续软件多地址 I²C 高度方案造成连续运动回归，
-> 因此默认固件已回到提交 `3269faa` 验证过的硬件 `0x24` 路径。LightBlue 和较早的 iPhone App
-> 已通过核心控制，但当前 App BLE 长按修复与最新固件组合仍需真桌回归；当前双 ToF 已接入
-> 高度闭环和上升保护，完整真机安全矩阵仍待验收。
-> 三客户端固件、Web/手机 Bond 管理及 Watch/手机 Client Info 已通过自动化，但 iPhone、
-> Apple Watch、Android 三台真机矩阵仍未执行。还需完成异常停止矩阵、Android 验收，
-> 以及双 RJ45 原面板透传、仲裁和童锁真屏蔽；
-> 统一顺序见下方“当前状态与剩余任务优先级”文档。
+主固件用 **ESP-IDF v6.0.2** 构建。Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵已在真桌验收。V1 发布还取决于移动端内测包等剩余门禁，见 [当前状态与任务优先级](./docs/5-current-status-and-priorities.md)。
 
 ## 硬件
 
@@ -39,8 +47,7 @@
 | I²C（mxtark） | RJ45 pin 2 / 白线 CLK → GPIO4；pin 4 / 黑线 DAT → GPIO5 |
 | 上拉 | RJ45 pin 1 / 红线 3.3V 分别经 **2 kΩ（可用 2.2 kΩ）** 接 CLK、DAT |
 
-红线只作为两个上拉电阻的电源端，**不得直接连接 ESP32 的 `3V3`**。拔掉原厂面板也会移除面板上
-实测为 `1.99 kΩ` 的两只上拉，因此 ESP32 替代面板时必须补回。
+红线只作为两个上拉电阻的电源端，**不得直接连接 ESP32 的 `3V3`**。拔掉原厂面板也会拿掉面板上实测为 `1.99 kΩ` 的两只上拉，ESP32 替代面板时必须补回。
 
 接线与验收：[docs/bringup-checklist.md](./docs/bringup-checklist.md)
 
@@ -48,8 +55,10 @@
 
 ### 环境
 
-- [ESP-IDF](https://docs.espressif.com/projects/esp-idf/) **5.2+**（开发环境为 **6.0.x**）
+- [ESP-IDF](https://docs.espressif.com/projects/esp-idf/) **v6.0.2**（本仓库不混用其他版本）
 - 目标芯片：`esp32s3`
+
+任何构建、烧录、监视命令都必须在**同一个 Shell**里先激活 IDF 环境，并确认 `idf.py --version` 输出 `ESP-IDF v6.0.2`。
 
 ### 编译烧录
 
@@ -60,15 +69,13 @@ idf.py build
 idf.py -p 串口 flash monitor
 ```
 
-macOS 若用 Espressif Install Manager，先激活 IDF（例如 alias：`get-idf`）。
-
-只做可重复编译检查时，可使用独立临时构建目录，避免旧 `build/` 缓存影响：
+只做可重复编译检查时，用独立临时构建目录，避免旧 `build/` 缓存：
 
 ```bash
 ./scripts/check-firmware.sh
 ```
 
-### Wi‑Fi（推荐 SoftAP）
+### Wi-Fi（SoftAP）
 
 无凭证时设备会开热点：
 
@@ -78,71 +85,74 @@ macOS 若用 Espressif Install Manager，先激活 IDF（例如 alias：`get-idf
 | 密码 | `desk-gateway` |
 | 配网页 | http://192.168.4.1/ |
 
-配置家里的 **2.4GHz** Wi‑Fi 后，浏览器打开 `http://<设备IP>/`，默认 Web 密码：`desk-gateway`。
+配置家里的 **2.4 GHz** Wi-Fi 后，浏览器打开 `http://<设备IP>/`，默认 Web 密码：`desk-gateway`。第一次登录后请改掉。
 
 普通 Flash **不会**清 NVS；`idf.py erase-flash` 才会清空。
 
-### 串口命令（调试）
+### 第一次运动检查
 
-`wifi <ssid> <pass>` · `up` / `down` / `stop` · `p1` / `p4` · `lock` / `unlock`
+串口输入整行再回车：`up` / `down` / `stop`。Web 升/降为 **按住运动、松手停止**。脚本档位：
 
-Web：升/降为 **按住运动、松手停止**（保持 DR，不连发）。
+```bash
+# 先改脚本里的 DESK_BASE_URL 和 DESK_KEY
+./scripts/desk-preset.sh 4
+./scripts/desk-preset.sh stop
+```
+
+## 架构
+
+![软件分层：客户端经 desk_core、desk_driver、mxtark 到达控制盒](docs/architecture/images/software-architecture.png)
+
+![硬件拓扑：原厂面板、ESP32-S3 网关、控制盒与双 ToF](docs/architecture/images/hardware-topology.png)
 
 ## 目录结构
 
 ```text
-firmware/desk-gateway/        主固件（ESP-IDF）
-integrations/xiaozhi-mcp/     小智云 MCP 到 Desk Gateway REST 桥接
-docs/                         需求、架构、协议、UI Demo
-LICENSE                       MIT
-NOTICE                        第三方声明
+firmware/desk-gateway/     主固件（ESP-IDF）
+mobile/app/                iPhone / Android（React Native + Expo）
+mobile/watch/              独立 Apple Watch App
+integrations/              第三方入口（MCP、D200H、Karabiner、GoatRemote）
+scripts/                   固件检查、烧录辅助、desk-preset.sh
+docs/                      需求、架构、使用说明
 ```
 
 ## 文档
 
+从 [docs/README.zh-CN.md](./docs/README.zh-CN.md) 进入（[English](./docs/README.md)）。常用页：
+
 | 文档 | 说明 |
 |------|------|
-| [docs/0-requirements.md](./docs/0-requirements.md) | 需求 |
-| [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | 当前状态与剩余任务优先级 |
-| [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 发布验收门禁与签署记录 |
-| [docs/7-hardware-i2c-restoration-investigation.md](./docs/7-hardware-i2c-restoration-investigation.md) | 从软件 I²C 回退到硬件 I²C 的排查记录 |
-| [docs/4-tof-distance-sensor-plan.md](./docs/4-tof-distance-sensor-plan.md) | 双 ToF 接线、防抖、档位与上升安全策略 |
+| [docs/guides/control-methods.md](./docs/guides/control-methods.md) | 多种方式控桌 |
+| [docs/guides/rest-api.md](./docs/guides/rest-api.md) | REST 契约 |
+| [docs/5-current-status-and-priorities.md](./docs/5-current-status-and-priorities.md) | 已完成与待验收 |
+| [docs/12-v1-release-acceptance.md](./docs/12-v1-release-acceptance.md) | V1 发布门禁 |
 | [docs/architecture/overview.md](./docs/architecture/overview.md) | 架构总览 |
-| [docs/architecture/ble-accessory-profile.md](./docs/architecture/ble-accessory-profile.md) | BLE UUID、字节协议与 LightBlue 测试步骤 |
-| [docs/architecture/ble-multi-client-bond-management.md](./docs/architecture/ble-multi-client-bond-management.md) | 三客户端所有权、配对窗口与 Bond 管理 |
-| [integrations/xiaozhi-mcp/README.md](./integrations/xiaozhi-mcp/README.md) | 小智云 MCP 桥接部署与验收 |
-| [docs/guides/mobile-android-device-deployment.md](./docs/guides/mobile-android-device-deployment.md) | Android 真机编译、安装与故障排查 |
-| [docs/guides/mobile-ios-device-deployment.md](./docs/guides/mobile-ios-device-deployment.md) | iPhone Development Build 编译与真机安装 |
-| [docs/guides/mobile-watch-production-release.md](./docs/guides/mobile-watch-production-release.md) | iPhone、Android 与 Apple Watch 正式发布流程 |
-| [mobile/watch/README.md](./mobile/watch/README.md) | Apple Watch 构建、签名、安装与真机门禁 |
-| [docs/bringup-checklist.md](./docs/bringup-checklist.md) | 到货 / 真机验收 |
-| [docs/ui-demos/](./docs/ui-demos/) | Web 风格静态 Demo |
+| [docs/bringup-checklist.md](./docs/bringup-checklist.md) | 接线与真机检查 |
 | [docs/3-protocol-reverse-notes.md](./docs/3-protocol-reverse-notes.md) | 协议逆向笔记 |
+| [integrations/README.zh-CN.md](./integrations/README.zh-CN.md) | 第三方入口 |
 
 ## 路线图
 
-- [x] 恢复硬件 I²C Slave `@0x24` 作为稳定运动链路
-- [x] LightBlue 和 iPhone App 已在真桌完成 BLE 核心控制
-- [x] 手机 App 已实现 BLE 优先、REST 回退和设备设置同步
-- [x] 固件、Web、App、Watch、REST 和 BLE Config v3 已支持可配置的 550 mm 最低档位
-- [x] 实现 BLE 三连接所有权、Client Info、配对窗口和 Web/手机 Bond 管理
-- [x] 实现 Phase 2 双 RJ45 原厂面板代理、仲裁和面板控制门禁
-- [ ] 完成 Phase 2 真桌透传、断线 STOP、仲裁和童锁真屏蔽验收
-- [ ] 在真桌复验当前 App BLE 长按升降与松手 STOP
-- [ ] 完成异常停止矩阵和 Android 真机验收
-- [x] 接入 TOF400C 高度与 TOF050C 右侧间距，恢复档位闭环和最高安全高度
-- [x] 实现 Apple Watch App 与多客户端握手（真机验收仍开放）
-- [ ] 完成 iPhone、Apple Watch、Android 三台真机并发矩阵
-- [ ] 完成双 ToF 档位、最高高度和右侧障碍物真机安全矩阵
+**Phase 1（已完成）**
+
+- [x] 硬件 I²C Slave `@0x24` 作为稳定运动链路
+- [x] 局域网 Web、REST、串口、BLE、iPhone App、Watch、键盘/旋钮、小智 MCP、Ulanzi D200H
+- [x] 固件、Web、App、Watch、REST、BLE Config v3 支持可配置的 550 mm 最低档位
+- [x] BLE 三连接所有权、Client Info、配对窗口、Web/手机 Bond 管理
+- [x] 双 ToF 档位、最高高度、右侧障碍物真机安全矩阵
+- [x] Phase 2 真桌透传、断线 STOP、仲裁、童锁真屏蔽
+- [x] 异常停止矩阵和 Android 真机验收
+- [x] iPhone、Apple Watch、Android 三台真机并发矩阵
+
+**仍开放**
+
 - [ ] Matter / Home Assistant
 - [ ] OTA 固件升级
 - [ ] 更多厂商 Driver
 
 ## 参与贡献
 
-提交 Issue 或 PR 前，请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md) 和
-[CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)，并通过
-[SUPPORT.md](./SUPPORT.md) 确认问题渠道和所需证据。
+提交 Issue 或 PR 前，请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md) 和 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)，并通过 [SUPPORT.md](./SUPPORT.md) 确认渠道和所需证据。
 
 ## 安全说明
 
@@ -150,9 +160,7 @@ NOTICE                        第三方声明
 
 ## 许可证
 
-本项目采用 **MIT License**，见 [LICENSE](./LICENSE)。
-
-ESP-IDF、cJSON 等第三方组件遵循其各自许可证，见 [NOTICE](./NOTICE)。
+本项目采用 **MIT License**，见 [LICENSE](./LICENSE)。ESP-IDF、cJSON 等第三方组件遵循各自许可证，见 [NOTICE](./NOTICE)。
 
 ## 免责声明
 

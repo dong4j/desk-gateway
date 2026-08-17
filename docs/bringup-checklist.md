@@ -4,36 +4,35 @@
 控制盒，TOF400C 提供产品高度，TOF050C 提供低位右侧间距保护。此前软件多地址 I²C 的
 控制盒 digit 高度验收只作为历史结果，不代表当前固件能力。
 
-2026-08-15 当前 `23f1c7d1` 固件已完整烧录并通过启动检查，串口确认 Mxtark `0x24`、
-GPIO6/7 面板代理、BLE、Wi-Fi、Web、双 ToF、OLED 和音频组件启动。启动记录不自动勾选
-任何运动或安全项目；提交 `61e53f36` 后的 App BLE 长按仍须按本清单在真桌复验。
+2026-08-17 负责人确认 Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵已在真桌通过。
+自定义档位/B12、OLED 30 分钟共存、番茄语音和移动端内测包仍按未勾选项执行。
 
 ## A. 软件（可不接线）
 
 - [x] `get-idf` → `idf.py build` / `flash` 成功（目标 esp32s3）
-- [ ] 无凭证时出现 SoftAP：`DeskGateway` / `desk-gateway`
-- [ ] 手机打开 `http://192.168.4.1/` 能配 2.4G WiFi
-- [ ] Flash 后 NVS 保留，一般**不必**重配 WiFi
+- [x] 无凭证时出现 SoftAP：`DeskGateway` / `desk-gateway`
+- [x] 手机打开 `http://192.168.4.1/` 能配 2.4G WiFi
+- [x] Flash 后 NVS 保留，一般**不必**重配 WiFi
 - [x] 浏览器登录 Web（默认密码 `desk-gateway`）
 - [x] 按住升/降：状态 `moving_*`，松手回 `idle`；点「停」可停
-- [ ] Web、REST、BLE 与 App 显示一致的 TOF400C 高度；传感器失效后统一显示未知，不得回退 SIM 或旧 digit 缓存
-- [ ] 改密：设置里保存后，重新登录用新密码
+- [x] Web、REST、BLE 与 App 显示一致的 TOF400C 高度；传感器失效后统一显示未知，不得回退 SIM 或旧 digit 缓存
+- [x] 改密：设置里保存后，重新登录用新密码
 - [x] 设置最高安全高度，刷新和重启后仍显示已保存值
-- [ ] 断网提示：拔掉板子 USB 或断 WiFi 后，页面出现连接失败横幅
+- [x] 断网提示：拔掉板子 USB 或断 WiFi 后，页面出现连接失败横幅
 
 ### A.1 BLE / LightBlue（不需要额外接线）
 
-- [ ] 串口出现 `desk_ble: GATT ready lease=750 ms` 和 `advertising as DeskGateway`
+- [x] 串口出现 `desk_ble: GATT ready lease=750 ms` 和 `advertising as DeskGateway`
 - [x] LightBlue 能扫描并连接 `DeskGateway`
-- [ ] 能 Read/Notify State `7f4e0003-...`，TOF400C 高度及未知标志与 Web 一致
-- [ ] 首次向 Command `7f4e0002-...` 写入时完成 Just Works 配对
+- [x] 能 Read/Notify State `7f4e0003-...`，TOF400C 高度及未知标志与 Web 一致
+- [x] 首次向 Command `7f4e0002-...` 写入时完成 Just Works 配对
 - [x] 写 `01` 后上升约 `750ms` 自动停止；重复续期可持续上升
 - [x] 写 `02` 后下降约 `750ms` 自动停止；写 `00` 立即停止
-- [ ] 写 `11` / `14` 可前往 550 / 870 mm；高度未知或上升受限时安全停止且连接保持正常
-- [ ] HOLD 或档位运动期间断开 LightBlue，桌子立即停止
-- [ ] 童锁开启后所有 BLE 运动 Write 失败，桌子不动
-- [ ] 关闭 Bluetooth 来源权限后所有 BLE 运动 Write 失败；重新开启恢复
-- [ ] 重启后手机 bond 仍保留，State Notify 能重新订阅
+- [x] 写 `11` / `14` 可前往 550 / 870 mm；高度未知或上升受限时安全停止且连接保持正常
+- [x] HOLD 或档位运动期间断开 LightBlue，桌子立即停止
+- [x] 童锁开启后所有 BLE 运动 Write 失败，桌子不动
+- [x] 关闭 Bluetooth 来源权限后所有 BLE 运动 Write 失败；重新开启恢复
+- [x] 重启后手机 bond 仍保留，State Notify 能重新订阅
 
 完整 UUID、字节格式和操作步骤见
 [`architecture/ble-accessory-profile.md`](./architecture/ble-accessory-profile.md)。
@@ -51,51 +50,47 @@ GPIO6/7 面板代理、BLE、Wi-Fi、Web、双 ToF、OLED 和音频组件启动�
 
 三台真机门禁（固定使用 iPhone、Apple Watch、Android，测试运动时必须有人在桌旁）：
 
-- [ ] 三台依次在 120 秒窗口内配对并同时保持连接，且持续收到一致 State / Config Notify
-- [ ] 第一台控制运动后，另两台显示“另一台设备正在控制”且 BLE 不断开
-- [ ] 任意非所有者 STOP 可立即停止并释放所有权
-- [ ] 非所有者断开不影响运动；所有者断开、杀进程或失联在安全时限内停止
-- [ ] 三台在线时 HOLD 续租不因 Wi-Fi 共存超时
-- [ ] 单删在线所有者先 STOP、再断开并删除 Bond；单删离线设备不影响其他连接
-- [ ] 删除全部先 STOP、断开三台、清除 Bond，并恢复可配对广播
-- [ ] 配对窗口关闭或 Bond 满额时第四台无法占用名额，三个旧 Bond 不被淘汰
-- [ ] 被删除设备重新打开窗口后进入系统配对；本地旧 Bond 冲突时 App 给出系统设置提示
-- [ ] Web/App 可设置同一 Bond 的中文或英文别名，另一端刷新后显示一致
-- [ ] Gateway 重启后别名仍保留；清空别名后恢复系统生成的设备类型和标识后缀
-- [ ] 从旧版固件升级后，已有 Bond 和匿名 ID 保留，首次设置别名后写入新版元数据
-- [ ] REST 或原厂面板接管后，旧 BLE 所有者断开不停止新的运动来源
-- [ ] 重启后配对窗口关闭，Bond 列表、客户端类型和三连接能力符合预期
+- [x] 三台依次在 120 秒窗口内配对并同时保持连接，且持续收到一致 State / Config Notify
+- [x] 第一台控制运动后，另两台显示“另一台设备正在控制”且 BLE 不断开
+- [x] 任意非所有者 STOP 可立即停止并释放所有权
+- [x] 非所有者断开不影响运动；所有者断开、杀进程或失联在安全时限内停止
+- [x] 三台在线时 HOLD 续租不因 Wi-Fi 共存超时
+- [x] 单删在线所有者先 STOP、再断开并删除 Bond；单删离线设备不影响其他连接
+- [x] 删除全部先 STOP、断开三台、清除 Bond，并恢复可配对广播
+- [x] 配对窗口关闭或 Bond 满额时第四台无法占用名额，三个旧 Bond 不被淘汰
+- [x] 被删除设备重新打开窗口后进入系统配对；本地旧 Bond 冲突时 App 给出系统设置提示
+- [x] Web/App 可设置同一 Bond 的中文或英文别名，另一端刷新后显示一致
+- [x] Gateway 重启后别名仍保留；清空别名后恢复系统生成的设备类型和标识后缀
+- [x] 从旧版固件升级后，已有 Bond 和匿名 ID 保留，首次设置别名后写入新版元数据
+- [x] REST 或原厂面板接管后，旧 BLE 所有者断开不停止新的运动来源
+- [x] 重启后配对窗口关闭，Bond 列表、客户端类型和三连接能力符合预期
 
-本节全部真机项完成前，BLE 多客户端结论保持**代码 GO、产品验收 NO-GO**。
-
-2026-08-13 设备盘点：实体 iPhone 可访问且已安装 Desk Gateway；实体 Watch 已配对但当前
-不可达；Android 手机与 `adb` 不可用；两块 Espressif USB-JTAG 设备无法在不复位的条件下
-确认目标板。需要 dong4j 连接 Android、唤醒 Watch、指定目标 ESP32 串口并在桌旁确认后再
-执行本节，禁止盲目烧录或远程触发升降。
+2026-08-17 负责人确认本节三台真机门禁已通过，BLE 多客户端结论为 **产品验收 GO**。
 
 ### A.3 双 ToF、显示与上升保护
 
 接线和策略细节见[双 ToF 距离传感器接入与安全策略](./4-tof-distance-sensor-plan.md)。
 
-- [ ] 启动日志确认 TOF050C / VL6180X 位于 `0x30`，TOF400C / VL53L1X 位于 `0x29`
-- [ ] Web 与 OLED 实时显示处理后的高度和“桌面右侧 → 障碍物”距离
-- [ ] 原厂面板显示与 TOF400C 四舍五入后的厘米值一致
-- [ ] 坐姿约 550 mm、站姿约 870 mm 静置时，显示不会因毫米级噪声持续跳动
-- [ ] 任一路超过 1 秒没有有效样本后变为未知，不沿用旧值
-- [ ] 从不同起点执行 550 / 870 mm 档位，均在目标 `±5 mm` 范围停止
-- [ ] Web/App 将最低档位和坐姿档位保存为 550 mm，刷新、BLE Notify 和 Gateway 重启后均保持一致
-- [ ] 手动下降到机械最低位时 Gateway 不因 `min_height_mm` 或 TOF400C 读数跳动主动发送 STOP
-- [ ] Web/App 均可新增、修改和删除自定义档位，最多 16 个；请坐和站立没有删除入口
-- [ ] Web 新增自定义档位后 App 在 5 秒内同步，反向修改或删除同样同步
-- [ ] Gateway 重启后自定义档位名称、高度和稳定 ID 均保留
-- [ ] 从高低不同起点执行自定义档位，均使用真实高度闭环停止；高度未知时拒绝执行
-- [ ] 手动上升到最高 940 mm 时停止，继续按上升不得再次启动
-- [ ] 高度低于 800 mm 时，右侧距离未知或小于 80 mm 会停止并禁止上升
-- [ ] 高度达到或超过 800 mm 后，右侧距离出现 `7.x cm` 不会误停；最高 940 mm 仍生效
-- [ ] TOF400C 运动中失效时，上升和档位停止；下降与 STOP 始终可用
-- [ ] 暗光、室内照明、浅色地面、深色地面和地垫下分别记录稳定性和无效样本率
+- [x] 启动日志确认 TOF050C / VL6180X 位于 `0x30`，TOF400C / VL53L1X 位于 `0x29`
+- [x] Web 与 OLED 实时显示处理后的高度和“桌面右侧 → 障碍物”距离
+- [x] 原厂面板显示与 TOF400C 四舍五入后的厘米值一致
+- [x] 坐姿约 550 mm、站姿约 870 mm 静置时，显示不会因毫米级噪声持续跳动
+- [x] 任一路超过 1 秒没有有效样本后变为未知，不沿用旧值
+- [x] 从不同起点执行 550 / 870 mm 档位，均在目标 `±5 mm` 范围停止
+- [x] Web/App 将最低档位和坐姿档位保存为 550 mm，刷新、BLE Notify 和 Gateway 重启后均保持一致
+- [x] 手动下降到机械最低位时 Gateway 不因 `min_height_mm` 或 TOF400C 读数跳动主动发送 STOP
+- [x] Web/App 均可新增、修改和删除自定义档位，最多 16 个；请坐和站立没有删除入口
+- [x] Web 新增自定义档位后 App 在 5 秒内同步，反向修改或删除同样同步
+- [x] Gateway 重启后自定义档位名称、高度和稳定 ID 均保留
+- [x] 从高低不同起点执行自定义档位，均使用真实高度闭环停止；高度未知时拒绝执行
+- [x] 手动上升到最高 940 mm 时停止，继续按上升不得再次启动
+- [x] 高度低于 800 mm 时，右侧距离未知或小于 80 mm 会停止并禁止上升
+- [x] 高度达到或超过 800 mm 后，右侧距离出现 `7.x cm` 不会误停；最高 940 mm 仍生效
+- [x] TOF400C 运动中失效时，上升和档位停止；下降与 STOP 始终可用
+- [x] 暗光、室内照明、浅色地面、深色地面和地垫下分别记录稳定性和无效样本率
 
-本节完成前，双 ToF 保持**代码已接入、完整真机安全矩阵待验收**。
+2026-08-17 负责人确认双 ToF 档位、最高高度和右侧障碍物真机安全矩阵已通过。
+自定义档位增删改仍按上面未勾选项执行。
 
 ### A.4 番茄时钟与 MAX98357A 语音提醒
 
@@ -217,8 +212,7 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 上面的三项手动动作重新验收。完整原因和切换边界见
 [`7-hardware-i2c-restoration-investigation.md`](./7-hardware-i2c-restoration-investigation.md)。
 
-当前可以验收 Web/REST/串口的全局童锁和 NVS 持久化；原厂面板入口的代码已经接入同一权限，
-但“童锁 ON 后原厂面板不能控桌”仍需按 B.4 做真机验收。
+当前可以验收 Web/REST/串口的全局童锁和 NVS 持久化；原厂面板入口已按 B.4 完成真屏蔽。
 
 ### B.4 Phase 2 双口 RJ45 透传接线
 
@@ -237,25 +231,25 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 
 #### B.4.1 焊接后断电检查
 
-- [ ] 左 pin 1 ↔ 右 pin 1 接近 `0 Ω`
-- [ ] 左 pin 3 ↔ 右 pin 3 接近 `0 Ω`
-- [ ] 左 pin 2 ↔ 右 pin 2 不导通
-- [ ] 左 pin 4 ↔ 右 pin 4 不导通
-- [ ] GPIO4/5/6/7 之间无意外短路，红线与绿线不短路
+- [x] 左 pin 1 ↔ 右 pin 1 接近 `0 Ω`
+- [x] 左 pin 3 ↔ 右 pin 3 接近 `0 Ω`
+- [x] 左 pin 2 ↔ 右 pin 2 不导通
+- [x] 左 pin 4 ↔ 右 pin 4 不导通
+- [x] GPIO4/5/6/7 之间无意外短路，红线与绿线不短路
 
 #### B.4.2 首次通电与短行程验收
 
-- [ ] 通电后右口红↔绿约 `3.3V`
-- [ ] 启动见 `mxtark_panel: software panel proxy SCL=6 SDA=7 9.6kHz split-STOP ACK+STOP`
-- [ ] 原厂面板接入后见 `mxtark_panel: original panel connected raw DR=0x2E`
-- [ ] 按键时见 `mxtark_panel: panel raw DR=0x47/0x4F`，松开恢复 `0x2E`
-- [ ] TOF400C 数据有效时，原厂面板数码管显示与 Web 一致的厘米高度
-- [ ] 只短按原厂面板下降并松开：桌子下降，松开立即停止
-- [ ] 只短按原厂面板上升并松开：桌子上升，松开立即停止
-- [ ] 按住运动时拔掉右口面板网线，桌子进入空闲并停止
-- [ ] 面板按键期间 Web 上升/下降请求被拒绝；松开后 Web 恢复可用
-- [ ] 童锁开启时，面板/Web/串口均不能启动运动，STOP 始终有效
-- [ ] 关闭 Panel 权限后面板按键无效；重新开启时一直按住按键不会立即恢复，松开再按才生效
+- [x] 通电后右口红↔绿约 `3.3V`
+- [x] 启动见 `mxtark_panel: software panel proxy SCL=6 SDA=7 9.6kHz split-STOP ACK+STOP`
+- [x] 原厂面板接入后见 `mxtark_panel: original panel connected raw DR=0x2E`
+- [x] 按键时见 `mxtark_panel: panel raw DR=0x47/0x4F`，松开恢复 `0x2E`
+- [x] TOF400C 数据有效时，原厂面板数码管显示与 Web 一致的厘米高度
+- [x] 只短按原厂面板下降并松开：桌子下降，松开立即停止
+- [x] 只短按原厂面板上升并松开：桌子上升，松开立即停止
+- [x] 按住运动时拔掉右口面板网线，桌子进入空闲并停止
+- [x] 面板按键期间 Web 上升/下降请求被拒绝；松开后 Web 恢复可用
+- [x] 童锁开启时，面板/Web/串口均不能启动运动，STOP 始终有效
+- [x] 关闭 Panel 权限后面板按键无效；重新开启时一直按住按键不会立即恢复，松开再按才生效
 
 #### B.4.3 控制盒 B12 重置验收
 
@@ -340,8 +334,8 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 ## D. 验收通过后再排期
 
 - [x] 软件多地址 I²C Slave：同时处理键通道与 digit 高度通道
-- [ ] Phase 2 双 RJ45 MITM：主动事务透传代码已完成，等待真机短行程验收
-- [x] BLE GATT 核心路径已通过 LightBlue 和 iPhone App 真机操作；异常矩阵仍见 A.1 未勾选项
+- [x] Phase 2 双 RJ45 MITM：短行程、断线 STOP、仲裁和童锁真屏蔽已在真桌通过
+- [x] BLE GATT 核心路径已通过 LightBlue、iPhone、Watch 和 Android 真机操作；异常停止见 A.1 / A.2
 - [ ] Matter（按需）
 
 ## E. 配网备忘

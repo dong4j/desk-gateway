@@ -17,6 +17,8 @@ Participation in this project is governed by the
 4. For firmware changes, activate ESP-IDF and run `./scripts/check-firmware.sh` before opening a PR.
 5. Complete the pull request template, including automated and hardware verification boundaries.
 6. Document protocol discoveries in `docs/` (what was verified vs unknown).
+   Start from [docs/README.md](./docs/README.md); usage changes go in
+   `docs/guides/control-methods.md` or `docs/guides/rest-api.md`.
 
 ## Development notes
 

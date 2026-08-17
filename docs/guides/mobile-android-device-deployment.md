@@ -17,17 +17,22 @@ Expo Go 代替 Development Build。
 
 ## 1. 命令职责
 
-### 1.1 `npm run android -- --device`
+### 1.1 `npm run android:device`
 
-该命令实际执行 `expo run:android --device`，负责：
+该命令执行 `scripts/run-android-device.sh`，负责：
 
-1. 首次运行时根据 `app.json` 生成被 `.gitignore` 忽略的 `mobile/app/android`；
-2. 调用本机 Android SDK 和 Gradle 编译 Debug Development Build；
-3. 让用户选择已连接的真机或 Emulator；
-4. 通过 ADB 安装并启动 `com.dong4j.deskgateway`；
-5. 启动 Metro，为 App 提供 JavaScript / TypeScript Bundle。
+1. 检查 `ANDROID_HOME`（或默认 `~/Library/Android/sdk`）和 `adb`；
+2. 选择已授权且状态为 `device` 的真机，也可传入序列号；
+3. 首次运行时根据 `app.json` 生成被 `.gitignore` 忽略的 `mobile/app/android`；
+4. 调用本机 Android SDK 和 Gradle 编译 Debug Development Build；
+5. 通过 ADB 安装并启动 `com.dong4j.deskgateway`；
+6. 把 Metro `8081` reverse 到手机，方便 USB 下加载 bundle。
+
+不要用 `expo start` 的 Expo Go 路径代替这条命令。BLE 原生模块不在 Expo Go 里。
 
 首次安装、换手机、原生依赖变化或 `app.json` 原生配置变化后使用该命令。
+
+仍可用 `npm run android -- --device` 走 Expo 交互式设备选择；日常真机部署优先 `android:device`，因为它会在 Gradle 之前把 SDK / 授权问题报出来。
 
 ### 1.2 `npm start`
 
@@ -126,7 +131,7 @@ adb devices -l
 确认手机状态为 `device` 后构建并安装：
 
 ```bash
-npm run android -- --device
+npm run android:device
 ```
 
 首次运行会生成 `mobile/app/android`。该目录由 Expo Prebuild 管理且已被 `.gitignore`
@@ -143,7 +148,7 @@ npm run android -- --device
 
 ## 5. 日常开发与重新构建边界
 
-| 修改内容 | `npm start` | `npm run android -- --device` |
+| 修改内容 | `npm start` | `npm run android:device` |
 |---|---:|---:|
 | React 组件、样式、TypeScript 业务代码 | 需要 | 不需要 |
 | BLE 协议编码、解析逻辑（纯 TypeScript） | 需要 | 不需要 |
@@ -171,7 +176,7 @@ adb reverse tcp:8081 tcp:8081
 
 ## 6. 分离编译和安装
 
-正常开发优先使用 `npm run android -- --device`。需要保留 APK 或单独排查安装问题时，
+正常开发优先使用 `npm run android:device`。需要保留 APK 或单独排查安装问题时，
 先确保 `android` 目录已经由 Expo 生成，再执行：
 
 ```bash

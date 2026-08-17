@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | DG-ARCH-BLE-ACC-001 |
 | 日期 | 2026-08-15 |
-| 状态 | 三连接、Client Info、运动所有权与 Bond 管理已实现并通过自动化；三台真机并发待验收 |
+| 状态 | 三连接、Client Info、运动所有权与 Bond 管理已实现；iPhone、Watch、Android 真机并发已通过 |
 | 关联 | [平台设计定稿](../superpowers/specs/2026-08-06-desk-gateway-platform-design.md) |
 | 多客户端设计 | [BLE 三客户端并发与配对设备管理](./ble-multi-client-bond-management.md) |
 
@@ -263,11 +263,11 @@ Presence 固定写入 18 字节：`[版本 01][17 字节 ASCII Bond ID]`。Bond 
 | 阶段 | 内容 |
 |---|---|
 | 文档与代码（当前） | 三连接、连接表代次、运动所有权、配对窗口、无淘汰 Store、Client Info、Bond 管理及多订阅 Notify 已实现 |
-| 真机门禁 | LightBlue 核心控制和 iPhone Config v2 已通过；三客户端并发与 Bond 删除安全矩阵仍待执行 |
+| 真机门禁 | LightBlue 核心控制、iPhone Config v2、三客户端并发与 Bond 删除安全矩阵已通过 |
 | 后续 | 开源「参考旋钮+OLED」固件或对接指南；可选 Central 模式适配成品外设 |
 
-自动童锁新增已认证的 REST 配置与 Presence 接口；原有控制接口保持兼容。BLE 与 Wi-Fi 核心控制已通过真机验收；
-断连、权限拒绝、前后台切换和异常停止矩阵仍需继续补齐。
+自动童锁新增已认证的 REST 配置与 Presence 接口；原有控制接口保持兼容。BLE 与 Wi-Fi 核心控制、
+断连停止和三客户端并发已通过真机验收。超距 BLE/Wi-Fi 自动回退矩阵仍待单独记录。
 
 ## 9. 修订记录
 
@@ -281,4 +281,4 @@ Presence 固定写入 18 字节：`[版本 01][17 字节 ASCII Bond ID]`。Bond 
 | 1.4 | 2026-08-11 | 记录 LightBlue 核心控制和 iPhone Config v2 真机通过；断连、权限与异常停止矩阵仍待补齐 |
 | 1.5 | 2026-08-11 | Firmware Revision 改为构建时间与 Git 派生版本，移动端可确认烧录对应提交 |
 | 1.6 | 2026-08-13 | 实现三客户端并发、Client Info、运动所有权、配对窗口和 Bond 管理；自动化通过，三台真机待验收 |
-| 1.7 | 2026-08-15 | 增加 Presence v1，并冻结单一选中 Bond 的自动童锁身份校验 |
+| 1.8 | 2026-08-17 | 三客户端并发、Bond 删除和异常停止矩阵标记为真桌通过 |

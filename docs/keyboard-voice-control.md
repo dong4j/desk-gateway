@@ -4,14 +4,12 @@ GoatRemote 与 Karabiner 共用 [`scripts/desk-preset.sh`](../scripts/desk-prese
 登录接口。当前硬件 I²C 产品固件支持手动升、降、STOP 和档位 1/4。档位使用 TOF400C
 高度闭环，并由最高高度和低位右侧间距策略统一保护；高度未知或不满足上升条件时不会盲目运动。
 
-脚本已经直接配置当前局域网参数：
+脚本已经直接配置局域网参数，换机器或改密码时改这两个值：
 
 ```sh
-DESK_BASE_URL='http://192.168.21.65'
+DESK_BASE_URL='http://<设备IP>'
 DESK_KEY='<与 Web 登录密码一致>'
 ```
-
-如果 ESP32 地址或 Web 登录密码发生变化，直接修改这两个值。
 
 ## 直接测试
 
@@ -38,8 +36,8 @@ DESK_KEY='<与 Web 登录密码一致>'
 
 | When I say | Shell command |
 |---|---|
-| 桌子坐姿 | `/Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/scripts/desk-preset.sh 1` |
-| 桌子站姿 | `/Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/scripts/desk-preset.sh 4` |
+| 桌子坐姿 | `<仓库根目录>/scripts/desk-preset.sh 1` |
+| 桌子站姿 | `<仓库根目录>/scripts/desk-preset.sh 4` |
 
 ## Karabiner-Elements
 

@@ -1,103 +1,92 @@
 # Desk Gateway Mobile
 
-Desk Gateway 的跨平台移动端工程，采用 React Native、Expo Development Build 和 TypeScript。
+**Language:** English · [简体中文](./README.zh-CN.md)
 
-当前状态是 **iOS 真机控制已完成、Android 与三客户端并发待验收**：已按确认原型实现
-Home / Pomodoro / Settings，并通过统一客户端支持 BLE GATT 与局域网 REST。技术决策和真机门禁见
-[`docs/architecture/mobile-app-technology-selection.md`](../../docs/architecture/mobile-app-technology-selection.md)。
+Cross-platform phone app for Desk Gateway. React Native, Expo Development Build, and TypeScript.
 
-BLE 优先、Wi-Fi 回退、mDNS 和安全边界见
-[`docs/architecture/mobile-connection-transport.md`](../../docs/architecture/mobile-connection-transport.md)。
+Phase 1 multi-client control is available. Android and the three-client concurrent matrix have passed on hardware. Home / Pomodoro / Settings follow the confirmed prototype and share one client for BLE GATT and LAN REST. Decisions and hardware gates: [`docs/architecture/mobile-app-technology-selection.md`](../../docs/architecture/mobile-app-technology-selection.md).
 
-项目完成度和剩余任务优先级见
-[`docs/5-current-status-and-priorities.md`](../../docs/5-current-status-and-priorities.md)。
+BLE-first, Wi-Fi fallback, mDNS, and the LAN security boundary: [`docs/architecture/mobile-connection-transport.md`](../../docs/architecture/mobile-connection-transport.md).
 
-iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
-[`docs/guides/mobile-ios-device-deployment.md`](../../docs/guides/mobile-ios-device-deployment.md)。
+Status and remaining work: [`docs/5-current-status-and-priorities.md`](../../docs/5-current-status-and-priorities.md).
 
-Android 真机的 SDK/ADB 准备、首次构建安装、重新构建条件和故障排查见
-[`docs/guides/mobile-android-device-deployment.md`](../../docs/guides/mobile-android-device-deployment.md)。
+How to move the desk: [`docs/guides/control-methods.md`](../../docs/guides/control-methods.md).
 
-iPhone、Android 与独立 Apple Watch App 的签名、商店内测和正式发布流程见
-[`docs/guides/mobile-watch-production-release.md`](../../docs/guides/mobile-watch-production-release.md)。
+First iPhone install: [`docs/guides/mobile-ios-device-deployment.md`](../../docs/guides/mobile-ios-device-deployment.md).
 
-## 当前能力
+First Android install: [`docs/guides/mobile-android-device-deployment.md`](../../docs/guides/mobile-android-device-deployment.md).
 
-- 扫描并连接广播名为 `DeskGateway` 的 ESP32。
-- 自动模式优先 BLE，BLE 失败或断开后回退 `desk-gateway.local` 的 REST 接口。
-- 可在设置页选择自动、仅 BLE、仅 Wi-Fi，并配置 REST 地址和 `X-Desk-Key` 密码。
-- 发现 Desk Accessory Service。
-- iOS 写入 `01 02`、Android 写入 `01 03` Client Info 完成配对握手，不再用 STOP 握手。
-- 读取并订阅固定 8 字节 State Characteristic。
-- 读取标准 Device Information `180A/2A26` 并显示固件构建时间。
-- 通过加密 Command Characteristic 验证 STOP、HOLD 和两个档位。
-- App 失去前台时停止 HOLD 续期。
-- 对协议版本、长度和未知状态采取 fail-closed。
-- Home 页面实时展示高度、桌面动画、长按控制、STOP、档位和童锁状态。
-- Home 与 Settings 均可写入童锁，且只展示 ESP32 回读状态。
-- Settings 页面可设置最高安全高度、REST / Bluetooth / Panel 来源权限和重启网关。
-- Settings 页面提供连接方式、本地自动连接和触感偏好；开关整行可点击，不使用嵌套触摸区。
-- Settings 的“蓝牙配对设备”卡片通过 REST 显示在线/控制中状态，管理 120 秒配对窗口，
-  并支持系统确认的单删、全删、异步轮询与失败重试。
-- 收到 Desk Busy `0x80` 时显示“另一台设备正在控制”，保持 BLE 连接和状态订阅。
-- 旧固件未提供 Config 时仍可控制桌子，但设备设置会明确禁用。
-- Home 提供番茄时钟入口，Pomodoro 页面显示 ESP 剩余时间并发送七个固定动作，不在手机上另起 Timer。
-- BLE 读取/订阅 Reminder v1；Wi-Fi 从 `/api/v1/desk/status` 读取同一提醒快照。
-- 时长、语音开关、音量和试听通过已鉴权 REST 保存到 ESP；BLE 桌控模式下仍要求局域网管理通道可用。
+Signing and store builds for iPhone, Android, and Watch: [`docs/guides/mobile-watch-production-release.md`](../../docs/guides/mobile-watch-production-release.md).
 
-## 开发命令
+## Current capabilities
 
-BLE 使用原生模块，**不能使用 Expo Go**。
+- Scan and connect to an ESP32 advertising `DeskGateway`.
+- Auto mode prefers BLE; if BLE fails or drops, fall back to REST at `desk-gateway.local`.
+- Settings can force Auto / BLE-only / Wi-Fi-only and store the REST URL plus `X-Desk-Key`.
+- Discover the Desk Accessory Service.
+- Pairing handshake writes Client Info `01 02` on iOS and `01 03` on Android. Do not use STOP as a handshake.
+- Read and subscribe to the fixed 8-byte State characteristic.
+- Read standard Device Information `180A/2A26` and show the firmware build time.
+- Encrypted Command characteristic: STOP, HOLD, and two presets.
+- Stop HOLD renewals when the app leaves the foreground.
+- Fail closed on unknown protocol version, length, or state.
+- Home shows live height, desk animation, hold controls, STOP, presets, and child-lock.
+- Home and Settings both write child-lock and only display the value read back from the ESP32.
+- Settings stores max safe height, REST / Bluetooth / Panel source ACL, and can reboot the gateway.
+- Settings also covers transport, local auto-connect, and haptics. The whole row is tappable; nested touch targets are not used.
+- The bonded-device card uses REST to show online/controlling state, open the 120 s pairing window, and delete one or all bonds with confirm + retry.
+- Desk Busy `0x80` shows “another device is controlling” while keeping the BLE connection and notify subscription.
+- Older firmware without Config can still move the desk; device settings stay disabled.
+- Home links to Pomodoro. That page shows ESP remaining time and sends seven fixed actions. The phone does not run a second timer.
+- BLE reads/subscribes Reminder v1. Wi-Fi reads the same snapshot from `GET /api/v1/desk/status`.
+- Duration, voice, volume, and preview save over authenticated REST. BLE desk-control mode still needs the LAN management channel.
+
+## Development commands
+
+BLE uses a native module. **Do not use Expo Go.**
 
 ```bash
 npm install
 npm start
 ```
 
-`npm start` 只启动 Metro；首次安装或原生依赖变化后，还需要执行对应平台的原生构建命令。
-iOS 27 Beta 真机必须使用下一节的 `npm run ios:device`。
+`npm start` only runs Metro. First install or a native-dependency change also needs a platform build. iOS 27 Beta devices must use `npm run ios:device` below.
 
-Android 真机在完成 Android Studio、SDK 和 ADB 配置后使用：
+### Android device
 
 ```bash
-npm run android -- --device
+npm run android:device
+npm start
 ```
 
-首次运行会生成被 `.gitignore` 忽略的 `android` 原生目录、编译 Debug Development
-Build、安装到所选设备并启动 Metro。当前开发机尚未安装 Android 工具链，因此该命令
-仍需在环境就绪后完成首次构建和真机验证。
+`android:device` checks `ANDROID_HOME` / `adb`, selects an authorized phone, builds the Debug Development Build, and reverses Metro port `8081`. Pass a serial if more than one device is connected:
 
-### iOS 27 Beta 真机
+```bash
+npm run android:device -- emulator-5554
+```
 
-Expo SDK 57 / React Native 0.86 的原生模板尚未采用 iOS 27 SDK 强制要求的
-UIScene 生命周期。直接使用 Xcode 27 执行 `npm run ios` 会成功安装，但 App 会在
-React Native 启动前退出。
+The first run generates the gitignored `android/` tree. If the Android toolchain is missing, the script fails before Gradle. Do not bypass that with Expo Go.
 
-当前开发机同时保留 Xcode 26.6（`/Applications/Xcode.app`）和 Xcode 27 Beta
-（`/Applications/Xcode-beta.app`）。iOS 27 真机使用：
+### iOS 27 Beta device
+
+Expo SDK 57 / React Native 0.86 has not adopted the UIScene lifecycle that the iOS 27 SDK requires. `npm run ios` under Xcode 27 can install the app, then it exits before React Native starts.
+
+This machine keeps Xcode 26.6 (`/Applications/Xcode.app`) and Xcode 27 Beta (`/Applications/Xcode-beta.app`). For an iOS 27 phone:
 
 ```bash
 npm run ios:device
 npm start
 ```
 
-`ios:device` 使用 Xcode 26.6 / iOS 26 SDK 编译，再通过 Xcode 27 的 device support
-安装和启动。可选地把设备 ID 作为参数传入；缺省时脚本选择第一台已连接的 iPhone：
+`ios:device` builds with Xcode 26.6 / iOS 26 SDK, then installs and launches with Xcode 27 device support. Optional device id:
 
 ```bash
 npm run ios:device -- 00008101-0000000000000000
 ```
 
-这是一条有边界的上游兼容措施，不伪造 UIScene 适配。Expo / React Native 正式支持
-iOS 27 后应删除脚本并恢复统一的 `npm run ios`。
+This is a bounded upstream workaround, not a fake UIScene port. Remove the script once Expo / React Native supports iOS 27 and go back to `npm run ios`.
 
-运行已安装的 Development Build：
-
-```bash
-npm start
-```
-
-静态检查：
+Static checks:
 
 ```bash
 npm run typecheck
@@ -105,19 +94,17 @@ npm test
 npm run doctor
 ```
 
-## 真机门禁
+## Hardware gates
 
-本地 TypeScript、Metro bundle 或模拟器通过都不能证明 BLE 可用。冻结 BLE 库前，必须在 iPhone 和 Android 真机完成：
+TypeScript, a Metro bundle, or a simulator passing does **not** prove BLE. Before freezing the BLE library, do this on a real iPhone and a real Android phone:
 
-1. 扫描、连接和服务发现。
-2. 首次 Client Info 加密 Write 配对。
-3. State Notify。
-4. HOLD 续期和松手停止。
-5. 断连、App 退后台和关闭蓝牙后的停止行为。
-6. ESP32 与 App 重启后的 bond 恢复。
-7. iPhone、Apple Watch 与 Android 同时在线时的运动所有权、任意 STOP 和删除安全矩阵。
-8. BLE/Wi-Fi 两种通道的番茄动作、前后台恢复，以及时长、静音、音量和语音试听。
+1. Scan, connect, and discover services.
+2. First encrypted Client Info write / pairing.
+3. State Notify.
+4. HOLD renewals and release STOP.
+5. STOP after disconnect, background, and Bluetooth off.
+6. Bond restore after ESP32 and app restart.
+7. Motion ownership, any-client STOP, and bond-delete with iPhone + Apple Watch + Android online together.
+8. Pomodoro actions on BLE and Wi-Fi, foreground/background resume, duration, mute, volume, and voice preview.
 
-Command / State v1 保持不变；新增 Config / System characteristic 承载设备设置和重启。
-iOS 已完成真实 BLE 运动控制、两张正式页面和设备设置写入。Android 真机、BLE/Wi-Fi
-自动回退异常矩阵以及双平台内测发布仍是开放门禁。
+Command / State v1 stay unchanged. Config / System characteristics carry device settings and reboot. iOS and Android already have real BLE motion, the shipping screens, and settings writes. Three-client concurrency has passed. BLE/Wi-Fi out-of-range fallback and store beta builds are still open.

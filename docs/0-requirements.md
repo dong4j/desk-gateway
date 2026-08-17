@@ -4,22 +4,22 @@
 |---|---|
 | 项目 | Desk Gateway（多厂商升降桌智能网关平台） |
 | 文档编号 | DG-REQ-001 |
-| 版本 | 0.2.9 |
-| 日期 | 2026-08-13 |
-| 状态 | 草案 |
+| 版本 | 0.2.11 |
+| 日期 | 2026-08-17 |
+| 状态 | Phase 1 已完成；Phase 2 透传与 P0 真机安全矩阵已通过 |
 | 仓库 | 本 Git 仓库根目录 |
 | 架构 | [architecture/overview.md](./architecture/overview.md)、[平台设计定稿](./superpowers/specs/2026-08-06-desk-gateway-platform-design.md)、[MQTT / Home Assistant](./architecture/mqtt-home-assistant.md)、[小米/华为生态调研](./architecture/ecosystem-xiaomi-huawei.md)、[BLE 外设](./architecture/ble-accessory-profile.md) |
 
 本文是本项目的第一篇正式文档，定义要做什么、做到什么算完成，以及分阶段怎么推进。硬件原理图、协议细节、固件实现另立文档。**平台分层与 Web/Driver 契约以架构设计定稿为准**；本文侧重需求与门禁。
 
-> **实现状态（2026-08-15）**：Web、REST、BLE、iPhone App、童锁和来源权限的基础代码已落地。
-> 当前产品固件通过硬件 I²C Slave `@0x24` 稳定输出升、降和停止键码；控制盒 digit
-> 高度解析与软件模拟 I²C 已停用。TOF400C 已作为产品高度接入档位闭环和最高高度保护，
-> TOF050C 已接入低位右侧障碍物保护，配置值仍持久化和同步。BLE 三连接、运动所有权、配对窗口、Bond 管理、
-> Watch 和手机端适配已经通过自动化与静态构建；三台真机并发、异常停止矩阵、Android
-> 真机以及双 RJ45 原厂面板
-> 透传仍待完成；唯一汇总状态以 [当前状态与任务优先级](./5-current-status-and-priorities.md)
-> 为准，排查决策见 [硬件 I²C 恢复排查记录](./7-hardware-i2c-restoration-investigation.md)。
+> **实现状态（2026-08-17）**：Phase 1 已完成。Web、REST、串口、BLE、iPhone App、Android App、
+> Watch、键盘/旋钮、小智 MCP 和 Ulanzi D200H 都可以经 `desk_core` 控桌。产品固件通过硬件
+> I²C Slave `@0x24` 输出升、降和停止键码；TOF400C 作为产品高度，TOF050C 提供低位右侧保护。
+> Phase 2 双 RJ45 透传、断线 STOP、仲裁和童锁真屏蔽已在真桌通过。异常停止矩阵、
+> 三客户端并发和双 ToF 安全矩阵已通过。唯一汇总状态以
+> [当前状态与任务优先级](./5-current-status-and-priorities.md) 为准；用法见
+> [多种方式控制升降桌](./guides/control-methods.md)。
+> [多种方式控制升降桌](./guides/control-methods.md)。
 
 ---
 
@@ -31,7 +31,7 @@
 
 RJ45 只是物理接口形态，**不是以太网**。面板 PCB 背面已标出测试点：
 
-![image-20260805165105669](./0-requirements-assets/image-20260805165105669.png)
+![image-20260805165105669](./images/image-20260805165105669.png)
 
 | 丝印 | 含义 |
 |---|---|
@@ -64,11 +64,10 @@ RJ45 只是物理接口形态，**不是以太网**。面板 PCB 背面已标出
 7. **原厂面板锁**：默认禁止原厂面板按键控制，但继续向面板显示 ToF 高度；用户可独立开放，不影响 Web 等其他入口。
 8. **国内生态**：规划接入小米米家、华为智慧生活（适用性）；路径见架构生态调研。
 
-### 1.4 当前阶段目标（验证优先）
+### 1.4 当前阶段目标
 
-终局架构是主动中间人桥接，但 **当前必须先做“模拟面板控桌”验证**：
-
-> 只有证明 ESP32 能按逆向协议发令并稳定控制主机之后，才开始做双 RJ45 中间人网关。
+Phase 1 的模拟面板验证已经完成：ESP32 能按逆向协议发令，并经 Web / REST / BLE / 脚本稳定控桌。
+当前工作转到剩余 P1（超距回退、自定义档位/B12、OLED 稳定性、移动端内测）和 Phase 3 生态。终局架构仍是主动中间人桥接。
 
 ---
 
@@ -80,20 +79,7 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 
 ### 2.2 产品形态（终局）
 
-```text
-                 WiFi / BLE / LAN
-                        │
-                 ┌──────┴──────┐
-                 │ Desk Gateway │  ← 本项目盒子
-                 │ ESP32-S3 等  │
-                 └──────┬──────┘
-                   ▲          ▲
-                   │          │
-            原厂面板协议    智能控制协议
-                   │          │
-                   ▼          ▼
-           原装控制面板   升降桌主机（电机控制板）
-```
+![Desk Gateway 终局形态：原厂面板与控制盒经 ESP32-S3 网关隔离](architecture/images/hardware-topology.png)
 
 盒子对外接口（终局硬件）：
 
@@ -136,8 +122,8 @@ Desk Gateway 是面向多厂商的升降桌智能平台：先用可插拔 Driver
 | WiFi + 本地 Web（REST/短轮询）+ 简单认证 | **必做** | 必做 |
 | Web 现代化 UI + 升降示意图动效 | **必做** | 增强（跟真实高度） |
 | 其他厂商 Driver | stub 占位 | 按需实现 |
-| BLE 外设总线（OLED/旋钮等 GATT） | 三连接、运动所有权、配对窗口和 Bond 管理已实现；LightBlue 和 iPhone App 核心路径已验收，三台真机并发待验收 | **必做正式**（与 Web 同级数据面） |
-| 键盘 / 滚轮侧控制（经电脑或 BLE） | 可选 | 必做 |
+| BLE 外设总线（OLED/旋钮等 GATT） | 三连接、运动所有权、配对窗口和 Bond 管理已实现；LightBlue、iPhone、Watch、Android 真机并发已验收 | **必做正式**（与 Web 同级数据面） |
+| 键盘 / 滚轮侧控制（经电脑或 BLE） | 已交付（Karabiner / 旋钮 / GoatRemote） | 沿用 |
 | USB-C 独立供电 | 开发板可先用 | 成品必做 |
 
 ### 3.2 明确不在首版范围
@@ -202,7 +188,7 @@ Phase 3  智能家居与多厂商 Driver 扩展
 - 能解释至少：上升按下/松开、下降按下/松开、停止（或等价）、静置是否有心跳。
 - 有可复现的抓包文件（如 PulseView `.sr`）与初步字节/位域笔记。
 
-### 4.3 Phase 1 — 平台骨架 + 模拟面板 + Web（当前主攻）
+### 4.3 Phase 1 — 平台骨架 + 模拟面板 + Web（已完成）
 
 **硬件形态**：ESP32（优先 ESP32-S3 N16R8）开发板，经合适电平连接主机侧 CLK/DAT/GND；**原面板可不接**。供电用 USB。
 
@@ -297,7 +283,7 @@ MQTT / HA / 久坐提醒 / 更多桌型等，另开需求修订，不阻塞 Phas
 | G-A05 | 童锁开启时，立即停止当前运动；面板意图不转发，解除后必须先检测到物理按键松开才能重新接管 | P0 |
 | G-A06 | 仲裁优先级：急停 > 全局童锁 > 来源权限 >（童锁关且允许时）面板优先 > 其他入口 | P0 |
 
-### 5.5 无线与本地控制（Web 已交付；BLE 核心路径已实现并通过 iPhone 真机验收）
+### 5.5 无线与本地控制（Phase 1 已交付多入口）
 
 | ID | 需求 | 优先级 |
 |---|---|---|
@@ -306,11 +292,11 @@ MQTT / HA / 久坐提醒 / 更多桌型等，另开需求修订，不阻塞 Phas
 | G-W03 | 提供短轮询状态刷新，驱动 UI 升降动效（含 `child_lock`） | P0 |
 | G-W04 | 简单密码认证（Bearer token）；默认仅局域网；无云账号 | P0 |
 | G-W05 | Web UI：现代化；含升降桌示意图；运动中实时动画；童锁开关可见 | P0 |
-| G-W06 | **BLE Accessory Profile**：Gateway 为 GATT Server；向 OLED/无限旋钮等外设 Notify 高度与状态；Write 控升降/停止；与 `desk_core` 对齐 | P0（代码已实现；LightBlue 与 iPhone App 核心路径已验收） |
+| G-W06 | **BLE Accessory Profile**：Gateway 为 GATT Server；向 OLED/无限旋钮等外设 Notify 高度与状态；Write 控升降/停止；与 `desk_core` 对齐 | P0（LightBlue、iPhone、Watch、Android 真机已验收） |
 | G-W07 | BLE 未绑定设备默认不可下发运动指令；已绑定外设仍受全局童锁和 Bluetooth 来源权限约束 | P1 |
-| G-W08 | 支持由电脑侧程序或键盘工作流触发（如经 BLE/HTTP）；本仓库不强制实现具体键盘固件 | P1 |
-| G-W09 | 最多三个 BLE Central 同时在线；单一运动所有者，非所有者返回 Desk Busy，任意 STOP 始终有效 | P0（代码与自动化已完成；真机待验收） |
-| G-W10 | 已认证 Web / 手机端支持 120 秒配对窗口、匿名 Bond 列表、单删和全删；Bond 满额不得自动淘汰旧设备 | P0（代码与自动化已完成；真机待验收） |
+| G-W08 | 支持由电脑侧程序或键盘工作流触发（Karabiner、GoatRemote、`desk-preset.sh`） | P1（Phase 1 已交付） |
+| G-W09 | 最多三个 BLE Central 同时在线；单一运动所有者，非所有者返回 Desk Busy，任意 STOP 始终有效 | P0（iPhone、Watch、Android 真机并发已通过） |
+| G-W10 | 已认证 Web / 手机端支持 120 秒配对窗口、匿名 Bond 列表、单删和全删；Bond 满额不得自动淘汰旧设备 | P0（真机 Bond 删除矩阵已通过） |
 | G-W11 | （可选）Gateway 作 Central 适配「仅 Peripheral」的成品旋钮——独立适配层，不替代 G-W06 | P2 |
 
 ### 5.6 配置与运维
@@ -393,13 +379,16 @@ Desk Protocol Driver（本桌 CLK/DAT 驱动）
 Link（Phase1: 单侧主机；Phase2: 双端桥接）
 ```
 
-### 8.2 HTTP API 草案（Phase 2，可调）
+### 8.2 HTTP API
+
+局域网 REST 以固件已注册路由为准，见 [REST API](./guides/rest-api.md)。常用运动入口：
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/v1/desk/up` | REST 来源开始上升；受童锁和 REST 权限约束 |
 | POST | `/api/v1/desk/raise-to-max` | 使用设备侧真实高度闭环升到最高安全高度；不支持时拒绝，禁止退化为普通持续上升 |
 | POST | `/api/v1/desk/down` | REST 来源开始下降；受童锁和 REST 权限约束 |
+| POST | `/api/v1/desk/jog/up` `/jog/down` | 约 500 ms 短租约；旋钮和 Crown 用这条，不是长按 hold |
 | POST | `/api/v1/desk/stop` | 立即停止；始终放行 |
 | POST | `/api/v1/desk/preset/{n}/goto` | 前往档位 n；受童锁和 REST 权限约束 |
 | POST | `/api/v1/desk/preset/{n}/save` | 保存档位 n（若支持） |
@@ -407,7 +396,7 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 | POST | `/api/v1/desk/access` | 设置来源权限 `{ "source": "rest|bluetooth|panel", "enabled": bool }` |
 | GET | `/api/v1/desk/status` | 高度、运动、童锁、`raise_to_max_supported` 及 `control_sources` 等 |
 
-请求/响应 JSON 字段在接口设计文档中冻结。
+请求/响应 JSON 字段以 [REST API](./guides/rest-api.md) 为准。
 
 ### 8.3 与外部系统关系
 
@@ -416,7 +405,9 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 | 原厂面板 | Phase 2 主输入之一；仅在童锁关闭且 Panel 权限开启时拥有运动优先级 |
 | 升降桌主机 | 唯一运动执行端 |
 | Upsy Desky | 参考项目；默认 UART 协议不直接兼容本桌 |
-| Keyboard / 桌面滚轮 | 经 HTTP/BLE 调用网关，不直接接电机总线 |
+| Keyboard / 桌面滚轮 | 经 HTTP 调用网关：Karabiner、GoatRemote、`desk-preset.sh` |
+| Ulanzi D200H | 经 REST 调用坐姿、站姿和番茄时钟 |
+| 小智 AI | 经 MCP 桥接调用固定 REST 工具 |
 | Home Assistant 等 | Phase 3 |
 
 ---
@@ -452,22 +443,22 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 - [x] 关键抓包集齐全并可复现分析
 - [x] ESP32 可上升 / 下降 / 松手停止（2026-08-10 真机）
 - [x] 下降 15s 运动超时已有真机停止日志；上升当前由松手或显式停止结束
-- [ ] 断连、重启、掉电和网络中断等异常停止保护完成矩阵验收
+- [x] 断连、重启、掉电和网络中断等异常停止保护完成矩阵验收
 - [x] 命令表文档已写
 
 ### Phase 2
 
-- [ ] 双 RJ45 样机透传正常
-- [ ] 原面板优先仲裁验证通过（童锁 OFF）
-- [ ] 童锁 ON：REST/UART/BLE/原厂面板均无法启动运动；STOP 和解锁仍有效
+- [x] 双 RJ45 样机透传正常
+- [x] 原面板优先仲裁验证通过（童锁 OFF）
+- [x] 童锁 ON：REST/UART/BLE/原厂面板均无法启动运动；STOP 和解锁仍有效
 - [x] Web/REST 可控制并读状态（需登录）
 - [x] 短轮询驱动升降示意图动效
 - [x] 简单密码认证可用；仅局域网
 - [ ] （可选/后门禁）上+下≈5s 重置协议已抓包并文档化
 - [x] 键盘/HTTP 通道可用；BLE GATT 已通过 LightBlue 和 iPhone App 核心真机控制
 - [x] BLE 三连接、运动所有权、配对窗口、Bond 管理和三端 Client Info 代码与自动化完成
-- [ ] iPhone、Apple Watch、Android 三台真机并发与 Bond 删除安全矩阵通过
-- [ ] 异常与上电安全态验证通过
+- [x] iPhone、Apple Watch、Android 三台真机并发与 Bond 删除安全矩阵通过
+- [x] 异常与上电安全态验证通过
 
 ---
 
@@ -479,10 +470,10 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 | 1 | [《用逻辑分析仪破解协议》](./1-protocol-capture-with-logic-analyzer.md) | Phase 0 抓包流程 |
 | 2 | [《ESP32-S3 N16R8 主控选型》](./2-esp32-s3-n16r8-platform.md) | 开发板与主控冻结 |
 | 3 | [《协议逆向笔记》](./3-protocol-reverse-notes.md) | 抓包结论、帧格式、命令表、复现算法 |
-| — | 《Phase 1 验证记录》 | 可控性证据（待写） |
+| — | [多种方式控制升降桌](./guides/control-methods.md) | Phase 1 多入口用法 |
+| — | [REST API](./guides/rest-api.md) | 局域网 HTTP 契约 |
 | — | 《硬件设计》 | 原理图 / BOM / 接口（待写） |
-| — | 《固件与 API 设计》 | 分层、仲裁、接口冻结（待写） |
-| — | 《Phase 2 验收》 | 网关 MVP 验收（待写） |
+| — | [V1 版本验收](./12-v1-release-acceptance.md) | 含 Phase 2 真机门禁 |
 
 ---
 
@@ -523,3 +514,6 @@ Link（Phase1: 单侧主机；Phase2: 双端桥接）
 | **0.2.4** | **2026-08-09** | 同步已落地的 Phase 1 代码边界；状态通道统一为短轮询；区分编译证据与真机验收 |
 | **0.2.5** | **2026-08-10** | 记录 RJ45 四线线序、原厂 `1.99 kΩ` 上拉及补回后升降真机通过；保留档位、超时、童锁状态流和真实高度门禁 |
 | **0.2.6** | **2026-08-11** | 同步当前固件、LightBlue、iPhone App 与 Config v2 真机状态；未完成项改由统一状态文档管理 |
+| 0.2.7–0.2.9 | 2026-08-13 | 同步双 ToF、三客户端、Watch 与 REST 草案，未完成项继续由状态文档管理 |
+| **0.2.10** | **2026-08-17** | 标记 Phase 1 完成；补多入口用法和 REST 契约入口 |
+| **0.2.11** | **2026-08-17** | Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵标记为真桌通过 |
