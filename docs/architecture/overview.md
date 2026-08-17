@@ -19,6 +19,14 @@ Phase 2 是主动中间人：原厂面板走 GPIO6/7 软件代理，控制盒走
 
 ![硬件拓扑：原厂面板、ESP32-S3 网关、控制盒与双 ToF](images/hardware-topology.png)
 
+整机 GPIO 飞线总图如下。针脚细节仍以各专项接线图为准，见 [真机接线清单](../guides/bringup-checklist.md)。
+
+![YD-ESP32-S3 整机飞线](images/full-wiring.png)
+
+面板按键和多端指令都进 `desk_core`，只有左口 GPIO4/5 向控制盒发令：
+
+![双口 RJ45 透传数据流：面板 GPIO6/7 与多端汇合后从左口出站](images/dual-rj45-passthrough-flow.png)
+
 ## 当前状态
 
 > 截至 2026-08-17：Phase 1 已完成。Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵

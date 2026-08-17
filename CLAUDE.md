@@ -121,6 +121,7 @@ zsh -lc 'export IDF_PYTHON_ENV_PATH=/Users/dong4j/.espressif/tools/python/v6.0.2
 | 原厂面板 CLK/DAT | GPIO6 / GPIO7 | 9.6 kHz 软件代理；不得与控制盒短接 |
 | ToF / OLED | GPIO10 / GPIO11 | 外设 I²C1 |
 | MAX98357A | GPIO14 / 15 / 16 | BCLK / LRC / DIN |
+| 状态灯 红 / 黄 / 蓝 | GPIO1 / GPIO2 / GPIO8 | 固件已驱动；真机未验收。GPIO17 仍留给功放 `SD`；GPIO48 板载 RGB 仍空闲 |
 
 - ESP32 用 USB-C 独立供电。RJ45 红线 3.3V **不得**接到 ESP32 `3V3`。
 - 拔掉原厂面板后必须补 2 kΩ（可用 2.2 kΩ）上拉到控制盒 CLK/DAT。

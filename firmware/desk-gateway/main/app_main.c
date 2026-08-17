@@ -13,6 +13,7 @@
 #include "desk_oled.h"
 #include "desk_peripheral_i2c.h"
 #include "desk_reminder.h"
+#include "desk_status_led.h"
 #include "desk_tof.h"
 #include "desk_web.h"
 #include "desk_wifi.h"
@@ -43,6 +44,13 @@ void app_main(void)
     }
 
     ESP_ERROR_CHECK(desk_core_init(&mxtark_driver));
+#if CONFIG_DESK_STATUS_LED_ENABLE
+    esp_err_t led_err = desk_status_led_start();
+    if (led_err != ESP_OK) {
+        /* 状态灯是辅助指示，缺灯或 GPIO 失败不能挡住 STOP、Web 或原厂控制链。 */
+        ESP_LOGW(TAG, "desk_status_led_start: %s", esp_err_to_name(led_err));
+    }
+#endif
 #if CONFIG_DESK_AUDIO_ENABLED
     esp_err_t audio_err = desk_audio_init();
     if (audio_err != ESP_OK) {

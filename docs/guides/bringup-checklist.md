@@ -71,6 +71,12 @@
 
 接线和策略细节见[双 ToF 距离传感器接入与安全策略](../architecture/tof-safety.md)。
 
+![YD-ESP32-S3 与 TOF050C / TOF400C 接线](../architecture/images/dual-tof-wiring.png)
+
+OLED 与双 ToF 共用 GPIO10/11，接线见[0.91 英寸 OLED 状态屏](../architecture/oled-status-display.md)：
+
+![YD-ESP32-S3 与 0.91 英寸 OLED 接线](../architecture/images/oled-wiring.png)
+
 - [x] 启动日志确认 TOF050C / VL6180X 位于 `0x30`，TOF400C / VL53L1X 位于 `0x29`
 - [x] Web 与 OLED 实时显示处理后的高度和“桌面右侧 → 障碍物”距离
 - [x] 原厂面板显示与 TOF400C 四舍五入后的厘米值一致
@@ -132,7 +138,44 @@ MAX98357A 到货后的接线：
 本节真机项完成前，结论保持**代码 GO、语音与整机产品验收 NO-GO**。详细设计和错误边界见
 [`architecture/pomodoro-reminder.md`](../architecture/pomodoro-reminder.md)。
 
+### A.5 红黄蓝状态灯
+
+三颗普通灯珠作一眼状态：红 = 童锁 / 故障 / 上升被拦，黄 = SoftAP 或 Wi-Fi 未连，蓝 = 桌子正在升降。默认固件会驱动 GPIO1 / GPIO2 / GPIO8；初始化失败只让灯不可用，不阻断控桌。GPIO48 板载 WS2812 仍空闲，GPIO17 仍留给功放 `SD`。亮灯音质式真机观感仍未验收。
+
+![YD-ESP32-S3 与红黄蓝状态灯接线](../architecture/images/status-leds-wiring.png)
+
+| 灯 | GPIO | 电阻 | 含义 |
+|---|---|---|---|
+| 红 | GPIO1 | 220 Ω～330 Ω | 童锁 ON，或故障 / 上升被拦 |
+| 黄 | GPIO2 | 220 Ω～330 Ω | SoftAP 配网中，或 STA 未连上 |
+| 蓝 | GPIO8 | 68 Ω～100 Ω（图示 82 Ω） | 桌子正在升降 |
+
+共阴、有源高电平：GPIO → 限流电阻 → LED 正极，负极接 ESP32 `GND`。长脚是正极。只用开发板 3.3V GPIO，**不要**把灯正极接到 5V，**不要**用桌子 RJ45 红线。飞线远离 GPIO4–7 桌控总线和 GPIO14–16 I2S。
+
+```text
+GPIO1 ── 220Ω ──►| 红 LED ── GND
+GPIO2 ── 220Ω ──►| 黄 LED ── GND
+GPIO8 ──  82Ω ──►| 蓝 LED ── GND
+```
+
+实物核对（未勾选 = 未验收）：
+
+- [ ] 断电确认灯珠极性、电阻值和 GPIO1 / GPIO2 / GPIO8，无与桌控或 I2S 短路
+- [ ] 三颗灯负极共地接到 ESP32 `GND`，正极经电阻接到对应 GPIO
+- [ ] 未把灯正极接到 5V，未使用桌子 RJ45 红线
+- [ ] 启动日志出现 `desk_status_led: status LEDs red=1 yellow=2 blue=8`
+- [ ] SoftAP 或 STA 未连时黄灯亮；STA 拿到 IP 后黄灯灭
+- [ ] 童锁 ON、上升被拦或 `ERROR` 时红灯亮；解除后灭
+- [ ] 桌子升降或档位运动时蓝灯亮；停止后灭
+- [ ] 灯驱动失败时 Web / BLE / 原厂面板 / STOP 仍可用
+
 ## B. 接线（mxtark + RJ45）
+
+整机 GPIO 飞线总图。左口 / 右口 / ToF / OLED / 功放 / 状态灯的针脚细节仍以各专项图为准。
+
+![YD-ESP32-S3 整机飞线](../architecture/images/full-wiring.png)
+
+![YD-ESP32-S3 与双口 RJ45 左口接线](../architecture/images/dual-rj45-left-wiring.png)
 
 电源与安全：
 
@@ -217,6 +260,12 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 当前可以验收 Web/REST/串口的全局童锁和 NVS 持久化；原厂面板入口已按 B.4 完成真屏蔽。
 
 ### B.4 Phase 2 双口 RJ45 透传接线
+
+![双口 RJ45 透传数据流](../architecture/images/dual-rj45-passthrough-flow.png)
+
+左口用网线接原厂控制盒，右口用网线接原厂控制面板。面板按键经 GPIO6/7 进 `desk_core`，Web / App / Watch 等经同一套仲裁后，只从 GPIO4/5 左口发给控制盒。针脚级接线见左口图和下面的右口图。
+
+![YD-ESP32-S3 与双口 RJ45 右口透传接线](../architecture/images/dual-rj45-right-wiring.png)
 
 双口模块的左右 RJ45 彼此独立。控制盒网线插左口，原厂面板网线插右口，按下面连接：
 
@@ -314,7 +363,7 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 | 根因 2 | 控制盒很可能在 `0x34–0x37` 地址 NACK 后终止写入，纯监听无法得到段码 data |
 | 结论 | 当前 GPIO 被动嗅探方案 **NO-GO**，不能进入稳定固件 |
 | 恢复 | 实验开关默认关闭；不安装 GPIO ISR、不创建高度任务、Driver 不声明真实高度能力 |
-| 后续 | 软件多地址方案同样判定为产品 NO-GO；默认恢复硬件 `0x24`，高度等待 TOF200C |
+| 后续 | 软件多地址方案同样判定为产品 NO-GO；默认恢复硬件 `0x24`，高度改由独立 ToF 提供 |
 
 ### C.3 坑点：BLE 初始化时 Brownout 导致重复启动
 

@@ -168,6 +168,7 @@ MAX98357A 支持标准 I2S、无需 MCLK，工作电压为 `2.5–5.5 V`；官�
 
 | GPIO | 当前用途 / 约束 |
 |---|---|
+| GPIO1 / GPIO2 / GPIO8 | 红 / 黄 / 蓝状态灯；固件已驱动，真机未验收 |
 | GPIO4 / GPIO5 | 控制盒侧 CLK / DAT |
 | GPIO6 / GPIO7 | 原厂控制面板侧 CLK / DAT |
 | GPIO10 / GPIO11 | 双 ToF 传感器预留 I²C |
@@ -175,7 +176,7 @@ MAX98357A 支持标准 I2S、无需 MCLK，工作电压为 `2.5–5.5 V`；官�
 | GPIO19 / GPIO20 | ESP32-S3 原生 USB |
 | GPIO35 / GPIO36 / GPIO37 | N16R8 Flash / Octal PSRAM 内部占用，禁止外接 |
 | GPIO43 / GPIO44 | UART0 调试 |
-| GPIO48 | 板载 WS2812 RGB |
+| GPIO48 | 板载 WS2812 RGB，当前空闲，不用它代替外接灯珠 |
 
 I2S 暂定分配：
 

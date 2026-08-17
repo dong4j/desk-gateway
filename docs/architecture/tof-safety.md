@@ -42,6 +42,8 @@
 
 两颗 ToF 与 0.91 英寸 OLED 共用 I²C1：
 
+![YD-ESP32-S3 与 TOF050C / TOF400C 接线](images/dual-tof-wiring.png)
+
 | ESP32-S3 | TOF050C | TOF400C | OLED | 说明 |
 |---|---|---|---|---|
 | `3V3` | `VIN` | `VIN` | `VCC` | 使用开发板 3.3V |
@@ -63,12 +65,13 @@
 
 | GPIO | 当前用途 / 约束 |
 |---|---|
+| GPIO1 / GPIO2 / GPIO8 | 红 / 黄 / 蓝状态灯；固件已驱动，真机未验收 |
 | GPIO4 / GPIO5 | 控制盒侧 CLK / DAT |
 | GPIO6 / GPIO7 | 原厂控制面板侧 CLK / DAT |
 | GPIO19 / GPIO20 | ESP32-S3 原生 USB |
 | GPIO35 / GPIO36 / GPIO37 | N16R8 Flash / Octal PSRAM 内部占用，禁止外接 |
 | GPIO43 / GPIO44 | UART0 调试 |
-| GPIO48 | 板载 WS2812 RGB |
+| GPIO48 | 板载 WS2812 RGB，当前空闲，不用它代替外接灯珠 |
 
 ---
 

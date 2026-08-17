@@ -14,6 +14,7 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_LIST_DIR}/components/peripherals/desk_peripheral_i2c"
     "${CMAKE_CURRENT_LIST_DIR}/components/sensors/desk_tof"
     "${CMAKE_CURRENT_LIST_DIR}/components/display/desk_oled"
+    "${CMAKE_CURRENT_LIST_DIR}/components/display/desk_status_led"
 )
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

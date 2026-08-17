@@ -2,6 +2,8 @@
 
 **语言：** [English](README.md) · 简体中文
 
+![Desk Gateway](docs/images/desk-gateway-banner.png)
+
 开源的 **升降桌智能网关**（ESP32-S3）。厂商协议收进可插拔 **Desk Driver**。Web、串口、BLE、手机、Watch、键盘、语音和 Stream Deck 类按键共用控制面 `desk_core`。
 
 Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网和 BLE 上用多种客户端操作真实升降桌。Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌验收。Matter / Home Assistant 不在本阶段。

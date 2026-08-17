@@ -33,6 +33,12 @@ idf.py -p PORT flash monitor
 
 ## 接线（mxtark，Phase 1 模拟面板）
 
+整机 GPIO 飞线总图。后面各节是左口、功放、状态灯和原厂面板代理的专项针脚。
+
+![YD-ESP32-S3 整机飞线](../../docs/architecture/images/full-wiring.png)
+
+![YD-ESP32-S3 与双口 RJ45 左口接线](../../docs/architecture/images/dual-rj45-left-wiring.png)
+
 | RJ45 | 信号 | 连接 |
 |-------|--------|------------|
 | pin 1 / 红 | 桌子 3.3V | 只作为上拉电源；**不要接到 ESP32 3V3** |
@@ -70,7 +76,27 @@ idf.py -p PORT flash monitor
 
 16 kHz / 16-bit / Mono WAV 包在独立的 4 MiB `audio` SPIFFS 分区。构建后必须完整 `idf.py flash`，把 `audio.bin` 烧到 `0x310000`；只跑 `idf.py app-flash` 不会更新语音包。第一次上电建议 20% 音量。固件和自动化测试已完成，音质、欠压、爆音和桌面总线 EMI 要等真机功放和喇叭验收。
 
+## 状态灯
+
+三颗灯珠作一眼状态。默认固件驱动 GPIO1 / GPIO2 / GPIO8；GPIO 初始化失败不阻断控桌。GPIO48 板载 WS2812 仍空闲，GPIO17 仍留给 MAX98357A `SD`。真机亮灯尚未验收。
+
+![YD-ESP32-S3 与红黄蓝状态灯接线](../../docs/architecture/images/status-leds-wiring.png)
+
+| 灯 | GPIO | 电阻 | 含义 |
+|---|---|---|---|
+| 红 | GPIO1 | 220 Ω～330 Ω | 童锁 ON，或故障 / 上升被拦 |
+| 黄 | GPIO2 | 220 Ω～330 Ω | SoftAP 配网中，或 STA 未连上 |
+| 蓝 | GPIO8 | 68 Ω～100 Ω（图示 82 Ω） | 桌子正在升降 |
+
+共阴、有源高电平：GPIO → 限流电阻 → LED 正极，负极接 ESP32 `GND`。长脚是正极。只用 3.3V GPIO，**不要**把灯正极接到 5V，**不要**用桌子 RJ45 红线。飞线远离 GPIO4–7 和 GPIO14–16。
+
 ## 接线（mxtark，Phase 2 原厂面板代理）
+
+![双口 RJ45 透传数据流](../../docs/architecture/images/dual-rj45-passthrough-flow.png)
+
+左口网线接控制盒（GPIO4/5），右口网线接原厂面板（GPIO6/7）。面板按键和多端指令都进 `desk_core`，只有左口向控制盒发令。
+
+![YD-ESP32-S3 与双口 RJ45 右口透传接线](../../docs/architecture/images/dual-rj45-right-wiring.png)
 
 转接板上两个 RJ45 彼此独立。控制盒 CLK/DAT 走稳定的 ESP32-S3 硬件 Slave；原厂面板 CLK/DAT 走隔离的 GPIO 软件 Master：
 
@@ -90,6 +116,8 @@ idf.py -p PORT flash monitor
 原厂面板档位键 2 / 3 **仍不是**已验收的安全高度路径。上升、下降、松开、TOF400C 高度显示、断线停止、仲裁和童锁真屏蔽已在真桌通过。
 
 ## 高度状态
+
+![YD-ESP32-S3 与 TOF050C / TOF400C 接线](../../docs/architecture/images/dual-tof-wiring.png)
 
 产品固件故意不解析控制盒的 TM1650 digit 写入。真桌诊断发现软件多地址 Slave 经常打断 `0x24` 键应答，控制器会间歇丢 `0x47` 或 `0x4F`，尽管应用状态仍显示在运动。
 

@@ -41,6 +41,12 @@ LAN Web default password: `desk-gateway`.
 
 ## Wiring (mxtark, Phase 1 panel replacement)
 
+Full GPIO flying-lead map. The sections below keep the per-bus pin detail.
+
+![YD-ESP32-S3 full wiring](../../docs/architecture/images/full-wiring.png)
+
+![YD-ESP32-S3 to dual-RJ45 left jack](../../docs/architecture/images/dual-rj45-left-wiring.png)
+
 | RJ45 | Signal | Connection |
 |-------|--------|------------|
 | pin 1 / red | desk 3.3V | Pull-up source only; **do not connect to ESP32 3V3** |
@@ -89,7 +95,35 @@ Start at 20% volume for first hardware bring-up. The firmware and automated
 tests are complete, but audio quality, brownout, click/pop and desk-bus EMI stay
 open until the physical amplifier and speaker are tested.
 
+## Status LEDs
+
+Three discrete LEDs are at-a-glance indicators. Default firmware drives them
+on GPIO1 / GPIO2 / GPIO8; GPIO init failure does not block desk control.
+GPIO48 onboard WS2812 stays unused, and GPIO17 stays reserved for MAX98357A
+`SD`. Hardware lighting is still unaccepted.
+
+![YD-ESP32-S3 to red / yellow / blue status LEDs](../../docs/architecture/images/status-leds-wiring.png)
+
+| LED | GPIO | Resistor | Meaning |
+|-----|------|----------|---------|
+| Red | GPIO1 | 220 Ω–330 Ω | Child lock, fault, or upward blocked |
+| Yellow | GPIO2 | 220 Ω–330 Ω | SoftAP, or STA not connected |
+| Blue | GPIO8 | 68 Ω–100 Ω (82 Ω in the diagram) | Desk is moving |
+
+Active-high, common-cathode: GPIO → series resistor → LED anode, cathode to
+ESP32 `GND`. The long LED lead is the anode. Drive from 3.3 V GPIOs only; do
+**not** put the anode on 5 V, and do **not** use the desk RJ45 3.3 V rail. Keep
+the fly-wires away from GPIO4–7 and GPIO14–16.
+
 ## Wiring (mxtark, Phase 2 original-panel proxy)
+
+![Dual RJ45 pass-through data flow](../../docs/architecture/images/dual-rj45-passthrough-flow.png)
+
+The left jack's Ethernet cable goes to the controller (GPIO4/5). The right
+jack's cable goes to the original panel (GPIO6/7). Panel keys and multi-client
+commands both enter `desk_core`; only the left jack talks to the controller.
+
+![YD-ESP32-S3 to dual-RJ45 right jack pass-through](../../docs/architecture/images/dual-rj45-right-wiring.png)
 
 The two RJ45 sockets on the breakout are independent. Keep controller CLK/DAT
 on the stable ESP32-S3 hardware-slave bus, and connect the original panel
@@ -129,6 +163,8 @@ safe-height path. UP, DOWN, release, TOF400C height display, disconnect-stop,
 arbitration, and child-lock lockout have been accepted on the real desk.
 
 ## Height status
+
+![YD-ESP32-S3 to TOF050C / TOF400C](../../docs/architecture/images/dual-tof-wiring.png)
 
 The product firmware deliberately does not parse the controller's TM1650 digit
 writes. Real-desk diagnostics found that the software multi-address slave often

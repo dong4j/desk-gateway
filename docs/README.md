@@ -87,7 +87,7 @@ Architecture diagrams (PNG only) live in
 | [MCU selection](./hardware/esp32-s3-n16r8.md) | YD-ESP32-S3 N16R8 |
 | [Firmware README](../firmware/desk-gateway/README.md) | Build, wiring, panel proxy, height policy |
 | [Logic-analyzer capture](./hardware/protocol-capture.md) | Phase 0 flow |
-| [Hardware I²C restore](./hardware/i2c-restoration.md) | Why the default is `@0x24` again |
+| [Height parsing and I²C restore](./hardware/i2c-restoration.md) | Why the default is hardware `@0x24` again, and height moved to ToF |
 
 ## Later ecosystem
 

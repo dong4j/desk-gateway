@@ -84,7 +84,7 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 | [主控选型](./hardware/esp32-s3-n16r8.md) | YD-ESP32-S3 N16R8 |
 | [固件 README](../firmware/desk-gateway/README.zh-CN.md) | 编译、接线、面板代理、高度策略 |
 | [逻辑分析仪抓包](./hardware/protocol-capture.md) | Phase 0 流程 |
-| [硬件 I²C 恢复排查](./hardware/i2c-restoration.md) | 为何默认回到 `@0x24` |
+| [高度数据解析与通信方案调整](./hardware/i2c-restoration.md) | 为何离开软件多地址、回到硬件 `@0x24`，高度改走 ToF |
 
 ## 后续生态
 

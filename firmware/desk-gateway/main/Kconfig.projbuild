@@ -102,6 +102,28 @@ menu "Desk Gateway"
             右侧间距、运动状态、传感器状态、Wi-Fi 与 BLE 摘要。
             OLED 缺失或初始化失败不会阻断其他功能。
 
+    config DESK_STATUS_LED_ENABLE
+        bool "Enable red/yellow/blue status LEDs"
+        default y
+        help
+            共阴灯珠：GPIO1 红 = 童锁/故障/上升被拦，GPIO2 黄 = SoftAP
+            或 STA 未连，GPIO8 蓝 = 桌子正在升降。初始化失败不得阻断控桌。
+
+    config DESK_STATUS_LED_RED_GPIO
+        int "Red status LED GPIO"
+        depends on DESK_STATUS_LED_ENABLE
+        default 1
+
+    config DESK_STATUS_LED_YELLOW_GPIO
+        int "Yellow status LED GPIO"
+        depends on DESK_STATUS_LED_ENABLE
+        default 2
+
+    config DESK_STATUS_LED_BLUE_GPIO
+        int "Blue status LED GPIO"
+        depends on DESK_STATUS_LED_ENABLE
+        default 8
+
     config DESK_AUDIO_ENABLED
         bool "Enable MAX98357A local voice playback"
         default y

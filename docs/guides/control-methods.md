@@ -143,4 +143,6 @@ Ulanzi D200H 插件提供请坐、站立、番茄时刻三个键，共享一次 
 
 Phase 2 双 RJ45 代理已经写进默认固件：控制盒仍走 GPIO4/5 硬件 Slave `@0x24`，原厂面板走 GPIO6/7。童锁 OFF 且 Panel 来源开启时，面板按键优先于 Web/BLE。拔掉右侧 RJ45 会立即停止。短行程、真屏蔽和断线 STOP 已在真桌通过。原厂面板档位 2 / 3 仍未做安全高度验证，不要当已验收功能。
 
-OLED 与两颗 ToF 共用 GPIO10/11，只显示高度、侧距和运动状态。
+OLED 与两颗 ToF 共用 GPIO10/11，只显示高度、侧距和运动状态。接线：
+
+![YD-ESP32-S3 与 0.91 英寸 OLED 接线](../architecture/images/oled-wiring.png)

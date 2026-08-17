@@ -2,6 +2,8 @@
 
 **Language:** English · [简体中文](README.zh-CN.md)
 
+![Desk Gateway](docs/images/desk-gateway-banner.png)
+
 Open-source **standing-desk smart gateway** for ESP32-S3. Vendor protocols live behind pluggable **Desk Drivers**. Web, UART, BLE, phone, Watch, keyboard, voice, and Stream Deck-style keys share one control plane (`desk_core`).
 
 Phase 1 is complete: the gateway can emulate the original Mxtark panel and move a real desk from multiple clients on the LAN and over BLE. Phase 2 original-panel pass-through, disconnect-STOP, arbitration, and lockout have been accepted on the real desk. Matter / Home Assistant are not in this release.

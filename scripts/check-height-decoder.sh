@@ -11,6 +11,7 @@ BLE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/ble"
 WEB_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/web"
 TOF_DIR="${REPO_ROOT}/firmware/desk-gateway/components/sensors/desk_tof"
 OLED_DIR="${REPO_ROOT}/firmware/desk-gateway/components/display/desk_oled"
+STATUS_LED_DIR="${REPO_ROOT}/firmware/desk-gateway/components/display/desk_status_led"
 AUDIO_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_audio"
 REMINDER_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_reminder"
 TEST_DIR="$(mktemp -d /tmp/desk-gateway-height-tests.XXXXXX)"
@@ -138,6 +139,13 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${OLED_DIR}/test/desk_oled_pages_test.c" \
     -o "${TEST_DIR}/oled-pages-test"
 "${TEST_DIR}/oled-pages-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${STATUS_LED_DIR}/include" \
+    "${STATUS_LED_DIR}/desk_status_led_logic.c" \
+    "${STATUS_LED_DIR}/test/desk_status_led_logic_test.c" \
+    -o "${TEST_DIR}/status-led-logic-test"
+"${TEST_DIR}/status-led-logic-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${AUDIO_DIR}/include" \

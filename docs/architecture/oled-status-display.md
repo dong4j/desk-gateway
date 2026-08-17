@@ -11,6 +11,8 @@
 
 OLED 与 TOF050C、TOF400C 共用现有外设 I2C 总线：
 
+![YD-ESP32-S3 与 0.91 英寸 OLED 接线](images/oled-wiring.png)
+
 | OLED | ESP32-S3 | 说明 |
 |---|---|---|
 | GND | GND | 必须与 ESP32、ToF 外部电源共地 |
