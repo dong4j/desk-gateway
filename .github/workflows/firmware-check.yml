@@ -33,6 +33,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # Actions 覆盖镜像 ENTRYPOINT，不会自动 source export.sh。
+      # check-firmware.sh 在同一层 shell 里激活 IDF venv 后再编。
       - name: Build ESP32-S3 firmware
         shell: bash
         env:
