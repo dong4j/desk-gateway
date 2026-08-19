@@ -148,7 +148,7 @@ Bond 满额不会自动淘汰旧设备。删除会先停止该设备发起的运
 | GET | `/api/v1/mqtt` | 当前 Broker 配置、设备 ID 和连接诊断 |
 | PUT | `/api/v1/mqtt` | 保存 Client 启用、Host、Port、TLS、用户名、可选密码、Discovery 前缀；可同时写 `control_enabled` |
 
-`PUT` 省略 `password` 时保留已存密码；空字符串表示清除。`client_enabled` 只决定是否连接 Broker；运动还要将来源 `mqtt` 打开。命令只有 `SIT` / `STAND` / `STOP`，走 `desk_core`，真机闭环尚未验收。
+`PUT` 省略 `password` 时保留已存密码；空字符串表示清除。`client_enabled` 只决定是否连接 Broker；运动还要将来源 `mqtt` 打开。命令只有 `SIT` / `STAND` / `STOP`，走 `desk_core`。接入步骤见 [用 Home Assistant 控制升降桌](home-assistant-mqtt.md)。
 
 ```bash
 curl -s -H "X-Desk-Key: $DESK_KEY" "http://$DESK_IP/api/v1/mqtt"

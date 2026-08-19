@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 日期 | 2026-08-19 |
-| 适用阶段 | Phase 1 与 Phase 2 透传已完成；MQTT / HA 固件已实现但仍待真机验收；V1 发布还差内测包等 P1 门禁 |
+| 适用阶段 | Phase 1 与 Phase 2 透传已完成；局域网 MQTT / HA Cover 可按指南接入；V1 发布还差内测包等 P1 门禁 |
 | REST 细节 | [REST API](rest-api.md) |
 | 本地把多端跑起来 | [本地多端部署清单](local-multi-client-setup.md) |
 | 接线烧录 | [真机验收清单](bringup-checklist.md)、[固件 README](../../firmware/desk-gateway/README.zh-CN.md) |
@@ -29,7 +29,7 @@ Desk Gateway 把厂商协议收进 `mxtark` Driver。下面这些入口都走同
 | 小智 AI | MCP → REST | 「站立」「坐姿」「停下」 | [小智控桌](xiaozhi-ai-desk-control.md) |
 | Ulanzi D200H | REST | 实体键坐 / 站 / 番茄 | [D200H 插件](../../integrations/ulanzi-d200h/README.zh-CN.md) |
 | 原厂面板 | I²C 代理 | 桌边按键（Phase 2） | [固件 README](../../firmware/desk-gateway/README.zh-CN.md) |
-| Home Assistant / MQTT | 局域网 MQTT Cover | 请坐 / 起立 / 停止（待真机验收） | 下文、[方案](../future/mqtt-home-assistant.md) |
+| Home Assistant / MQTT | 局域网 MQTT Cover | 请坐 / 起立 / 停止 | [HA 接入说明](home-assistant-mqtt.md) |
 | OLED | I²C 显示 | 只看高度和状态，不控桌 | [OLED](../architecture/oled-status-display.md) |
 
 默认档位：坐姿 `550 mm`（档位 1），站姿 `870 mm`（档位 4），最高安全高度 `940 mm`。高度来自 TOF400C，不是控制盒数码管。
@@ -153,7 +153,7 @@ Web 设置页填写 Broker 主机、端口、独立 MQTT 账号和 Discovery 前
 
 只开 Client、关掉控制时，HA 可以只读监控高度和童锁。Cover 的打开 / 关闭 / 停止分别对应起立、请坐、全局 STOP。没有长按升降，也没有任意百分比定位。命令 Topic 不得 retain；固件收到 retained command 会拒绝。
 
-真机 SIT/STAND/STOP、童锁、面板抢占和 Broker 断线矩阵尚未验收，不能当成已交付能力。契约见 [MQTT / Home Assistant 方案](../future/mqtt-home-assistant.md)，REST 配置见 [REST API](rest-api.md)。
+逐步配置、排障和自动化示例见 [用 Home Assistant 控制升降桌](home-assistant-mqtt.md)。Topic 契约见 [MQTT / Home Assistant 方案](../future/mqtt-home-assistant.md)。REST 配置见 [REST API](rest-api.md)。
 
 ## 原厂面板与 OLED
 

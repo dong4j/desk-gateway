@@ -27,8 +27,18 @@ static void test_device_id_and_topics(void)
     assert(strcmp(buf, "desk-gateway/aabbccddeeff/command") == 0);
     assert(desk_mqtt_topic_result(id, buf, sizeof(buf)));
     assert(strcmp(buf, "desk-gateway/aabbccddeeff/result") == 0);
-    assert(desk_mqtt_topic_discovery("homeassistant", id, buf, sizeof(buf)));
-    assert(strcmp(buf, "homeassistant/device/aabbccddeeff/config") == 0);
+    assert(desk_mqtt_topic_component_discovery(
+        "homeassistant", DESK_MQTT_DISCOVERY_COVER, id, buf, sizeof(buf)));
+    assert(strcmp(buf, "homeassistant/cover/aabbccddeeff/config") == 0);
+    assert(desk_mqtt_topic_component_discovery(
+        "homeassistant", DESK_MQTT_DISCOVERY_HEIGHT, id, buf, sizeof(buf)));
+    assert(strcmp(buf, "homeassistant/sensor/aabbccddeeff_height/config") == 0);
+    assert(desk_mqtt_topic_component_discovery(
+        "homeassistant", DESK_MQTT_DISCOVERY_CHILD_LOCK, id, buf,
+        sizeof(buf)));
+    assert(strcmp(buf,
+                  "homeassistant/binary_sensor/aabbccddeeff_child_lock/config") ==
+           0);
     assert(desk_mqtt_is_command_topic(id, buf, strlen(buf)) == false);
     const char *cmd = "desk-gateway/aabbccddeeff/command";
     assert(desk_mqtt_is_command_topic(id, cmd, strlen(cmd)));
@@ -150,8 +160,8 @@ static void test_state_and_result_json(void)
 static void test_discovery_unique_ids(void)
 {
     char json[DESK_MQTT_DISCOVERY_JSON_MAX];
-    size_t n = desk_mqtt_format_discovery("aabbccddeeff", "homeassistant",
-                                          "0.1.0", json, sizeof(json));
+    size_t n = desk_mqtt_format_component_discovery(
+        DESK_MQTT_DISCOVERY_COVER, "aabbccddeeff", "0.1.0", json, sizeof(json));
     assert(n > 0);
     assert(strstr(json, "desk_gateway_aabbccddeeff_cover") != NULL);
     assert(strstr(json, "\"payload_open\":\"STAND\"") != NULL);
@@ -159,6 +169,21 @@ static void test_discovery_unique_ids(void)
     assert(strstr(json, "\"payload_stop\":\"STOP\"") != NULL);
     assert(strstr(json, "desk-gateway/aabbccddeeff/command") != NULL);
     assert(strstr(json, "set_position_topic") == NULL);
+    assert(strstr(json, "position_topic") == NULL);
+
+    n = desk_mqtt_format_component_discovery(DESK_MQTT_DISCOVERY_HEIGHT,
+                                             "aabbccddeeff", "0.1.0", json,
+                                             sizeof(json));
+    assert(n > 0);
+    assert(strstr(json, "desk_gateway_aabbccddeeff_height") != NULL);
+    assert(strstr(json, "\"device_class\":\"distance\"") != NULL);
+
+    n = desk_mqtt_format_component_discovery(DESK_MQTT_DISCOVERY_CHILD_LOCK,
+                                             "aabbccddeeff", "0.1.0", json,
+                                             sizeof(json));
+    assert(n > 0);
+    assert(strstr(json, "desk_gateway_aabbccddeeff_child_lock") != NULL);
+    assert(strstr(json, "payload_on\":\"ON\"") != NULL);
 }
 
 static void test_command_queue_stop_priority(void)

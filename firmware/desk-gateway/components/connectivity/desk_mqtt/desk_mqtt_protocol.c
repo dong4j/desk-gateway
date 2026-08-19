@@ -127,13 +127,33 @@ bool desk_mqtt_topic_result(const char *device_id, char *out, size_t out_len)
     return format_topic(out, out_len, "desk-gateway/%s/result", device_id);
 }
 
-bool desk_mqtt_topic_discovery(const char *prefix, const char *device_id,
-                               char *out, size_t out_len)
+bool desk_mqtt_topic_component_discovery(const char *prefix,
+                                         desk_mqtt_discovery_kind_t kind,
+                                         const char *device_id, char *out,
+                                         size_t out_len)
 {
     if (!prefix || !prefix[0] || !is_lower_hex12(device_id) || !out) {
         return false;
     }
-    int n = snprintf(out, out_len, "%s/device/%s/config", prefix, device_id);
+    const char *component = NULL;
+    const char *object_suffix = "";
+    switch (kind) {
+    case DESK_MQTT_DISCOVERY_COVER:
+        component = "cover";
+        break;
+    case DESK_MQTT_DISCOVERY_HEIGHT:
+        component = "sensor";
+        object_suffix = "_height";
+        break;
+    case DESK_MQTT_DISCOVERY_CHILD_LOCK:
+        component = "binary_sensor";
+        object_suffix = "_child_lock";
+        break;
+    default:
+        return false;
+    }
+    int n = snprintf(out, out_len, "%s/%s/%s%s/config", prefix, component,
+                     device_id, object_suffix);
     return n > 0 && (size_t)n < out_len;
 }
 
@@ -444,9 +464,10 @@ size_t desk_mqtt_format_result(uint32_t sequence, desk_mqtt_action_t action,
     return (size_t)n;
 }
 
-size_t desk_mqtt_format_discovery(const char *device_id, const char *prefix,
-                                  const char *firmware_version, char *out,
-                                  size_t out_len)
+size_t desk_mqtt_format_component_discovery(desk_mqtt_discovery_kind_t kind,
+                                            const char *device_id,
+                                            const char *firmware_version,
+                                            char *out, size_t out_len)
 {
     char command[DESK_MQTT_TOPIC_BUFFER];
     char state[DESK_MQTT_TOPIC_BUFFER];
@@ -457,41 +478,64 @@ size_t desk_mqtt_format_discovery(const char *device_id, const char *prefix,
         !desk_mqtt_topic_availability(device_id, availability,
                                       sizeof(availability)) ||
         !json_escape(sw, sizeof(sw),
-                     firmware_version ? firmware_version : "")) {
+                     firmware_version ? firmware_version : "") ||
+        !out || out_len < 32) {
         return 0;
     }
-    const char *pfx =
-        (prefix && prefix[0]) ? prefix : DESK_MQTT_DEFAULT_PREFIX;
-    int n = snprintf(
-        out, out_len,
-        "{\"dev\":{\"ids\":[\"desk_gateway_%s\"],\"name\":\"Desk Gateway\","
-        "\"mf\":\"Desk Gateway\",\"mdl\":\"ESP32-S3\",\"sw\":%s},"
-        "\"o\":{\"name\":\"desk-gateway\",\"sw\":%s},"
-        "\"cmps\":{"
-        "\"cover\":{\"p\":\"cover\","
-        "\"unique_id\":\"desk_gateway_%s_cover\",\"name\":\"Desk\","
-        "\"command_topic\":\"%s\",\"payload_open\":\"STAND\","
-        "\"payload_close\":\"SIT\",\"payload_stop\":\"STOP\","
-        "\"state_topic\":\"%s\","
-        "\"value_template\":\"{{ value_json.cover_state }}\","
-        "\"position_topic\":\"%s\","
-        "\"position_template\":\"{{ value_json.position }}\","
-        "\"availability_topic\":\"%s\",\"payload_available\":\"online\","
-        "\"payload_not_available\":\"offline\",\"optimistic\":false,\"qos\":1},"
-        "\"height\":{\"p\":\"sensor\","
-        "\"unique_id\":\"desk_gateway_%s_height\",\"name\":\"Height\","
-        "\"state_topic\":\"%s\","
-        "\"value_template\":\"{{ value_json.height_mm }}\","
-        "\"unit_of_measurement\":\"mm\",\"device_class\":\"distance\"},"
-        "\"child_lock\":{\"p\":\"binary_sensor\","
-        "\"unique_id\":\"desk_gateway_%s_child_lock\",\"name\":\"Child lock\","
-        "\"state_topic\":\"%s\","
-        "\"value_template\":\"{{ value_json.child_lock }}\","
-        "\"payload_on\":\"true\",\"payload_off\":\"false\"}"
-        "}}",
-        device_id, sw, sw, device_id, command, state, state, availability,
-        device_id, state, device_id, state);
-    (void)pfx;
+    /* 三份实体共用 ids，HA 才会把 Cover / 高度 / 童锁归到同一台 Desk Gateway。 */
+    int n = 0;
+    switch (kind) {
+    case DESK_MQTT_DISCOVERY_COVER:
+        /* 不写 position_topic：现代 HA Cover schema 要的是 get_position_topic，
+         * 旧键会被丢掉；任意百分比定位也尚未验收。 */
+        n = snprintf(
+            out, out_len,
+            "{\"name\":\"Desk\",\"unique_id\":\"desk_gateway_%s_cover\","
+            "\"command_topic\":\"%s\",\"payload_open\":\"STAND\","
+            "\"payload_close\":\"SIT\",\"payload_stop\":\"STOP\","
+            "\"state_topic\":\"%s\","
+            "\"value_template\":\"{{ value_json.cover_state }}\","
+            "\"availability_topic\":\"%s\",\"payload_available\":\"online\","
+            "\"payload_not_available\":\"offline\",\"optimistic\":false,"
+            "\"qos\":1,"
+            "\"dev\":{\"ids\":[\"desk_gateway_%s\"],\"name\":\"Desk Gateway\","
+            "\"mf\":\"Desk Gateway\",\"mdl\":\"ESP32-S3\",\"sw\":%s},"
+            "\"o\":{\"name\":\"desk-gateway\",\"sw\":%s}}",
+            device_id, command, state, availability, device_id, sw, sw);
+        break;
+    case DESK_MQTT_DISCOVERY_HEIGHT:
+        n = snprintf(
+            out, out_len,
+            "{\"name\":\"Height\",\"unique_id\":\"desk_gateway_%s_height\","
+            "\"state_topic\":\"%s\","
+            "\"value_template\":\"{{ value_json.height_mm }}\","
+            "\"unit_of_measurement\":\"mm\",\"device_class\":\"distance\","
+            "\"availability_topic\":\"%s\",\"payload_available\":\"online\","
+            "\"payload_not_available\":\"offline\","
+            "\"dev\":{\"ids\":[\"desk_gateway_%s\"],\"name\":\"Desk Gateway\","
+            "\"mf\":\"Desk Gateway\",\"mdl\":\"ESP32-S3\",\"sw\":%s},"
+            "\"o\":{\"name\":\"desk-gateway\",\"sw\":%s}}",
+            device_id, state, availability, device_id, sw, sw);
+        break;
+    case DESK_MQTT_DISCOVERY_CHILD_LOCK:
+        /* Jinja 会把 JSON bool 渲染成 True/False，payload_on=true 对不上。 */
+        n = snprintf(
+            out, out_len,
+            "{\"name\":\"Child lock\","
+            "\"unique_id\":\"desk_gateway_%s_child_lock\","
+            "\"state_topic\":\"%s\","
+            "\"value_template\":\"{{ 'ON' if value_json.child_lock else 'OFF' }}\","
+            "\"payload_on\":\"ON\",\"payload_off\":\"OFF\","
+            "\"availability_topic\":\"%s\",\"payload_available\":\"online\","
+            "\"payload_not_available\":\"offline\","
+            "\"dev\":{\"ids\":[\"desk_gateway_%s\"],\"name\":\"Desk Gateway\","
+            "\"mf\":\"Desk Gateway\",\"mdl\":\"ESP32-S3\",\"sw\":%s},"
+            "\"o\":{\"name\":\"desk-gateway\",\"sw\":%s}}",
+            device_id, state, availability, device_id, sw, sw);
+        break;
+    default:
+        return 0;
+    }
     if (n <= 0 || (size_t)n >= out_len) {
         return 0;
     }

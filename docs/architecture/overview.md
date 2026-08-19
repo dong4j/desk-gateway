@@ -45,7 +45,7 @@ Phase 2 是主动中间人：原厂面板走 GPIO6/7 软件代理，控制盒走
 | BLE / Loctek / Jiecang | BLE 三连接、运动所有权、配对窗口和 Bond 管理已实现；iPhone、Watch、Android 真机并发已通过；Loctek / Jiecang 为 stub |
 | Apple Watch | SwiftUI/CoreBluetooth App 真机扫描、配对、Crown 与三客户端并发已通过 |
 | 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | GPIO6/7 主动事务代理、短行程、断线 STOP、仲裁和真屏蔽已在真桌通过 |
-| HA / Matter / Siri / OTA | MQTT Client / HA Discovery 固件已落地、真机与 Broker 联调待验收；Matter / Siri / OTA 未实现 |
+| HA / Matter / Siri / OTA | 本机 HA MQTT Discovery 已接通，操作说明见 [HA 接入指南](../guides/home-assistant-mqtt.md)；完整 MQTT 安全矩阵仍见状态文档；Matter / Siri / OTA 未实现 |
 | 米家 / 华为智慧生活 | Phase 3+；见 [生态调研](../future/ecosystem-xiaomi-huawei.md) |
 
 ## 仓库形状（目标）

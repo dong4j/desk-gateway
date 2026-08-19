@@ -6,7 +6,7 @@
 
 开源的 **升降桌智能网关**（ESP32-S3）。厂商协议收进可插拔 **Desk Driver**。Web、串口、BLE、手机、Watch、键盘、语音和 Stream Deck 类按键共用控制面 `desk_core`。
 
-Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网和 BLE 上用多种客户端操作真实升降桌。Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌验收。Matter / Home Assistant 不在本阶段。
+Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网和 BLE 上用多种客户端操作真实升降桌。Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌验收。Matter 不在本阶段。局域网 Home Assistant 可按 [接入说明](docs/guides/home-assistant-mqtt.md) 用 MQTT Cover 控桌，不纳入 V1。
 
 > **安全：** 升降时请有人在旁。TOF400C 高度和 TOF050C 右侧间距已进入上升裁决：高度未知、达到最高高度，或高度低于 80 cm 且右侧间距未知/小于 8 cm 时禁止上升。下降和 STOP 始终可用。Web **仅限局域网**，不要做公网端口映射。
 
@@ -22,9 +22,10 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 | Karabiner / 旋钮 | 快捷键和 500 ms jog 租约 |
 | GoatRemote | 语音坐姿 / 站姿 |
 | 小智 AI | 五个固定 MCP 工具 |
+| Home Assistant | 局域网 MQTT Cover：请坐 / 起立 / 停止 |
 | Ulanzi D200H | 请坐 / 站立 / 番茄时刻 |
 
-用法见 [多种方式控制升降桌](docs/guides/control-methods.md)。REST 契约见 [REST API](docs/guides/rest-api.md)。文档总目录：[docs/README.md](docs/README.md)。
+用法见 [多种方式控制升降桌](docs/guides/control-methods.md)。Home Assistant 见 [接入说明](docs/guides/home-assistant-mqtt.md)。REST 契约见 [REST API](docs/guides/rest-api.md)。文档总目录：[docs/README.md](docs/README.md)。
 
 ## 当前能力
 
@@ -152,7 +153,7 @@ docs/                      需求、架构、使用说明
 
 **仍开放**
 
-- [ ] Matter / Home Assistant
+- [ ] Matter
 - [ ] OTA 固件升级
 - [ ] 更多厂商 Driver
 

@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-STATUS-001 |
-| 版本 | 1.8 |
+| 版本 | 1.9 |
 | 日期 | 2026-08-19 |
 | 作用 | 当前完成度和后续任务的唯一汇总入口 |
 
@@ -21,6 +21,10 @@ iPhone App、Android App、Watch、键盘、旋钮、GoatRemote、小智 MCP 和
 2026-08-17 负责人确认下列真机门禁已通过：Phase 2 透传 / 断线 STOP / 仲裁 / 童锁真屏蔽、
 异常停止矩阵、Android 真机、iPhone + Apple Watch + Android 三客户端并发、双 ToF 档位 /
 最高高度 / 右侧障碍物安全矩阵。后续工作是第 3 节剩余 P1 和第 4 节 Phase 3 生态。
+
+2026-08-19 负责人确认本机 Home Assistant 已通过 MQTT Discovery 出现 Desk Gateway。
+操作说明见 [用 Home Assistant 控制升降桌](../guides/home-assistant-mqtt.md)。
+完整 MQTT 安全矩阵仍在第 3 节 P3，不纳入 V1。
 
 ## 1. 状态定义
 
@@ -86,7 +90,7 @@ V1 是否发布仍以 [V1 版本验收](v1-release-acceptance.md) 的必选门�
 | P1 | 番茄语音提醒 | 本地状态机、I2S、SPIFFS、REST/Web 和语音资源已实现并通过自动化 | 完成功放/扬声器接线、清晰度、爆音、发热、EMI、计时和运动并发真机验收 |
 | P1 | 小智 AI 有界最高位控制 | Desk Gateway 固件、REST 契约和小智云 MCP 桥接代码已完成并通过 Mock/MCP 工具注册检查；云端 Endpoint 注册、常驻部署和真桌语音链路尚未执行 | 先用 REST 验证支持字段、幂等触顶、传感器失效和 STOP，再部署桥接并完成云端工具与真桌语音验收 |
 | P1 | 移动端发布 | 当前为 Development Build | 完成 TestFlight、Android 内测、签名和发布说明 |
-| P3 | MQTT + Home Assistant | 固件 Client、来源权限、Web 配置、HA Device Discovery 和 host 协议测试已实现；Broker 联调与真桌 SIT/STAND/STOP 矩阵未执行 | Cover 请坐/起立/停止到达配置档位；retained 命令拒绝；断线不补执行；童锁和面板抢占与现有策略一致 |
+| P3 | MQTT + Home Assistant | 2026-08-19 负责人确认本机 HA 已 Discovery 到 Desk Gateway（Cover / Height / Child lock）。童锁、面板抢占、断线不补执行等完整真桌安全矩阵尚未按清单关闭 | Cover 请坐/起立/停止到达配置档位；retained 命令拒绝；断线不补执行；童锁和面板抢占与现有策略一致 |
 
 ## 4. 尚未实现或未交付
 

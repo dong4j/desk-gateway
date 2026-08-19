@@ -2,7 +2,7 @@
 
 **语言：** [English](README.md) · 简体中文
 
-升降桌网关的 ESP-IDF 工程。上级文档：[../../README.md](../../README.md) · [中文](../../README.zh-CN.md)。Web / REST / BLE / 手机 / Watch / 键盘 / 语音 / D200H / 局域网 MQTT 的用法见 [多种方式控制升降桌](../../docs/guides/control-methods.md)。REST 契约见 [REST API](../../docs/guides/rest-api.md)。
+升降桌网关的 ESP-IDF 工程。上级文档：[../../README.md](../../README.md) · [中文](../../README.zh-CN.md)。Web / REST / BLE / 手机 / Watch / 键盘 / 语音 / D200H / 局域网 MQTT 的用法见 [多种方式控制升降桌](../../docs/guides/control-methods.md)。Home Assistant 见 [接入说明](../../docs/guides/home-assistant-mqtt.md)。REST 契约见 [REST API](../../docs/guides/rest-api.md)。
 
 ## 构建
 

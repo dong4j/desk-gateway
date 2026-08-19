@@ -19,6 +19,8 @@ Snapshot of the default branch as of 2026-08-17.
 - Phase 2 original-panel proxy on GPIO6/7, disconnect STOP, arbitration.
 - iPhone / Android Expo app (BLE first, REST fallback) and independent Apple Watch app.
 - Keyboard / knob (Karabiner), GoatRemote sit/stand, XiaoZhi MCP bridge, Ulanzi D200H plugin.
+- LAN MQTT client and Home Assistant Discovery how-to:
+  [`docs/guides/home-assistant-mqtt.md`](docs/guides/home-assistant-mqtt.md).
 - Local multi-client setup checklist:
   [`docs/guides/local-multi-client-setup.md`](docs/guides/local-multi-client-setup.md).
 
@@ -27,6 +29,7 @@ Snapshot of the default branch as of 2026-08-17.
 - BLE/Wi-Fi out-of-range fallback matrix, custom presets / B12 hardware acceptance,
   OLED 30-minute soak, TestFlight / Android beta, optional Pomodoro speaker and
   XiaoZhi end-to-end cloud path.
-- Matter / Home Assistant / OTA / Loctek / Jiecang / original-panel keys 2 and 3.
+- Matter / OTA / Loctek / Jiecang / original-panel keys 2 and 3.
+- MQTT child-lock, panel-preemption, and disconnect-replay matrix still open.
 
 [Unreleased]: https://github.com/dong4j/desk-gateway/compare/HEAD

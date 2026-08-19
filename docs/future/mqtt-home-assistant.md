@@ -5,12 +5,13 @@
 | 文档编号 | DG-ARCH-MQTT-001 |
 | 版本 | 0.1.0 |
 | 日期 | 2026-08-19 |
-| 状态 | 固件 Client 与 Web 配置已实现；Broker / HA / 真机矩阵待验收 |
+| 状态 | 固件 Client、Web 配置与本机 HA Discovery 已接通；完整真机安全矩阵待按清单关闭 |
 | 适用范围 | `firmware/desk-gateway` Phase 3 MQTT / Home Assistant 扩展 |
 
 > 本文定义 MQTT v1 的产品边界、Topic 契约、安全约束和实施门禁。
-> “固件已实现”不表示 Home Assistant 实体或真桌运动已经验收；当前验收状态仍以
-> [架构总览](../architecture/overview.md)和[当前状态与任务优先级](../status/current-status-and-priorities.md)为准。
+> 局域网接入步骤见 [用 Home Assistant 控制升降桌](../guides/home-assistant-mqtt.md)。
+> 当前验收状态仍以 [架构总览](../architecture/overview.md) 和
+> [当前状态与任务优先级](../status/current-status-and-priorities.md) 为准。
 
 ## 1. 结论
 
@@ -31,7 +32,7 @@ Home Assistant Mosquitto，同时保持 Topic 契约可被其他局域网客户�
 1. Broker 连接、LWT、状态上报和连接诊断。
 2. `SIT`、`STAND`、`STOP` 三个非保持命令。
 3. 独立且默认关闭的 MQTT 控制来源权限。
-4. Home Assistant Device Discovery 和一个 MQTT Cover 主实体。
+4. Home Assistant 单实体 Discovery 和一个 MQTT Cover 主实体。
 5. Broker 断线、Home Assistant 重启和设备重启后不补执行历史命令。
 
 ## 2. 目标与非目标
@@ -202,7 +203,9 @@ MQTT event handler 内销毁 client。
 | `desk-gateway/<id>/state` | 设备发布 | 1 | 是 | 当前完整状态快照 |
 | `desk-gateway/<id>/command` | 设备订阅 | 1 | **否** | `SIT` / `STAND` / `STOP` |
 | `desk-gateway/<id>/result` | 设备发布 | 1 | 否 | 最近收到命令的处理结果 |
-| `<discovery_prefix>/device/<id>/config` | 设备发布 | 1 | 否 | HA Device Discovery |
+| `<discovery_prefix>/cover/<id>/config` | 设备发布 | 1 | 否 | HA Cover Discovery |
+| `<discovery_prefix>/sensor/<id>_height/config` | 设备发布 | 1 | 否 | HA 高度 Sensor |
+| `<discovery_prefix>/binary_sensor/<id>_child_lock/config` | 设备发布 | 1 | 否 | HA 童锁 Binary Sensor |
 | `homeassistant/status` | 设备订阅 | 0 | 否 | HA Birth，收到 `online` 后重发 Discovery 和状态 |
 
 ### 6.1 禁止的 Topic 行为
@@ -358,15 +361,19 @@ LWT retain:  true
 
 ### 10.1 Discovery 类型
 
-采用 Device Discovery：
+采用单实体 Discovery，三份配置共用同一组 `device.identifiers`，HA 会把它们归到同一台设备：
 
 ```text
-<discovery_prefix>/device/<id>/config
+<discovery_prefix>/cover/<id>/config
+<discovery_prefix>/sensor/<id>_height/config
+<discovery_prefix>/binary_sensor/<id>_child_lock/config
 ```
 
-原因：同一 Desk Gateway 最终会有 Cover、Sensor、Binary Sensor、Number 等多个实体；Device
-Discovery 可复用一份设备信息，并减少配置消息数量。Discovery 必须携带稳定 `unique_id`、
-设备标识和 `origin`。
+不采用 `homeassistant/device/<id>/config`。那条 Device Discovery 路径要 Home Assistant
+2024.11 之后才会订阅；更早的版本可以在 MQTT 监听页看到 JSON，但不会创建设备。
+已经能发现涂鸦开关的 HA 走的就是单实体 `homeassistant/<component>/.../config`，桌子必须用同一套。
+
+每份 Discovery 必须携带稳定 `unique_id`、设备标识和 `origin`。
 
 Discovery 默认不 retain：
 
@@ -384,7 +391,8 @@ Discovery 默认不 retain：
 | Sensor：固件版本 | 默认关闭 | 诊断 |
 
 Cover 不设置 `set_position_topic`，避免 HA 显示固件当前无法安全执行的任意百分比定位。
-Cover 使用 state 和 position Topic，因此 `optimistic=false`。
+Cover 只用 `state_topic`，因此 `optimistic=false`。不写 `position_topic`：现代 Cover schema
+要的是 `get_position_topic`，旧键会被丢掉。
 
 ### 10.3 后续实体
 
@@ -415,7 +423,9 @@ topic read  homeassistant/status
 topic write desk-gateway/aabbccddeeff/availability
 topic write desk-gateway/aabbccddeeff/state
 topic write desk-gateway/aabbccddeeff/result
-topic write homeassistant/device/aabbccddeeff/config
+topic write homeassistant/cover/aabbccddeeff/config
+topic write homeassistant/sensor/aabbccddeeff_height/config
+topic write homeassistant/binary_sensor/aabbccddeeff_child_lock/config
 ```
 
 ### 11.2 传输安全
@@ -502,7 +512,7 @@ ESP-IDF 6.0 已将 ESP-MQTT 移为独立组件，目标依赖固定为 `espressi
 
 ### 13.4 阶段 C：Home Assistant
 
-- Device Discovery。
+- 单实体 MQTT Discovery（Cover / Height / Child lock）。
 - Cover、Height Sensor、Child Lock Binary Sensor。
 - HA Birth 重发和实体删除/禁用策略。
 - Mosquitto ACL 示例和用户操作指南。
@@ -582,6 +592,6 @@ ESP-IDF 6.0 已将 ESP-MQTT 移为独立组件，目标依赖固定为 `espressi
 - [ESP-IDF 6.0.2：ESP-MQTT 已迁移为独立组件](https://docs.espressif.com/projects/esp-idf/en/v6.0.2/esp32/api-reference/protocols/mqtt.html)
 - [ESP-MQTT Programming Guide](https://docs.espressif.com/projects/esp-mqtt/en/latest/esp32/)
 - [ESP Component Registry：espressif/mqtt](https://components.espressif.com/components/espressif/mqtt)
-- [Home Assistant MQTT Integration / Device Discovery](https://www.home-assistant.io/integrations/mqtt/)
+- [Home Assistant MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/)
 - [Home Assistant MQTT Cover](https://www.home-assistant.io/integrations/cover.mqtt/)
 - [Home Assistant MQTT Number](https://www.home-assistant.io/integrations/number.mqtt/)

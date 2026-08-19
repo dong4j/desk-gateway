@@ -6,7 +6,7 @@
 
 Open-source **standing-desk smart gateway** for ESP32-S3. Vendor protocols live behind pluggable **Desk Drivers**. Web, UART, BLE, phone, Watch, keyboard, voice, and Stream Deck-style keys share one control plane (`desk_core`).
 
-Phase 1 is complete: the gateway can emulate the original Mxtark panel and move a real desk from multiple clients on the LAN and over BLE. Phase 2 original-panel pass-through, disconnect-STOP, arbitration, and lockout have been accepted on the real desk. Matter / Home Assistant are not in this release.
+Phase 1 is complete: the gateway can emulate the original Mxtark panel and move a real desk from multiple clients on the LAN and over BLE. Phase 2 original-panel pass-through, disconnect-STOP, arbitration, and lockout have been accepted on the real desk. Matter is not in this release. LAN Home Assistant can drive sit/stand/stop through an MQTT Cover; see [the HA guide](docs/guides/home-assistant-mqtt.en.md). That path is not a V1 gate.
 
 > **Safety:** Keep a person nearby when the desk moves. TOF400C height and TOF050C right-side clearance take part in upward decisions: upward motion is blocked when height is unknown, the ceiling is reached, or height is below 80 cm while right-side clearance is unknown or below 8 cm. DOWN and STOP stay available. Use **LAN only** — do not expose the Web UI to the public Internet.
 
@@ -22,9 +22,10 @@ Phase 1 is complete: the gateway can emulate the original Mxtark panel and move 
 | Karabiner / knob | Keyboard shortcuts and 500 ms jog leases |
 | GoatRemote | Spoken sit / stand presets |
 | XiaoZhi AI | Five fixed MCP tools over REST |
+| Home Assistant | LAN MQTT Cover: sit / stand / stop |
 | Ulanzi D200H | Sit / stand / Pomodoro keys |
 
-How to use each client: [docs/guides/control-methods.md](docs/guides/control-methods.md) (Chinese). REST contract: [docs/guides/rest-api.md](docs/guides/rest-api.md).
+How to use each client: [docs/guides/control-methods.md](docs/guides/control-methods.md) (Chinese). Home Assistant: [docs/guides/home-assistant-mqtt.en.md](docs/guides/home-assistant-mqtt.en.md). REST contract: [docs/guides/rest-api.md](docs/guides/rest-api.md).
 
 ## Features
 
@@ -152,7 +153,7 @@ Start at [docs/README.md](docs/README.md) ([中文](docs/README.zh-CN.md)). High
 
 **Still open**
 
-- [ ] Matter / Home Assistant
+- [ ] Matter
 - [ ] OTA firmware updates
 - [ ] Additional desk drivers (Loctek, Jiecang, …)
 

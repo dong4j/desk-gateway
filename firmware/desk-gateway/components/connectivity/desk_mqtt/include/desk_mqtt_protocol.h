@@ -54,6 +54,13 @@ typedef enum {
     DESK_MQTT_STATUS_ERROR,
 } desk_mqtt_status_t;
 
+typedef enum {
+    DESK_MQTT_DISCOVERY_COVER = 0,
+    DESK_MQTT_DISCOVERY_HEIGHT,
+    DESK_MQTT_DISCOVERY_CHILD_LOCK,
+    DESK_MQTT_DISCOVERY_KIND_COUNT
+} desk_mqtt_discovery_kind_t;
+
 typedef struct {
     bool client_enabled;
     char host[DESK_MQTT_HOST_MAX];
@@ -93,8 +100,16 @@ bool desk_mqtt_topic_availability(const char *device_id, char *out,
 bool desk_mqtt_topic_state(const char *device_id, char *out, size_t out_len);
 bool desk_mqtt_topic_command(const char *device_id, char *out, size_t out_len);
 bool desk_mqtt_topic_result(const char *device_id, char *out, size_t out_len);
-bool desk_mqtt_topic_discovery(const char *prefix, const char *device_id,
-                               char *out, size_t out_len);
+
+/**
+ * 单实体 Discovery Topic。必须用 cover/sensor/binary_sensor，不能用
+ * homeassistant/device/...：那条路径要 HA 2024.11+ 才订阅，旧版只会看见
+ * 监听 JSON，不会建出设备。涂鸦开关走的就是这套单实体路径。
+ */
+bool desk_mqtt_topic_component_discovery(const char *prefix,
+                                         desk_mqtt_discovery_kind_t kind,
+                                         const char *device_id, char *out,
+                                         size_t out_len);
 
 bool desk_mqtt_is_command_topic(const char *device_id, const char *topic,
                                 size_t topic_len);
@@ -141,9 +156,10 @@ size_t desk_mqtt_format_result(uint32_t sequence, desk_mqtt_action_t action,
                                bool ok, const char *error, const char *reason,
                                char *out, size_t out_len);
 
-size_t desk_mqtt_format_discovery(const char *device_id, const char *prefix,
-                                  const char *firmware_version, char *out,
-                                  size_t out_len);
+size_t desk_mqtt_format_component_discovery(desk_mqtt_discovery_kind_t kind,
+                                            const char *device_id,
+                                            const char *firmware_version,
+                                            char *out, size_t out_len);
 
 /**
  * 有界命令队列：STOP 清掉待执行的 SIT/STAND，避免停车后又被旧目标动作拉走。

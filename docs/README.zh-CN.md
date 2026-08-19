@@ -33,6 +33,7 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 | 在自己的局域网上把多端控桌跑起来 | [本地多端部署清单](./guides/local-multi-client-setup.md) |
 | 用已有入口控桌 | [多种方式控制升降桌](./guides/control-methods.md) |
 | 写脚本或接第三方工具 | [REST API](./guides/rest-api.md) |
+| 接到 Home Assistant | [用 Home Assistant 控制升降桌](./guides/home-assistant-mqtt.md) |
 | 接线、上电、排障 | [真机验收清单](./guides/bringup-checklist.md) |
 | 看还剩哪些真机门禁 | [当前状态与任务优先级](./status/current-status-and-priorities.md) |
 
@@ -48,9 +49,10 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 
 | 文档 | 说明 |
 |---|---|
-| [多种方式控制升降桌](./guides/control-methods.md) | Web、REST、串口、手机、Watch、键盘、旋钮、语音、Ulanzi |
+| [多种方式控制升降桌](./guides/control-methods.md) | Web、REST、串口、手机、Watch、键盘、旋钮、语音、Ulanzi、Home Assistant |
 | [本地多端部署清单](./guides/local-multi-client-setup.md) | 改 IP、密码、仓库路径 |
 | [REST API](./guides/rest-api.md) | 鉴权、运动、档位、童锁、Bond、番茄时钟 |
+| [用 Home Assistant 控制升降桌](./guides/home-assistant-mqtt.md) | Mosquitto Discovery，Cover 请坐/起立/停止 |
 | [真机验收清单](./guides/bringup-checklist.md) | 接线、供电、真机检查 |
 | [键盘、旋钮与语音控制](./guides/keyboard-voice-control.md) | GoatRemote、Karabiner、旋钮 jog |
 | [小智 AI 控桌](./guides/xiaozhi-ai-desk-control.md) | 语音到 MCP 再到 REST |
@@ -88,11 +90,11 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 
 ## 后续生态
 
-这些能力尚未完成真机验收，不能当成已发布功能：
+这些能力尚未纳入 V1。MQTT 固件和局域网 Home Assistant 操作说明已经有了；完整真桌安全矩阵仍见状态文档：
 
 | 文档 | 说明 |
 |---|---|
-| [MQTT / Home Assistant](./future/mqtt-home-assistant.md) | 固件 Client 已实现；HA / 真机待验收 |
+| [MQTT / Home Assistant](./future/mqtt-home-assistant.md) | Topic 契约与安全边界；操作说明见 [HA 接入指南](./guides/home-assistant-mqtt.md) |
 | [小米 / 华为生态](./future/ecosystem-xiaomi-huawei.md) | 原生模组 vs Matter |
 
 ## 历史稿

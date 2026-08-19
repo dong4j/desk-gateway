@@ -36,6 +36,7 @@ Architecture diagrams (PNG only) live in
 | Point every client at your LAN gateway | [Local multi-client setup](./guides/local-multi-client-setup.en.md) |
 | Move the desk with an existing client | [Control methods](./guides/control-methods.md) |
 | Script or integrate over HTTP | [REST API](./guides/rest-api.md) |
+| Connect Home Assistant over MQTT | [Home Assistant / MQTT](./guides/home-assistant-mqtt.en.md) |
 | Wire, power, and debug hardware | [Bring-up checklist](./guides/bringup-checklist.md) |
 | See which hardware gates remain | [Current status and priorities](./status/current-status-and-priorities.md) |
 
@@ -51,9 +52,10 @@ Architecture diagrams (PNG only) live in
 
 | Doc | What it covers |
 |---|---|
-| [Control methods](./guides/control-methods.md) | Web, REST, UART, phone, Watch, keyboard, knob, voice, Ulanzi |
+| [Control methods](./guides/control-methods.md) | Web, REST, UART, phone, Watch, keyboard, knob, voice, Ulanzi, Home Assistant |
 | [Local multi-client setup](./guides/local-multi-client-setup.en.md) | IP, password, and repo-path checklist |
 | [REST API](./guides/rest-api.md) | Auth, motion, presets, child-lock, bonds, Pomodoro |
+| [Home Assistant / MQTT](./guides/home-assistant-mqtt.en.md) | Mosquitto Discovery, Cover sit/stand/stop |
 | [Bring-up checklist](./guides/bringup-checklist.md) | Wiring, power, hardware checks |
 | [Keyboard, knob, and voice](./guides/keyboard-voice-control.md) | GoatRemote, Karabiner, knob jog |
 | [XiaoZhi AI desk control](./guides/xiaozhi-ai-desk-control.md) | Voice → MCP → REST |
@@ -91,11 +93,11 @@ Architecture diagrams (PNG only) live in
 
 ## Later ecosystem
 
-These are not shipped features. MQTT firmware exists; HA and the real desk are still open:
+These are not shipped as V1 features. MQTT firmware and a LAN Home Assistant how-to exist; the remaining real-desk safety matrix is still open:
 
 | Doc | What it covers |
 |---|---|
-| [MQTT / Home Assistant](./future/mqtt-home-assistant.md) | Firmware client is in; HA / real-desk acceptance is not |
+| [MQTT / Home Assistant](./future/mqtt-home-assistant.md) | Topic contract and safety bounds; how-to is [the HA guide](./guides/home-assistant-mqtt.en.md) |
 | [Xiaomi / Huawei](./future/ecosystem-xiaomi-huawei.md) | Native module vs Matter |
 
 ## History

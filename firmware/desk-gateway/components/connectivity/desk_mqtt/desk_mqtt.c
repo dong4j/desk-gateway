@@ -47,7 +47,6 @@ static char s_topic_availability[DESK_MQTT_TOPIC_BUFFER];
 static char s_topic_state[DESK_MQTT_TOPIC_BUFFER];
 static char s_topic_command[DESK_MQTT_TOPIC_BUFFER];
 static char s_topic_result[DESK_MQTT_TOPIC_BUFFER];
-static char s_topic_discovery[DESK_MQTT_TOPIC_BUFFER];
 
 static bool s_connected;
 static bool s_restart_requested;
@@ -163,10 +162,7 @@ static bool refresh_identity(void)
         !desk_mqtt_topic_command(s_device_id, s_topic_command,
                                  sizeof(s_topic_command)) ||
         !desk_mqtt_topic_result(s_device_id, s_topic_result,
-                                sizeof(s_topic_result)) ||
-        !desk_mqtt_topic_discovery(s_cfg.discovery_prefix, s_device_id,
-                                   s_topic_discovery,
-                                   sizeof(s_topic_discovery))) {
+                                sizeof(s_topic_result))) {
         return false;
     }
     return true;
@@ -296,13 +292,34 @@ static void publish_state_locked(esp_mqtt_client_handle_t client,
 
 static void publish_discovery_locked(esp_mqtt_client_handle_t client)
 {
-    size_t n = desk_mqtt_format_discovery(s_device_id, s_cfg.discovery_prefix,
-                                          firmware_version(), s_json_discovery,
-                                          sizeof(s_json_discovery));
-    if (n == 0) {
+    if (!client) {
         return;
     }
-    publish_text(client, s_topic_discovery, s_json_discovery, 1, 0);
+    /* 必须发单实体 Topic。device/.../config 在未订阅 Device Discovery 的 HA
+     * 上只会进监听页，不会出现在 MQTT 设备列表。 */
+    static const desk_mqtt_discovery_kind_t kinds[] = {
+        DESK_MQTT_DISCOVERY_COVER,
+        DESK_MQTT_DISCOVERY_HEIGHT,
+        DESK_MQTT_DISCOVERY_CHILD_LOCK,
+    };
+    char topic[DESK_MQTT_TOPIC_BUFFER];
+    for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
+        if (!desk_mqtt_topic_component_discovery(s_cfg.discovery_prefix, kinds[i],
+                                                 s_device_id, topic,
+                                                 sizeof(topic))) {
+            ESP_LOGE(TAG, "discovery topic failed kind=%d", (int)kinds[i]);
+            continue;
+        }
+        size_t n = desk_mqtt_format_component_discovery(
+            kinds[i], s_device_id, firmware_version(), s_json_discovery,
+            sizeof(s_json_discovery));
+        if (n == 0) {
+            ESP_LOGE(TAG, "discovery payload failed kind=%d", (int)kinds[i]);
+            continue;
+        }
+        publish_text(client, topic, s_json_discovery, 1, 0);
+        ESP_LOGI(TAG, "discovery published %s (%u bytes)", topic, (unsigned)n);
+    }
 }
 
 static void publish_result_buf(esp_mqtt_client_handle_t client, char *buf,

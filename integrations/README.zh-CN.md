@@ -2,12 +2,13 @@
 
 **语言：** [English](README.md) · 简体中文
 
-这里放走同一套局域网 REST 的第三方入口，和 Web、`scripts/desk-preset.sh` 共用控制面。它们都不直接调厂商 I²C Driver。运动仍然经过 `desk_core`（STOP、童锁、来源权限、ToF）。
+这里放第三方入口。多数和 Web、`scripts/desk-preset.sh` 共用局域网 REST；Home Assistant 走局域网 MQTT Discovery。它们都不直接调厂商 I²C Driver。运动仍然经过 `desk_core`（STOP、童锁、来源权限、ToF）。
 
 怎么控桌见 [`docs/guides/control-methods.md`](../docs/guides/control-methods.md)。HTTP 契约见 [`docs/guides/rest-api.md`](../docs/guides/rest-api.md)。克隆后要改的 IP、密码和仓库路径见 [`docs/guides/local-multi-client-setup.md`](../docs/guides/local-multi-client-setup.md)。
 
 | 目录 | 做什么 | 怎么接到 Desk Gateway |
 |---|---|---|
+| [home-assistant](home-assistant/README.zh-CN.md) | 局域网 MQTT Discovery，无自定义集成 | Cover 请坐 / 起立 / 停止 |
 | [xiaozhi-mcp](xiaozhi-mcp/README.zh-CN.md) | 小智云 MCP Endpoint 到本机 REST 桥接 | 五个固定 MCP 工具 |
 | [ulanzi-d200h](ulanzi-d200h/README.zh-CN.md) | Ulanzi D200H 插件源码 | 请坐 / 站立 / 番茄时刻 |
 | [karabiner](karabiner/README.zh-CN.md) | Karabiner-Elements Complex Modifications | 键盘快捷键和旋钮 jog |
@@ -23,4 +24,4 @@
 
 ## 不在本目录
 
-Home Assistant / MQTT 固件 Client 已实现，但仍待 Broker 联调和真桌验收，不能当已交付入口。Matter、米家、华为仍只有方案文档。见 [`docs/future/mqtt-home-assistant.md`](../docs/future/mqtt-home-assistant.md) 和 [`docs/future/ecosystem-xiaomi-huawei.md`](../docs/future/ecosystem-xiaomi-huawei.md)。
+Matter、米家、华为仍只有方案文档。见 [`docs/future/ecosystem-xiaomi-huawei.md`](../docs/future/ecosystem-xiaomi-huawei.md)。HA MQTT 的 Topic 契约仍在 [`docs/future/mqtt-home-assistant.md`](../docs/future/mqtt-home-assistant.md)，操作说明在 [`docs/guides/home-assistant-mqtt.md`](../docs/guides/home-assistant-mqtt.md)。
