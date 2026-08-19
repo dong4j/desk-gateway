@@ -8,6 +8,10 @@
 
 Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网和 BLE 上用多种客户端操作真实升降桌。Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌验收。Matter 不在本阶段。局域网 Home Assistant 可按 [接入说明](docs/guides/home-assistant-mqtt.md) 用 MQTT Cover 控桌，不纳入 V1。
 
+![局域网 Web：按住升降、档位、童锁、番茄钟](docs/images/readme/web-control.webp)
+
+![iPhone App 与 Apple Watch：BLE 优先，REST 回退](docs/images/readme/mobile-and-watch.webp)
+
 > **安全：** 升降时请有人在旁。TOF400C 高度和 TOF050C 右侧间距已进入上升裁决：高度未知、达到最高高度，或高度低于 80 cm 且右侧间距未知/小于 8 cm 时禁止上升。下降和 STOP 始终可用。Web **仅限局域网**，不要做公网端口映射。
 
 ## 现在能怎么控桌
@@ -24,6 +28,12 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 | 小智 AI | 五个固定 MCP 工具 |
 | Home Assistant | 局域网 MQTT Cover：请坐 / 起立 / 停止 |
 | Ulanzi D200H | 请坐 / 站立 / 番茄时刻 |
+
+局域网 Web 是日常入口：升/降是按住才动、松手即停，坐姿 / 站姿走 TOF400C 闭环，童锁和番茄钟也在同一页。iPhone / Android 优先走 BLE，连不上再回退 REST；Apple Watch 用 Digital Crown 做 jog，停转即停。桌上还能用 D200H 三个实体键，以及小智圆屏的坐 / 站 / 番茄页面，指令都落到同一组 REST。
+
+![Ulanzi D200H：请坐、站立、番茄时刻](docs/images/readme/d200h.webp)
+
+![小智圆屏：高度、坐站档位、番茄钟](docs/images/readme/xiaozhi.webp)
 
 用法见 [多种方式控制升降桌](docs/guides/control-methods.md)。Home Assistant 见 [接入说明](docs/guides/home-assistant-mqtt.md)。REST 契约见 [REST API](docs/guides/rest-api.md)。文档总目录：[docs/README.md](docs/README.md)。
 
@@ -51,6 +61,16 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 | 上拉 | RJ45 pin 1 / 红线 3.3V 分别经 **2 kΩ（可用 2.2 kΩ）** 接 CLK、DAT |
 
 红线只作为两个上拉电阻的电源端，**不得直接连接 ESP32 的 `3V3`**。拔掉原厂面板也会拿掉面板上实测为 `1.99 kΩ` 的两只上拉，ESP32 替代面板时必须补回。
+
+原厂面板仍可走双 RJ45 透传。产品高度来自桌板朝地的 TOF400C，右侧间距来自朝向书架的 TOF050C；OLED 轮播高度、传感器和网络状态。当前硬件是 ESP32-S3 开发板加飞线，适合继续调试，不是成品套件。
+
+![原厂 Mxtark 面板](docs/images/readme/original-panel.webp)
+
+![TOF400C 测高度，TOF050C 测右侧间距](docs/images/readme/dual-tof.webp)
+
+![OLED 轮播高度、传感器和网络状态](docs/images/readme/oled-status.webp)
+
+![ESP32-S3 网关原型：OLED、MAX98357A、飞线](docs/images/readme/gateway-prototype.webp)
 
 接线与验收：[docs/guides/bringup-checklist.md](docs/guides/bringup-checklist.md)
 

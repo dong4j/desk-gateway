@@ -8,6 +8,10 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor protocols live 
 
 Phase 1 is complete: the gateway can emulate the original Mxtark panel and move a real desk from multiple clients on the LAN and over BLE. Phase 2 original-panel pass-through, disconnect-STOP, arbitration, and lockout have been accepted on the real desk. Matter is not in this release. LAN Home Assistant can drive sit/stand/stop through an MQTT Cover; see [the HA guide](docs/guides/home-assistant-mqtt.en.md). That path is not a V1 gate.
 
+![LAN Web UI: hold to move, presets, child lock, Pomodoro](docs/images/readme/web-control.webp)
+
+![iPhone app and Apple Watch: BLE first, REST fallback](docs/images/readme/mobile-and-watch.webp)
+
 > **Safety:** Keep a person nearby when the desk moves. TOF400C height and TOF050C right-side clearance take part in upward decisions: upward motion is blocked when height is unknown, the ceiling is reached, or height is below 80 cm while right-side clearance is unknown or below 8 cm. DOWN and STOP stay available. Use **LAN only** — do not expose the Web UI to the public Internet.
 
 ## What you can do now
@@ -24,6 +28,12 @@ Phase 1 is complete: the gateway can emulate the original Mxtark panel and move 
 | XiaoZhi AI | Five fixed MCP tools over REST |
 | Home Assistant | LAN MQTT Cover: sit / stand / stop |
 | Ulanzi D200H | Sit / stand / Pomodoro keys |
+
+The LAN Web UI is the everyday console: hold to move, release to stop, sit/stand presets close the loop on TOF400C, and child-lock plus Pomodoro live on the same page. iPhone / Android prefer BLE and fall back to REST. Apple Watch uses the Digital Crown as a jog; motion stops when the crown stops. A Ulanzi D200H and a XiaoZhi round display send the same sit / stand / Pomodoro REST calls.
+
+![Ulanzi D200H keys: sit, stand, Pomodoro](docs/images/readme/d200h.webp)
+
+![XiaoZhi round display: height, sit/stand presets, Pomodoro](docs/images/readme/xiaozhi.webp)
 
 How to use each client: [docs/guides/control-methods.md](docs/guides/control-methods.md) (Chinese). Home Assistant: [docs/guides/home-assistant-mqtt.en.md](docs/guides/home-assistant-mqtt.en.md). REST contract: [docs/guides/rest-api.md](docs/guides/rest-api.md).
 
@@ -51,6 +61,16 @@ The main firmware builds with **ESP-IDF v6.0.2**. Phase 2 pass-through, the abno
 | Pull-ups | RJ45 pin 1 / red 3.3V → **2 kΩ (2.2 kΩ acceptable)** → CLK, and another → DAT |
 
 The red 3.3V wire is only the pull-up source. **Never connect it directly to the ESP32 3V3 pin.** Removing the original panel also removes its two measured `1.99 kΩ` pull-ups; restore them on the ESP32 setup.
+
+The original panel still works through dual-RJ45 pass-through. Product height is the downward TOF400C; right-side clearance is the sideways TOF050C. An OLED cycles height, sensor, and network status. The current hardware is an ESP32-S3 dev board with jumper wires — a working prototype, not a finished kit.
+
+![Original Mxtark desk panel](docs/images/readme/original-panel.webp)
+
+![TOF400C for height, TOF050C for right-side clearance](docs/images/readme/dual-tof.webp)
+
+![OLED carousel: height, sensors, network](docs/images/readme/oled-status.webp)
+
+![ESP32-S3 gateway prototype with OLED and MAX98357A](docs/images/readme/gateway-prototype.webp)
 
 Wiring checklist: [docs/guides/bringup-checklist.md](docs/guides/bringup-checklist.md)
 
