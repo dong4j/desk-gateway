@@ -4,12 +4,12 @@
 |---|---|
 | 文档编号 | DG-ARCH-MQTT-001 |
 | 版本 | 0.1.0 |
-| 日期 | 2026-08-12 |
-| 状态 | 方案已确认，尚未实现 |
+| 日期 | 2026-08-19 |
+| 状态 | 固件 Client 与 Web 配置已实现；Broker / HA / 真机矩阵待验收 |
 | 适用范围 | `firmware/desk-gateway` Phase 3 MQTT / Home Assistant 扩展 |
 
 > 本文定义 MQTT v1 的产品边界、Topic 契约、安全约束和实施门禁。
-> “方案已确认”不表示固件、Web 配置页或 Home Assistant 实体已经实现；当前实现状态仍以
+> “固件已实现”不表示 Home Assistant 实体或真桌运动已经验收；当前验收状态仍以
 > [架构总览](../architecture/overview.md)和[当前状态与任务优先级](../status/current-status-and-priorities.md)为准。
 
 ## 1. 结论
@@ -73,7 +73,8 @@ flowchart LR
 
 ### 3.1 依赖方向
 
-- `connectivity/mqtt` 可以依赖 `desk_core`，不能依赖具体 Driver。
+- `connectivity/desk_mqtt` 可以依赖 `desk_core`，不能依赖具体 Driver。
+  目录名不能叫 `mqtt`，否则会与 `espressif/mqtt` 组件重名并形成自依赖。
 - MQTT 入站命令必须先经过协议校验，再由独立 worker 调用 `desk_core`。
 - MQTT 状态只读取 `desk_core_snapshot()`，不读取 Driver 私有状态。
 - `desk_core` 不依赖 MQTT，不感知 Topic、Broker 或 Home Assistant。
@@ -466,7 +467,7 @@ Broker 的原生 MQTT TCP/TLS 已足够，额外 transport 只增加固件体积
 firmware/desk-gateway/
   components/
     connectivity/
-      mqtt/
+      desk_mqtt/
         CMakeLists.txt
         idf_component.yml
         include/desk_mqtt.h

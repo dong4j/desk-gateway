@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| Date | 2026-08-17 |
+| Date | 2026-08-19 |
 | Goal | Flash Desk Gateway, join your LAN, and point Web / scripts / phone / Watch / keyboard / voice / D200H at the same desk |
 | How to move the desk | [Control methods](control-methods.md) (Chinese) |
 | REST contract | [REST API](rest-api.md) (Chinese) |
@@ -197,6 +197,10 @@ Do not drop source into UlanziStudio. Build with the official SDK per the [plugi
 ### 4.9 Original panel (Phase 2)
 
 Wiring is in the firmware README dual-RJ45 table: controller GPIO4/5, panel GPIO6/7. Do **not** jumper CLK/DAT across the two sockets. Panel keys use the same child-lock and arbiter. Preset keys 2 / 3 are still not an accepted safe-height path.
+
+### 4.10 Home Assistant / MQTT (optional, not yet accepted on the real desk)
+
+Fill in a LAN broker (HA Mosquitto is the intended target) on the Web settings page. Use a dedicated MQTT user, not the Web password. Do not port-forward the broker or 1883/8883. The client and MQTT motion source both default to off. After the client is on, HA should Discovery a Cover; after MQTT control is on, Cover open/close/stop map to stand/sit/STOP. Treat this as unimplemented for daily use until the real-desk matrix is signed.
 
 ---
 

@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 日期 | 2026-08-17 |
+| 日期 | 2026-08-19 |
 | 基线 | 当前主固件 `desk_web.c` 已注册路由 |
 | 使用场景 | 脚本、Karabiner、GoatRemote、小智 MCP、Ulanzi、手机 Wi-Fi 回退 |
 
@@ -64,7 +64,8 @@ Authorization: Bearer <login token>
 | `raise_to_max_supported` | 能否使用有界最高位 |
 | `min_height_mm` / `max_height_mm` | 默认 `550` / `940` |
 | `preset1_height_mm` / `preset4_height_mm` | 默认 `550` / `870` |
-| `control_sources.rest\|bluetooth\|panel` | 来源开关 |
+| `control_sources.rest\|bluetooth\|panel\|mqtt` | 来源开关；MQTT 默认关闭 |
+| `mqtt.client_enabled` / `mqtt.connected` / `mqtt.last_error` | MQTT Client 诊断；不含密码 |
 | `driver` | 当前 Driver，产品固件为 `mxtark` |
 | `build_id` / `git_version` | 确认烧录镜像 |
 | `reminder` / `audio` | 番茄时钟与语音快照 |
@@ -109,7 +110,7 @@ curl -s -X POST -H "X-Desk-Key: $DESK_KEY" \
 | 方法 | 路径 | 请求体 |
 |---|---|---|
 | POST | `/api/v1/desk/child-lock` | `{"enabled": true\|false}` |
-| POST | `/api/v1/desk/access` | `{"source":"rest\|bluetooth\|panel","enabled":true\|false}` |
+| POST | `/api/v1/desk/access` | `{"source":"rest\|bluetooth\|panel\|mqtt","enabled":true\|false}` |
 | POST | `/api/v1/desk/min-height` | `{"min_height_mm": 550}` |
 | POST | `/api/v1/desk/max-height` | `{"max_height_mm": 940}` |
 | POST | `/api/v1/desk/presets` | `{"preset1_height_mm":550,"preset4_height_mm":870}` |
@@ -137,6 +138,26 @@ curl -s -X POST -H "X-Desk-Key: $DESK_KEY" \
 | DELETE | `/api/v1/bluetooth/bonds` | 全删 |
 
 Bond 满额不会自动淘汰旧设备。删除会先停止该设备发起的运动。协议细节见 [三客户端与 Bond 管理](../architecture/ble-multi-client-bond-management.md)。
+
+## MQTT / Home Assistant
+
+`GET` / `PUT /api/v1/mqtt` 需要鉴权。密码写入后只返回 `password_configured`，不会回传明文。Broker 必须在局域网内，不要做公网端口映射。MQTT 账号不要复用 Web 密码。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/mqtt` | 当前 Broker 配置、设备 ID 和连接诊断 |
+| PUT | `/api/v1/mqtt` | 保存 Client 启用、Host、Port、TLS、用户名、可选密码、Discovery 前缀；可同时写 `control_enabled` |
+
+`PUT` 省略 `password` 时保留已存密码；空字符串表示清除。`client_enabled` 只决定是否连接 Broker；运动还要将来源 `mqtt` 打开。命令只有 `SIT` / `STAND` / `STOP`，走 `desk_core`，真机闭环尚未验收。
+
+```bash
+curl -s -H "X-Desk-Key: $DESK_KEY" "http://$DESK_IP/api/v1/mqtt"
+
+curl -s -X PUT -H "X-Desk-Key: $DESK_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"client_enabled":true,"host":"192.168.1.10","port":1883,"tls_mode":"none","username":"desk","password":"...","discovery_prefix":"homeassistant"}' \
+  "http://$DESK_IP/api/v1/mqtt"
+```
 
 ## 番茄时钟与系统
 

@@ -23,4 +23,4 @@
 
 ## 不在本目录
 
-Home Assistant / MQTT、Matter、米家、华为目前只有方案文档。见 [`docs/future/mqtt-home-assistant.md`](../docs/future/mqtt-home-assistant.md) 和 [`docs/future/ecosystem-xiaomi-huawei.md`](../docs/future/ecosystem-xiaomi-huawei.md)。
+Home Assistant / MQTT 固件 Client 已实现，但仍待 Broker 联调和真桌验收，不能当已交付入口。Matter、米家、华为仍只有方案文档。见 [`docs/future/mqtt-home-assistant.md`](../docs/future/mqtt-home-assistant.md) 和 [`docs/future/ecosystem-xiaomi-huawei.md`](../docs/future/ecosystem-xiaomi-huawei.md)。

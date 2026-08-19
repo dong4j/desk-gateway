@@ -705,7 +705,8 @@ body.is-moving .rail-fill::before {
   color: var(--muted);
   font-size: 0.8rem;
 }
-.settings-form input {
+.settings-form input,
+.settings-form select {
   flex: 1;
   min-width: 0;
   padding: 0.7rem 0.85rem;

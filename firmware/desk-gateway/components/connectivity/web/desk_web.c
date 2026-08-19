@@ -16,6 +16,7 @@
 #include "desk_tof.h"
 #include "desk_web_ble_api.h"
 #include "desk_wifi.h"
+#include "desk_mqtt.h"
 
 #include "cJSON.h"
 #include "esp_app_desc.h"
@@ -307,6 +308,18 @@ static cJSON *snapshot_json(void)
         sources, "panel",
         (s.enabled_sources &
          DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_PANEL)) != 0);
+    cJSON_AddBoolToObject(
+        sources, "mqtt",
+        (s.enabled_sources &
+         DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_MQTT)) != 0);
+    desk_mqtt_runtime_t mqtt_rt = {0};
+    desk_mqtt_get_runtime(&mqtt_rt);
+    cJSON *mqtt = cJSON_AddObjectToObject(o, "mqtt");
+    cJSON_AddBoolToObject(mqtt, "client_enabled", mqtt_rt.client_enabled);
+    cJSON_AddBoolToObject(mqtt, "connected", mqtt_rt.connected);
+    cJSON_AddBoolToObject(mqtt, "sta_ready", mqtt_rt.sta_ready);
+    cJSON_AddStringToObject(mqtt, "device_id", mqtt_rt.device_id);
+    cJSON_AddStringToObject(mqtt, "last_error", mqtt_rt.last_error);
     cJSON_AddStringToObject(o, "driver", s.driver ? s.driver : "none");
     /* 读取当前运行镜像的元数据，页面显示值可以直接用于确认烧录结果。 */
     cJSON_AddStringToObject(o, "build_date", app ? app->date : "");
@@ -396,6 +409,10 @@ static bool parse_control_source(const char *name,
     }
     if (strcmp(name, "panel") == 0) {
         *out_source = DESK_CONTROL_SOURCE_PANEL;
+        return true;
+    }
+    if (strcmp(name, "mqtt") == 0) {
+        *out_source = DESK_CONTROL_SOURCE_MQTT;
         return true;
     }
     return false;
@@ -1157,6 +1174,141 @@ static esp_err_t handler_setup_wifi(httpd_req_t *req)
     return send_cjson(req, err == ESP_OK ? 200 : 400, o);
 }
 
+static bool copy_json_string(char *out, size_t out_len, const cJSON *item)
+{
+    if (!cJSON_IsString(item) || !item->valuestring || !out || out_len == 0) {
+        return false;
+    }
+    size_t n = strlen(item->valuestring);
+    if (n >= out_len) {
+        return false;
+    }
+    memcpy(out, item->valuestring, n + 1);
+    return true;
+}
+
+static cJSON *mqtt_config_json(void)
+{
+    desk_mqtt_config_t cfg;
+    desk_mqtt_runtime_t rt = {0};
+    (void)desk_mqtt_get_config(&cfg);
+    desk_mqtt_get_runtime(&rt);
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddBoolToObject(o, "client_enabled", cfg.client_enabled);
+    cJSON_AddStringToObject(o, "host", cfg.host);
+    cJSON_AddNumberToObject(o, "port", cfg.port);
+    cJSON_AddStringToObject(o, "tls_mode", desk_mqtt_tls_mode_name(cfg.tls_mode));
+    cJSON_AddStringToObject(o, "username", cfg.username);
+    cJSON_AddBoolToObject(o, "password_configured",
+                          desk_mqtt_password_configured());
+    cJSON_AddStringToObject(o, "discovery_prefix", cfg.discovery_prefix);
+    cJSON_AddBoolToObject(o, "control_enabled", rt.control_enabled);
+    cJSON_AddBoolToObject(o, "connected", rt.connected);
+    cJSON_AddBoolToObject(o, "sta_ready", rt.sta_ready);
+    cJSON_AddStringToObject(o, "device_id", rt.device_id);
+    cJSON_AddStringToObject(o, "last_error", rt.last_error);
+    return o;
+}
+
+static esp_err_t handler_mqtt_get(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        cJSON *e = cJSON_CreateObject();
+        cJSON_AddStringToObject(e, "error", "unauthorized");
+        return send_cjson(req, 401, e);
+    }
+    return send_cjson(req, 200, mqtt_config_json());
+}
+
+static esp_err_t handler_mqtt_put(httpd_req_t *req)
+{
+    if (!authed(req)) {
+        cJSON *e = cJSON_CreateObject();
+        cJSON_AddStringToObject(e, "error", "unauthorized");
+        return send_cjson(req, 401, e);
+    }
+    char body[512];
+    if (read_body(req, body, sizeof(body)) != ESP_OK) {
+        cJSON *e = cJSON_CreateObject();
+        cJSON_AddBoolToObject(e, "ok", false);
+        cJSON_AddStringToObject(e, "error", "bad body");
+        return send_cjson(req, 400, e);
+    }
+    cJSON *root = cJSON_Parse(body);
+    desk_mqtt_config_t cfg;
+    (void)desk_mqtt_get_config(&cfg);
+    bool password_present = false;
+    bool ok = root != NULL;
+    if (ok) {
+        const cJSON *enabled = cJSON_GetObjectItem(root, "client_enabled");
+        const cJSON *host = cJSON_GetObjectItem(root, "host");
+        const cJSON *port = cJSON_GetObjectItem(root, "port");
+        const cJSON *tls = cJSON_GetObjectItem(root, "tls_mode");
+        const cJSON *user = cJSON_GetObjectItem(root, "username");
+        const cJSON *password = cJSON_GetObjectItem(root, "password");
+        const cJSON *prefix = cJSON_GetObjectItem(root, "discovery_prefix");
+        const cJSON *control = cJSON_GetObjectItem(root, "control_enabled");
+        if (enabled) {
+            ok = cJSON_IsBool(enabled);
+            if (ok) {
+                cfg.client_enabled = cJSON_IsTrue(enabled);
+            }
+        }
+        if (ok && host) {
+            ok = copy_json_string(cfg.host, sizeof(cfg.host), host);
+        }
+        if (ok && port) {
+            ok = cJSON_IsNumber(port) && port->valuedouble == (double)port->valueint &&
+                 port->valueint > 0 && port->valueint <= 65535;
+            if (ok) {
+                cfg.port = (uint16_t)port->valueint;
+            }
+        }
+        if (ok && tls) {
+            ok = cJSON_IsString(tls) &&
+                 desk_mqtt_tls_mode_from_name(tls->valuestring, &cfg.tls_mode);
+        }
+        if (ok && user) {
+            ok = copy_json_string(cfg.username, sizeof(cfg.username), user);
+        }
+        if (ok && password) {
+            password_present = true;
+            ok = copy_json_string(cfg.password, sizeof(cfg.password), password);
+        }
+        if (ok && prefix) {
+            ok = copy_json_string(cfg.discovery_prefix,
+                                  sizeof(cfg.discovery_prefix), prefix);
+        }
+        if (ok && control) {
+            ok = cJSON_IsBool(control);
+            if (ok) {
+                esp_err_t src_err = desk_core_set_source_enabled(
+                    DESK_CONTROL_SOURCE_MQTT, cJSON_IsTrue(control));
+                if (src_err != ESP_OK) {
+                    ok = false;
+                }
+            }
+        }
+    }
+    cJSON_Delete(root);
+    if (!ok) {
+        cJSON *e = cJSON_CreateObject();
+        cJSON_AddBoolToObject(e, "ok", false);
+        cJSON_AddStringToObject(e, "error", "invalid_config");
+        return send_cjson(req, 400, e);
+    }
+    esp_err_t err = desk_mqtt_set_config(&cfg, password_present);
+    if (err != ESP_OK) {
+        cJSON *e = cJSON_CreateObject();
+        cJSON_AddBoolToObject(e, "ok", false);
+        cJSON_AddStringToObject(e, "err", esp_err_to_name(err));
+        return send_cjson(req, 400, e);
+    }
+    cJSON *o = mqtt_config_json();
+    cJSON_AddBoolToObject(o, "ok", true);
+    return send_cjson(req, 200, o);
+}
+
 esp_err_t desk_web_start(void)
 {
     /* 幂等：STA 可能多次 GOT_IP（重连），只启动一次 */
@@ -1170,7 +1322,7 @@ esp_err_t desk_web_start(void)
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.server_port = 80;
     cfg.uri_match_fn = httpd_uri_match_wildcard;
-    cfg.max_uri_handlers = 32;
+    cfg.max_uri_handlers = 36;
     cfg.max_open_sockets = 7;
     cfg.lru_purge_enable = true;
     cfg.stack_size = 8192;
@@ -1212,6 +1364,8 @@ esp_err_t desk_web_start(void)
         {.uri = "/api/v1/reminder/action", .method = HTTP_POST, .handler = handler_reminder_action},
         {.uri = "/api/v1/reminder/config", .method = HTTP_POST, .handler = handler_reminder_config},
         {.uri = "/api/v1/audio/action", .method = HTTP_POST, .handler = handler_audio_action},
+        {.uri = "/api/v1/mqtt", .method = HTTP_GET, .handler = handler_mqtt_get},
+        {.uri = "/api/v1/mqtt", .method = HTTP_PUT, .handler = handler_mqtt_put},
         {.uri = "/api/v1/desk/*", .method = HTTP_POST, .handler = handler_cmd},
     };
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {

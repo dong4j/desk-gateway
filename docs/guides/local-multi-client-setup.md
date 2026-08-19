@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 日期 | 2026-08-17 |
+| 日期 | 2026-08-19 |
 | 目的 | 在自己的局域网把 Desk Gateway 烧上、配上网，并让 Web / 脚本 / 手机 / Watch / 键盘 / 语音 / D200H 都能控同一张桌子 |
 | 详细用法 | [多种方式控制升降桌](control-methods.md) |
 | REST 契约 | [REST API](rest-api.md) |
@@ -197,6 +197,10 @@ chmod 600 integrations/xiaozhi-mcp/.env
 ### 4.9 原厂面板（Phase 2）
 
 接线见固件 README 的双 RJ45 表：控制盒 GPIO4/5，面板 GPIO6/7，**不要**把两边 CLK/DAT 短接。面板键走同一套童锁和仲裁；档位键 2 / 3 仍不是已验收路径。
+
+### 4.10 Home Assistant / MQTT（可选，待真机验收）
+
+在 Web 设置页填写局域网 Broker（推荐 HA Mosquitto）。MQTT 用户不要复用 Web 密码，也不要把 Broker 或 1883/8883 映射到公网。默认不连接、也不允许 MQTT 控桌。打开 Client 后 HA 应能 Discovery 到 Cover；打开「允许 MQTT 控制桌子」后，Cover 打开/关闭/停止对应起立/请坐/STOP。没有真机矩阵前，不要把它当已交付入口。
 
 ---
 

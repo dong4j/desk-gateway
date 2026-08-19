@@ -32,6 +32,18 @@
   const allowRest = document.getElementById('allowRest');
   const allowBluetooth = document.getElementById('allowBluetooth');
   const allowPanel = document.getElementById('allowPanel');
+  const allowMqtt = document.getElementById('allowMqtt');
+  const mqttForm = document.getElementById('mqttForm');
+  const mqttClientEnabled = document.getElementById('mqttClientEnabled');
+  const mqttHost = document.getElementById('mqttHost');
+  const mqttPort = document.getElementById('mqttPort');
+  const mqttTls = document.getElementById('mqttTls');
+  const mqttUser = document.getElementById('mqttUser');
+  const mqttPassword = document.getElementById('mqttPassword');
+  const mqttPrefix = document.getElementById('mqttPrefix');
+  const mqttDeviceId = document.getElementById('mqttDeviceId');
+  const mqttStatus = document.getElementById('mqttStatus');
+  const mqttMsg = document.getElementById('mqttMsg');
   const controllerResetButton = document.getElementById('controllerResetButton');
   const controllerResetMsg = document.getElementById('controllerResetMsg');
   const restartButton = document.getElementById('restartButton');
@@ -793,6 +805,26 @@
     allowRest.checked = restEnabled;
     allowBluetooth.checked = sources.bluetooth !== false;
     allowPanel.checked = sources.panel !== false;
+    allowMqtt.checked = sources.mqtt === true;
+    const mqtt = s.mqtt && typeof s.mqtt === 'object' ? s.mqtt : {};
+    if (mqttDeviceId) {
+      mqttDeviceId.textContent = mqtt.device_id
+        ? `设备 ID ${mqtt.device_id}`
+        : '设备 ID —';
+    }
+    if (mqttStatus) {
+      if (mqtt.connected) {
+        mqttStatus.textContent = '已连接 Broker，正在上报状态。';
+      } else if (mqtt.client_enabled && mqtt.last_error) {
+        mqttStatus.textContent = `未连接：${mqtt.last_error}`;
+      } else if (mqtt.client_enabled) {
+        mqttStatus.textContent = mqtt.sta_ready
+          ? '正在连接 Broker…'
+          : '等待 STA 拿到 IP 后再连接 Broker。';
+      } else {
+        mqttStatus.textContent = '未启用 MQTT Client。';
+      }
+    }
     if (typeof s.min_height_mm === 'number') {
       const minCm = (s.min_height_mm / 10).toFixed(1);
       if (document.activeElement !== minHeightInput) {
@@ -885,6 +917,49 @@
   bindSourceToggle(allowRest, 'rest');
   bindSourceToggle(allowBluetooth, 'bluetooth');
   bindSourceToggle(allowPanel, 'panel');
+  bindSourceToggle(allowMqtt, 'mqtt');
+
+  async function loadMqttConfig() {
+    const cfg = await api('/api/v1/mqtt');
+    mqttClientEnabled.checked = !!cfg.client_enabled;
+    mqttHost.value = cfg.host || '';
+    mqttPort.value = String(cfg.port || 1883);
+    mqttTls.value = cfg.tls_mode === 'certificate_bundle'
+      ? 'certificate_bundle'
+      : 'none';
+    mqttUser.value = cfg.username || '';
+    mqttPassword.value = '';
+    mqttPassword.placeholder = cfg.password_configured ? '已配置，留空则保留' : 'MQTT 密码';
+    mqttPrefix.value = cfg.discovery_prefix || 'homeassistant';
+    mqttDeviceId.textContent = cfg.device_id
+      ? `设备 ID ${cfg.device_id}`
+      : '设备 ID —';
+  }
+
+  mqttForm.onsubmit = async (event) => {
+    event.preventDefault();
+    mqttMsg.textContent = '正在保存…';
+    const body = {
+      client_enabled: mqttClientEnabled.checked,
+      host: mqttHost.value.trim(),
+      port: Number(mqttPort.value),
+      tls_mode: mqttTls.value,
+      username: mqttUser.value.trim(),
+      discovery_prefix: mqttPrefix.value.trim() || 'homeassistant',
+    };
+    if (mqttPassword.value !== '') {
+      body.password = mqttPassword.value;
+    }
+    try {
+      await api('/api/v1/mqtt', 'PUT', body);
+      mqttPassword.value = '';
+      mqttMsg.textContent = 'MQTT 配置已保存';
+      await loadMqttConfig();
+      await tick();
+    } catch (_) {
+      mqttMsg.textContent = 'MQTT 配置无效或保存失败，请检查主机名和端口';
+    }
+  };
 
   function setReminderExpanded(expanded) {
     reminderDetails.hidden = !expanded;
@@ -1149,5 +1224,8 @@
     void refreshHeightPresets();
   }
   tick();
+  loadMqttConfig().catch(() => {
+    mqttMsg.textContent = '无法读取 MQTT 配置';
+  });
   setInterval(tick, 250);
 })();

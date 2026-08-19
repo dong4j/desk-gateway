@@ -9,6 +9,7 @@ DRIVER_DIR="${REPO_ROOT}/firmware/desk-gateway/components/drivers/mxtark"
 CORE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/desk_core"
 BLE_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/ble"
 WEB_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/web"
+MQTT_DIR="${REPO_ROOT}/firmware/desk-gateway/components/connectivity/desk_mqtt"
 TOF_DIR="${REPO_ROOT}/firmware/desk-gateway/components/sensors/desk_tof"
 OLED_DIR="${REPO_ROOT}/firmware/desk-gateway/components/display/desk_oled"
 STATUS_LED_DIR="${REPO_ROOT}/firmware/desk-gateway/components/display/desk_status_led"
@@ -103,6 +104,13 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${BLE_DIR}/test/desk_ble_protocol_test.c" \
     -o "${TEST_DIR}/ble-protocol-test"
 "${TEST_DIR}/ble-protocol-test"
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${MQTT_DIR}/include" \
+    "${MQTT_DIR}/desk_mqtt_protocol.c" \
+    "${MQTT_DIR}/test/desk_mqtt_protocol_test.c" \
+    -o "${TEST_DIR}/mqtt-protocol-test"
+"${TEST_DIR}/mqtt-protocol-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${BLE_DIR}/include" \

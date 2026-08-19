@@ -23,6 +23,8 @@ const char *desk_control_source_name(desk_control_source_t source)
         return "panel";
     case DESK_CONTROL_SOURCE_CONSOLE:
         return "console";
+    case DESK_CONTROL_SOURCE_MQTT:
+        return "mqtt";
     case DESK_CONTROL_SOURCE_COUNT:
     default:
         return "unknown";

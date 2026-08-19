@@ -23,4 +23,4 @@ How to move the desk: [`docs/guides/control-methods.md`](../docs/guides/control-
 
 ## Not in this tree
 
-Home Assistant / MQTT, Matter, Xiaomi, and Huawei are design docs only. See [`docs/future/mqtt-home-assistant.md`](../docs/future/mqtt-home-assistant.md) and [`docs/future/ecosystem-xiaomi-huawei.md`](../docs/future/ecosystem-xiaomi-huawei.md).
+The firmware MQTT client is implemented, but broker bring-up and real-desk acceptance are still open — do not treat Home Assistant as a shipped control path. Matter, Xiaomi, and Huawei remain design docs only. See [`docs/future/mqtt-home-assistant.md`](../docs/future/mqtt-home-assistant.md) and [`docs/future/ecosystem-xiaomi-huawei.md`](../docs/future/ecosystem-xiaomi-huawei.md).

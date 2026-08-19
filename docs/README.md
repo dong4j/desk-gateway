@@ -91,11 +91,11 @@ Architecture diagrams (PNG only) live in
 
 ## Later ecosystem
 
-These have designs. They are not delivered features:
+These are not shipped features. MQTT firmware exists; HA and the real desk are still open:
 
 | Doc | What it covers |
 |---|---|
-| [MQTT / Home Assistant](./future/mqtt-home-assistant.md) | Cover / Number entity plan |
+| [MQTT / Home Assistant](./future/mqtt-home-assistant.md) | Firmware client is in; HA / real-desk acceptance is not |
 | [Xiaomi / Huawei](./future/ecosystem-xiaomi-huawei.md) | Native module vs Matter |
 
 ## History

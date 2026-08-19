@@ -3,6 +3,7 @@ build/
 sdkconfig
 sdkconfig.old
 dependencies.lock
+!firmware/desk-gateway/dependencies.lock
 managed_components/
 .cache/
 

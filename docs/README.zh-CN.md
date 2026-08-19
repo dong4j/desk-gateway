@@ -88,11 +88,11 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 
 ## 后续生态
 
-这些能力有方案，尚未作为已交付功能：
+这些能力尚未完成真机验收，不能当成已发布功能：
 
 | 文档 | 说明 |
 |---|---|
-| [MQTT / Home Assistant](./future/mqtt-home-assistant.md) | Cover / Number 实体方案 |
+| [MQTT / Home Assistant](./future/mqtt-home-assistant.md) | 固件 Client 已实现；HA / 真机待验收 |
 | [小米 / 华为生态](./future/ecosystem-xiaomi-huawei.md) | 原生模组 vs Matter |
 
 ## 历史稿

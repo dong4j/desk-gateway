@@ -2,7 +2,7 @@
 
 **Language:** English · [简体中文](README.zh-CN.md)
 
-ESP-IDF project for the standing-desk gateway. Parent docs: [../../README.md](../../README.md) · [中文](../../README.zh-CN.md). How to move the desk from Web, REST, BLE, phone, Watch, keyboard, voice, or D200H: [control methods](../../docs/guides/control-methods.md). REST contract: [REST API](../../docs/guides/rest-api.md).
+ESP-IDF project for the standing-desk gateway. Parent docs: [../../README.md](../../README.md) · [中文](../../README.zh-CN.md). How to move the desk from Web, REST, BLE, phone, Watch, keyboard, voice, D200H, or LAN MQTT: [control methods](../../docs/guides/control-methods.md). REST contract: [REST API](../../docs/guides/rest-api.md).
 
 ## Build
 

@@ -10,6 +10,7 @@
 #include "desk_ble.h"
 #include "desk_audio.h"
 #include "desk_core.h"
+#include "desk_mqtt.h"
 #include "desk_oled.h"
 #include "desk_peripheral_i2c.h"
 #include "desk_reminder.h"
@@ -32,6 +33,11 @@ static void on_wifi_ready(void)
     esp_err_t err = desk_web_start();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "desk_web_start: %s", esp_err_to_name(err));
+    }
+    /* SoftAP 下 worker 不会连 Broker；STA 重复 GOT_IP 时 start 必须幂等。 */
+    err = desk_mqtt_start();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "desk_mqtt_start: %s", esp_err_to_name(err));
     }
 }
 

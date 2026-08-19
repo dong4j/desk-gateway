@@ -17,14 +17,14 @@ extern "C" {
 /**
  * 控制入口标识。
  *
- * 后续接入 HA、MQTT 等入口时只需在末尾追加枚举值，并让新入口调用带
- * source 参数的 desk_core API，禁止直接调用 desk_driver。
+ * 后续接入新入口时必须追加到末尾，禁止插入现有成员之间，以免打乱 NVS bit。
  */
 typedef enum {
     DESK_CONTROL_SOURCE_REST = 0,
     DESK_CONTROL_SOURCE_BLUETOOTH,
     DESK_CONTROL_SOURCE_PANEL,
     DESK_CONTROL_SOURCE_CONSOLE,
+    DESK_CONTROL_SOURCE_MQTT,
     DESK_CONTROL_SOURCE_COUNT,
 } desk_control_source_t;
 
@@ -33,7 +33,8 @@ typedef enum {
 #define DESK_CONTROL_SOURCE_CONFIGURABLE_MASK \
     (DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_REST) | \
      DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_BLUETOOTH) | \
-     DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_PANEL))
+     DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_PANEL) | \
+     DESK_CONTROL_SOURCE_BIT(DESK_CONTROL_SOURCE_MQTT))
 
 /*
  * 原厂面板默认只显示高度，不接受按键。REST、Bluetooth 和本地 Console

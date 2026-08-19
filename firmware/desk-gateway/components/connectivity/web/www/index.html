@@ -220,9 +220,55 @@
               <input type="checkbox" id="allowPanel" />
               <span>允许原厂面板操作</span>
             </label>
-            <p class="settings-note">原厂面板操作默认关闭；关闭后按键无效，但仍显示高度。童锁优先于以上所有开关。</p>
+            <label class="source-option">
+              <input type="checkbox" id="allowMqtt" />
+              <span>允许 MQTT 控制桌子</span>
+            </label>
+            <p class="settings-note">原厂面板和 MQTT 控制默认关闭。关闭后按键或 Cover 无法启动运动，但仍可显示高度。童锁优先于以上所有开关。不要把 Broker 映射到公网。</p>
           </div>
           <p id="accessMsg" class="hint"></p>
+
+          <form id="mqttForm" class="settings-form settings-divider">
+            <label>Home Assistant / MQTT</label>
+            <p class="settings-note">
+              设备作为局域网 MQTT Client，连接你已有的 Broker（推荐 HA Mosquitto）。
+              只支持请坐、起立和停止，没有长按升降或任意百分比定位。
+            </p>
+            <label class="source-option">
+              <input type="checkbox" id="mqttClientEnabled" />
+              <span>连接 Broker 并上报状态</span>
+            </label>
+            <div class="settings-row">
+              <input id="mqttHost" type="text" maxlength="127" autocomplete="off"
+                     placeholder="Broker 主机名或 IP" />
+              <input id="mqttPort" type="number" min="1" max="65535" step="1"
+                     value="1883" inputmode="numeric" />
+            </div>
+            <label class="compact-field" for="mqttTls">
+              <span>TLS</span>
+              <select id="mqttTls">
+                <option value="none">none（受信任局域网）</option>
+                <option value="certificate_bundle">certificate_bundle</option>
+              </select>
+            </label>
+            <div class="settings-row">
+              <input id="mqttUser" type="text" maxlength="63" autocomplete="off"
+                     placeholder="MQTT 用户名（不要复用 Web 密码）" />
+              <input id="mqttPassword" type="password" maxlength="63"
+                     autocomplete="new-password" placeholder="MQTT 密码" />
+            </div>
+            <label class="compact-field" for="mqttPrefix">
+              <span>Discovery 前缀</span>
+              <input id="mqttPrefix" type="text" maxlength="31" value="homeassistant"
+                     autocomplete="off" />
+            </label>
+            <div class="settings-row">
+              <button type="submit">保存 MQTT</button>
+              <span id="mqttDeviceId" class="pill">设备 ID —</span>
+            </div>
+            <p id="mqttStatus" class="settings-note">未连接 Broker。</p>
+          </form>
+          <p id="mqttMsg" class="hint"></p>
 
           <section class="settings-form settings-divider bond-section" aria-labelledby="bondTitle">
             <div class="bond-heading">

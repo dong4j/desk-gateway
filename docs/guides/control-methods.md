@@ -2,8 +2,8 @@
 
 | 项 | 内容 |
 |---|---|
-| 日期 | 2026-08-17 |
-| 适用阶段 | Phase 1 与 Phase 2 透传已完成；V1 发布还差内测包等 P1 门禁 |
+| 日期 | 2026-08-19 |
+| 适用阶段 | Phase 1 与 Phase 2 透传已完成；MQTT / HA 固件已实现但仍待真机验收；V1 发布还差内测包等 P1 门禁 |
 | REST 细节 | [REST API](rest-api.md) |
 | 本地把多端跑起来 | [本地多端部署清单](local-multi-client-setup.md) |
 | 接线烧录 | [真机验收清单](bringup-checklist.md)、[固件 README](../../firmware/desk-gateway/README.zh-CN.md) |
@@ -29,13 +29,14 @@ Desk Gateway 把厂商协议收进 `mxtark` Driver。下面这些入口都走同
 | 小智 AI | MCP → REST | 「站立」「坐姿」「停下」 | [小智控桌](xiaozhi-ai-desk-control.md) |
 | Ulanzi D200H | REST | 实体键坐 / 站 / 番茄 | [D200H 插件](../../integrations/ulanzi-d200h/README.zh-CN.md) |
 | 原厂面板 | I²C 代理 | 桌边按键（Phase 2） | [固件 README](../../firmware/desk-gateway/README.zh-CN.md) |
+| Home Assistant / MQTT | 局域网 MQTT Cover | 请坐 / 起立 / 停止（待真机验收） | 下文、[方案](../future/mqtt-home-assistant.md) |
 | OLED | I²C 显示 | 只看高度和状态，不控桌 | [OLED](../architecture/oled-status-display.md) |
 
 默认档位：坐姿 `550 mm`（档位 1），站姿 `870 mm`（档位 4），最高安全高度 `940 mm`。高度来自 TOF400C，不是控制盒数码管。
 
 ## 共同规则
 
-童锁开启后，除 STOP 和解锁外，所有入口都不能启动或维持运动。REST、Bluetooth、Panel 还可以各自关掉。关掉某个来源会先停止当前运动。STOP 始终放行。
+童锁开启后，除 STOP 和解锁外，所有入口都不能启动或维持运动。REST、Bluetooth、Panel、MQTT 还可以各自关掉。关掉某个来源会先停止当前运动。STOP 始终放行。
 
 上升还会被 ToF 拦住：高度未知、已经到最高高度，或者高度低于 `800 mm` 且右侧间距未知/小于 `80 mm` 时，固件拒绝上升。下降和 STOP 不受这条限制。
 
@@ -138,6 +139,21 @@ GoatRemote 把「桌子坐姿」「桌子站姿」指到 `scripts/desk-preset.sh
 小智硬件继续用官方固件。本仓库的 MCP 桥接只暴露五个固定工具：查状态、升到最高、坐姿、站姿、停止。工具不接受任意目标高度，也不把「最高」做成普通持续上升。部署见 [小智 MCP 桥接](../../integrations/xiaozhi-mcp/README.zh-CN.md)。
 
 Ulanzi D200H 插件提供请坐、站立、番茄时刻三个键，共享一次 status 轮询。倒计时在 ESP32 上跑，插件不另起一套计时器。源码在 `integrations/ulanzi-d200h/`，不能直接复制进 UlanziStudio，需要按插件 README 借助官方 SDK 编译。
+
+## Home Assistant / MQTT
+
+固件作为 **MQTT Client** 连接你已经在局域网里跑的 Broker（推荐 Home Assistant 的 Mosquitto）。ESP32 上不开 Broker，也不做公网映射。
+
+Web 设置页填写 Broker 主机、端口、独立 MQTT 账号和 Discovery 前缀。这里有两套开关：
+
+| 开关 | 默认 | 含义 |
+|---|---|---|
+| 连接 Broker 并上报状态 | 关 | 是否创建 MQTT Client、发布状态和 Discovery |
+| 允许 MQTT 控制桌子 | 关 | `desk_core` 是否接受来自 MQTT 的 SIT/STAND |
+
+只开 Client、关掉控制时，HA 可以只读监控高度和童锁。Cover 的打开 / 关闭 / 停止分别对应起立、请坐、全局 STOP。没有长按升降，也没有任意百分比定位。命令 Topic 不得 retain；固件收到 retained command 会拒绝。
+
+真机 SIT/STAND/STOP、童锁、面板抢占和 Broker 断线矩阵尚未验收，不能当成已交付能力。契约见 [MQTT / Home Assistant 方案](../future/mqtt-home-assistant.md)，REST 配置见 [REST API](rest-api.md)。
 
 ## 原厂面板与 OLED
 

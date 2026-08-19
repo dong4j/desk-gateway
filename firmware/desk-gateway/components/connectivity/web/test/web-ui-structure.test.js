@@ -44,4 +44,10 @@ assertContains(
   '试听提示必须按设备 playing 快照清除，不能只写死文案',
 );
 
+assertContains(html, 'id="allowMqtt"', '设置页需要 MQTT 控制来源开关');
+assertContains(html, 'id="mqttForm"', '设置页需要 MQTT Broker 配置表单');
+assertContains(html, 'id="mqttClientEnabled"', 'MQTT Client 启用开关必须存在');
+assertContains(app, "bindSourceToggle(allowMqtt, 'mqtt')", 'MQTT 来源开关必须走统一 access API');
+assertContains(app, "api('/api/v1/mqtt', 'PUT', body)", 'MQTT 配置必须通过 PUT /api/v1/mqtt 保存');
+
 console.log('web-ui-structure.test: ok');

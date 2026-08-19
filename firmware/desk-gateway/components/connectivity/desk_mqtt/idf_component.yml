@@ -1,0 +1,3 @@
+## MQTT 客户端依赖 ESP-IDF 6 独立组件；锁定 1.1.0 避免构建漂移。
+dependencies:
+  espressif/mqtt: "1.1.0"
