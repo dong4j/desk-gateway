@@ -182,6 +182,12 @@ cc -std=c11 -Wall -Wextra -Werror \
 
 "${SCRIPT_DIR}/check-audio-assets.sh"
 
+# Web 测试用 node:assert，需要 Node 16+。espressif/idf 容器没有 node。
+if ! command -v node >/dev/null 2>&1; then
+    echo "error: node is required for Web static checks" >&2
+    exit 127
+fi
+
 node --check "${WEB_DIR}/www/app.js"
 node --check "${WEB_DIR}/www/bond-management.js"
 node --check "${WEB_DIR}/www/height-presets.js"

@@ -21,7 +21,12 @@ cleanup() {
 trap cleanup EXIT
 
 # Catch protocol-table regressions before paying the cost of a full IDF build.
-"${SCRIPT_DIR}/check-height-decoder.sh"
+# IDF Docker 镜像没有 Node；CI 把 host 检查拆到 ubuntu-latest，这里跳过避免 127。
+if [[ "${DESK_SKIP_HOST_CHECKS:-}" == "1" ]]; then
+    echo "Skipping host checks (DESK_SKIP_HOST_CHECKS=1)"
+else
+    "${SCRIPT_DIR}/check-height-decoder.sh"
+fi
 
 if command -v idf.py >/dev/null 2>&1; then
     IDF_CMD=(idf.py)

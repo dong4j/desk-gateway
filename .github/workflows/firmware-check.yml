@@ -9,7 +9,24 @@ permissions:
   contents: read
 
 jobs:
+  host-logic:
+    # C / WAV / www/*.js 不需要 IDF。ubuntu-latest 带 gcc 和 Python，
+    # 再装 Node 22，避免 espressif/idf 容器缺 file / node 导致 127。
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run host firmware and Web checks
+        run: ./scripts/check-height-decoder.sh
+
   build-main-firmware:
+    needs: host-logic
     runs-on: ubuntu-latest
     container: espressif/idf:v6.0.2
     steps:
@@ -18,4 +35,6 @@ jobs:
 
       - name: Build ESP32-S3 firmware
         shell: bash
+        env:
+          DESK_SKIP_HOST_CHECKS: "1"
         run: ./scripts/check-firmware.sh
