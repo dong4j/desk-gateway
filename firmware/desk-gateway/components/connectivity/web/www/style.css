@@ -445,7 +445,7 @@ body.is-moving .rail-fill::before {
 }
 .reminder-compact-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 0.55rem;
 }
 .reminder-compact-actions .btn {

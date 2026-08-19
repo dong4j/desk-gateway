@@ -342,6 +342,9 @@ static cJSON *snapshot_json(void)
                             reminder.remaining_sec);
     cJSON_AddNumberToObject(reminder_json, "completed_focus_count",
                             reminder.completed_focus_count);
+    cJSON_AddBoolToObject(reminder_json, "auto_cycle", reminder.auto_cycle);
+    cJSON_AddNumberToObject(reminder_json, "auto_advance_sec",
+                            reminder.auto_advance_sec);
     cJSON_AddNumberToObject(reminder_json, "focus_minutes",
                             reminder.config.focus_minutes);
     cJSON_AddNumberToObject(reminder_json, "short_break_minutes",

@@ -22,11 +22,11 @@
 | Audio Data | `audio` SPIFFS，偏移 `0x310000`，容量 4 MiB；完整 `idf.py flash` 自动烧录 |
 | 本地语音 | `focus_done`、`break_done`、`snooze_done` 三段中文语音与 `attention_chime` 已生成 |
 | 自动化 | WAV/音量、番茄状态机、Web 展示规则及现有仓库测试通过 |
-| iPhone / Android | 首页入口、ESP 剩余时间、完整控制、时长/音量/静音/试听已实现；48 项移动端测试通过 |
-| Apple Watch | Reminder v1 BLE 状态与 7 个动作、紧凑控制页已实现；15 项 Core 测试和通用 watchOS 构建通过 |
+| iPhone / Android | 首页入口、ESP 剩余时间、完整控制（含自动循环）、时长/音量/静音/试听已实现；56 项移动端测试通过 |
+| Apple Watch | Reminder v1 BLE 状态与 8 个动作、紧凑控制页已实现；自动化测试和通用 watchOS 构建通过 |
 | 硬件结论 | **待验收**：未连接 MAX98357A 和扬声器，尚未证明真实出声、音质、电源与 EMI |
 
-当前语音由 macOS `Tingting` 生成，只作为开发和真机联调占位资源。正式公开分发或销售前必须换成自录或已取得明确再分发授权的语音，许可边界记录在 `firmware/desk-gateway/audio_assets/LICENSE.md`。
+当前语音由 `edge-tts` 的 `zh-CN-XiaoxiaoNeural` 女声生成，只作为开发和真机联调占位资源。正式公开分发或销售前必须换成自录或已取得明确再分发授权的语音，许可边界记录在 `firmware/desk-gateway/audio_assets/LICENSE.md`。
 
 ---
 
@@ -49,8 +49,8 @@ ESP32-S3 本地番茄时钟
 - 专注结束播放完整中文语音，例如“专注时间结束啦，起来活动一下吧”。
 - 休息结束播放完整中文语音，例如“休息时间结束，准备开始下一轮专注”。
 - 普通提示音也作为 WAV 资源播放，可用于前奏、完成音和试听。
-- 支持开始、暂停、继续、跳过、停止、延后 `5` 分钟、静音、音量和试听。
-- 下一阶段默认由用户手动开始，不在后台静默消耗休息时间。
+- 支持开始、自动循环、暂停、继续、跳过、停止、延后 `5` 分钟、静音、音量和试听。
+- 下一阶段默认由用户手动开始。`start_auto` 是新增会话模式：到期仍先播语音并停留 15 秒，无人操作再自动开始下一阶段。
 - 语音和音效存放在独立 Flash 音频分区，不依赖浏览器或互联网。
 - 设备重启后倒计时回到空闲态；只恢复用户配置，不恢复未完成阶段。
 - 音频子系统异常不得阻止桌控、`STOP`、Wi-Fi、BLE 或原厂面板链路启动。
@@ -74,9 +74,9 @@ ESP32-S3 本地番茄时钟
 
 | 阶段 | 默认时长 | 到期播放 | 后续行为 |
 |---|---:|---|---|
-| 专注 | 25 分钟 | 专注结束语音 | 等待用户开始休息 |
-| 短休息 | 5 分钟 | 休息结束语音 | 等待用户开始下一次专注 |
-| 长休息 | 15 分钟 | 休息结束语音 | 等待用户开始下一次专注 |
+| 专注 | 25 分钟 | 专注结束语音 | 手动等待开始休息；自动循环则 15 秒后开始休息 |
+| 短休息 | 5 分钟 | 休息结束语音 | 手动等待开始专注；自动循环则 15 秒后开始专注 |
+| 长休息 | 15 分钟 | 休息结束语音 | 手动等待开始专注；自动循环则 15 秒后开始专注 |
 | 延后 | 5 分钟 | 重复当前到期语音 | 回到等待确认状态 |
 
 专注阶段结束后，已完成专注次数加一。完成次数达到 `4` 的倍数时，下一个休息阶段为长休息，否则为短休息。
@@ -114,13 +114,12 @@ ESP32-S3 本地番茄时钟
 
 ```text
 idle
-  └─ start_focus ─> focus/running
+  ├─ start_focus ─> focus/running          （手动）
+  └─ start_auto  ─> focus/running          （自动循环，会话内有效）
                          ├─ pause ─> focus/paused ── resume ─┐
                          └─ 到期 ─> break/waiting <─────────┘
-                                           ├─ snooze ─> break/snoozed ─> break/waiting
-                                           └─ start_break ─> break/running
-                                                                  └─ 到期 ─> focus/waiting
-                                                                                  └─ start_focus
+                                           ├─ snooze / stop / 立刻开始
+                                           └─ 自动循环 15 秒空窗后 start_break
 ```
 
 `stop` 从任何状态回到 `idle`。`skip` 结束当前阶段并进入下一阶段的 `waiting`，但跳过专注不计入“已完成专注次数”。
@@ -417,6 +416,8 @@ nvs_flash_init
     "phase": "focus",
     "remaining_sec": 1234,
     "completed_focus_count": 2,
+    "auto_cycle": false,
+    "auto_advance_sec": 0,
     "alarm_reason": "none"
   },
   "audio": {
@@ -452,7 +453,8 @@ Content-Type: application/json
 
 | `action` | 允许状态 | 行为 |
 |---|---|---|
-| `start_focus` | `idle`、休息结束后的 `waiting` | 开始新的专注阶段 |
+| `start_focus` | `idle`、休息结束后的 `waiting` | 开始新的专注阶段；从空闲开始时关闭自动循环 |
+| `start_auto` | 仅 `idle` | 打开自动循环并开始专注；重启或 `stop` 后结束 |
 | `start_break` | 专注结束后的 `waiting` | 按完成次数开始短休息或长休息 |
 | `pause` | `running` | 暂停当前阶段 |
 | `resume` | `paused` | 从保存的剩余时间继续 |
@@ -545,7 +547,7 @@ iPhone 和 Android 共用 React Native 页面，首页提供番茄时钟入口�
 Apple Watch 是独立 BLE App，不保存网关地址或 REST 密码。固件新增 UUID `7f4e0008-6d4c-4f4b-9f7a-3c1d2e5a9b10` 的 `Reminder v1` 特征：
 
 - `READ/NOTIFY`：固定 20 字节，包含状态、阶段、剩余秒数、完成次数、提醒配置摘要和语音开关/音量；20 字节可在默认 ATT MTU 下单次发送；
-- 加密 `WRITE`：固定 1 字节，只接受 `0x00`–`0x06` 七个提醒动作；
+- 加密 `WRITE`：固定 1 字节，接受 `0x00`–`0x07` 八个提醒动作（`0x07` 为 `start_auto`）；flags bit4 表示 `auto_cycle`，字节 18 为自动循环空窗剩余秒数；
 - 旧的 State v1、Config v1/v2、桌控命令和运动所有权规则均不修改；
 - Watch 页面只显示 Notify 快照并发送动作，不运行独立 Timer。
 
@@ -695,7 +697,7 @@ git diff --check
 - [ ] iPhone 和 Android 通过 BLE、Wi-Fi 两种连接分别完成开始、暂停、继续、跳过、停止和稍后提醒。
 - [ ] 手机退到后台至少 30 秒再回前台，显示值以 ESP 回读为准，没有第二个本地倒计时漂移。
 - [ ] 手机通过 REST 修改时长、静音和音量后，Web、BLE 手机和 Watch 都收到同一设备状态。
-- [ ] Watch 可以读取 Reminder v1、执行七个动作，且番茄操作不会进入桌体运动命令队列。
+- [ ] Watch 可以读取 Reminder v1、执行八个动作，且番茄操作不会进入桌体运动命令队列。
 - [ ] 手机与 Watch 同时在线操作番茄时钟时，ESP 状态机拒绝非法动作，客户端不伪造成功状态。
 - [ ] 旧固件缺少 Reminder 特征时，原有手机和 Watch 桌控仍可使用，并明确显示番茄功能不可用。
 

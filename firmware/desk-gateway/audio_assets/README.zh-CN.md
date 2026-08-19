@@ -14,7 +14,8 @@
 - `snooze_done`：延后结束语音。
 - `attention_chime`：短提示音，响度与三段语音接近。
 
-构建前由 `scripts/check-audio-assets.sh` 检查格式与必需文件。固件只接受上述
+构建前由 `scripts/check-audio-assets.sh` 检查格式与必需文件。三段中文语音可用
+`scripts/generate-reminder-voices.sh` 以 `edge-tts` 女声重生成。固件只接受上述
 资源 ID，不开放文件路径或上传入口。
 
 授权与再分发限制见 [LICENSE.md](./LICENSE.md)。

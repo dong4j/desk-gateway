@@ -76,6 +76,80 @@ int main(void)
     assert(model.state == DESK_REMINDER_STATE_IDLE);
     assert(model.completed_focus_count == 0);
 
+    /* 自动循环：到期仍进 waiting，15 秒空窗后再自己开始下一阶段。 */
+    assert(desk_reminder_logic_apply(&model, DESK_REMINDER_ACTION_START_AUTO,
+                                     &CONFIG, 0));
+    assert(model.auto_cycle);
+    assert(model.state == DESK_REMINDER_STATE_RUNNING);
+    assert(model.phase == DESK_REMINDER_PHASE_FOCUS);
+    assert(!desk_reminder_logic_apply(&model, DESK_REMINDER_ACTION_START_AUTO,
+                                      &CONFIG, 1));
+    generation = model.generation;
+    assert(desk_reminder_logic_expire(&model, generation, &CONFIG,
+                                      1500LL * 1000000) ==
+           DESK_REMINDER_EFFECT_FOCUS_DONE);
+    assert(model.state == DESK_REMINDER_STATE_WAITING);
+    assert(model.phase == DESK_REMINDER_PHASE_SHORT_BREAK);
+    assert(model.auto_cycle);
+    assert(desk_reminder_logic_remaining_sec(&model, 1500LL * 1000000) == 0);
+    assert(desk_reminder_logic_auto_advance_sec(&model, 1500LL * 1000000) ==
+           DESK_REMINDER_AUTO_ADVANCE_SEC);
+    generation = model.generation;
+    assert(desk_reminder_logic_expire(&model, generation, &CONFIG,
+                                      1500LL * 1000000 +
+                                          DESK_REMINDER_AUTO_ADVANCE_SEC *
+                                              1000000LL) ==
+           DESK_REMINDER_EFFECT_NONE);
+    assert(model.state == DESK_REMINDER_STATE_RUNNING);
+    assert(model.phase == DESK_REMINDER_PHASE_SHORT_BREAK);
+    assert(desk_reminder_logic_remaining_sec(&model, model.deadline_us -
+                                                        60LL * 1000000) == 60);
+    assert(desk_reminder_logic_auto_advance_sec(&model, model.deadline_us) == 0);
+
+    generation = model.generation;
+    assert(desk_reminder_logic_expire(&model, generation, &CONFIG,
+                                      model.deadline_us) ==
+           DESK_REMINDER_EFFECT_BREAK_DONE);
+    assert(model.state == DESK_REMINDER_STATE_WAITING);
+    assert(model.phase == DESK_REMINDER_PHASE_FOCUS);
+    assert(desk_reminder_logic_apply(&model, DESK_REMINDER_ACTION_SNOOZE,
+                                     &CONFIG, model.deadline_us));
+    generation = model.generation;
+    assert(desk_reminder_logic_expire(&model, generation, &CONFIG,
+                                      model.deadline_us) ==
+           DESK_REMINDER_EFFECT_SNOOZE_DONE);
+    assert(model.state == DESK_REMINDER_STATE_WAITING);
+    assert(model.auto_cycle);
+    assert(desk_reminder_logic_auto_advance_sec(&model, model.deadline_us -
+                                                           15LL * 1000000) ==
+           DESK_REMINDER_AUTO_ADVANCE_SEC);
+
+    assert(desk_reminder_logic_apply(&model, DESK_REMINDER_ACTION_START_FOCUS,
+                                     &CONFIG, 0));
+    assert(model.auto_cycle);
+    assert(desk_reminder_logic_apply(&model, DESK_REMINDER_ACTION_SKIP,
+                                     &CONFIG, 1));
+    assert(model.state == DESK_REMINDER_STATE_WAITING);
+    assert(model.alarm_reason == DESK_REMINDER_ALARM_NONE);
+    assert(desk_reminder_logic_auto_advance_sec(&model, 1) ==
+           DESK_REMINDER_AUTO_ADVANCE_SEC);
+
+    desk_reminder_action_t parsed = DESK_REMINDER_ACTION_STOP;
+    assert(desk_reminder_action_from_name("start_auto", &parsed));
+    assert(parsed == DESK_REMINDER_ACTION_START_AUTO);
+
+    assert(desk_reminder_logic_apply(&model, DESK_REMINDER_ACTION_STOP,
+                                     &CONFIG, 0));
+    assert(!model.auto_cycle);
+    assert(desk_reminder_logic_apply(&model, DESK_REMINDER_ACTION_START_FOCUS,
+                                     &CONFIG, 0));
+    assert(!model.auto_cycle);
+    generation = model.generation;
+    assert(desk_reminder_logic_expire(&model, generation, &CONFIG,
+                                      model.deadline_us) ==
+           DESK_REMINDER_EFFECT_FOCUS_DONE);
+    assert(desk_reminder_logic_auto_advance_sec(&model, model.deadline_us) == 0);
+
     desk_reminder_config_t invalid = CONFIG;
     invalid.focus_minutes = 0;
     assert(!desk_reminder_config_valid(&invalid));

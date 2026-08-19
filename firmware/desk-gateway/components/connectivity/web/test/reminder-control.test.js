@@ -10,14 +10,23 @@ let view = Reminder.viewModel(
   { available: true, enabled: true, volume_percent: 60 });
 assert.equal(view.primaryAction, 'start_focus');
 assert.equal(view.primaryLabel, '开始专注');
+assert.equal(view.canStartAuto, true);
 
 view = Reminder.viewModel(
   { state: 'waiting', phase: 'long_break', alarm_reason: 'focus_done' },
   { available: true, playing: true, current_prompt: 'focus_done' });
 assert.equal(view.primaryAction, 'start_break');
 assert.equal(view.primaryLabel, '开始休息');
+assert.equal(view.canStartAuto, false);
 assert.equal(view.canSnooze, true);
 assert.match(view.audioStatus, /focus_done/);
+
+view = Reminder.viewModel(
+  { state: 'waiting', phase: 'short_break', auto_cycle: true, auto_advance_sec: 12 },
+  {});
+assert.equal(view.statusText, '12 秒后自动开始');
+assert.equal(view.timeText, '00:12');
+assert.equal(view.canStartAuto, false);
 
 view = Reminder.viewModel({ state: 'paused', phase: 'focus' }, {});
 assert.equal(view.pauseAction, 'resume');

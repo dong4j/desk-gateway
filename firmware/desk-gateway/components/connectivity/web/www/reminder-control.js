@@ -42,17 +42,22 @@
     const waiting = state === 'waiting';
     const running = state === 'running';
     const paused = state === 'paused';
+    const autoAdvance = Math.max(0, Number(reminder.auto_advance_sec) || 0);
+    const autoWaiting = waiting && reminder.auto_cycle && autoAdvance > 0;
     return {
       available: reminder.available !== false,
       phaseLabel: PHASE_LABEL[phase] || '专注',
-      timeText: formatTime(reminder.remaining_sec),
+      timeText: formatTime(autoWaiting ? autoAdvance : reminder.remaining_sec),
       statusText: state === 'idle' ? '还没有开始' :
-        running ? '正在计时' : paused ? '已暂停' :
-          state === 'snoozed' ? '提醒已延后' : '等待你的确认',
+        running ? (reminder.auto_cycle ? '自动循环计时中' : '正在计时') :
+          paused ? '已暂停' :
+            state === 'snoozed' ? '提醒已延后' :
+              autoWaiting ? `${autoAdvance} 秒后自动开始` : '等待你的确认',
       primaryAction: state === 'idle' || (waiting && phase === 'focus')
         ? 'start_focus' : waiting ? 'start_break' : null,
       primaryLabel: state === 'idle' || (waiting && phase === 'focus')
         ? '开始专注' : '开始休息',
+      canStartAuto: state === 'idle',
       pauseAction: running ? 'pause' : paused ? 'resume' : null,
       pauseLabel: paused ? '继续' : '暂停',
       canSkip: running || paused,

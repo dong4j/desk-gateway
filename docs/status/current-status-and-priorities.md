@@ -67,7 +67,7 @@ V1 是否发布仍以 [V1 版本验收](v1-release-acceptance.md) 的必选门�
 - [x] iPhone App 已通过 BLE 控制真实升降桌，长按升降与松手 STOP 可用。
 - [x] 手机 App 已实现 BLE 优先、REST 回退、统一状态和设备配置读写。
 - [x] 手机 App 已支持长按升降、STOP、童锁、配置同步、档位和震动反馈。
-- [x] 手机 App 已通过 TypeScript、55 项主机测试和通用 iOS 无签名构建门禁。
+- [x] 手机 App 已通过 TypeScript、56 项主机测试和通用 iOS 无签名构建门禁。
 - [x] Android 真机已完成扫描、配对、Notify、Write 和异常停止验收。
 - [x] Apple Watch 真机已完成扫描、配对、Crown 连续运动、反向和 STOP。
 - [x] iPhone、Apple Watch、Android 三台真机并发、运动所有权和 Bond 删除矩阵已通过。
@@ -77,6 +77,7 @@ V1 是否发布仍以 [V1 版本验收](v1-release-acceptance.md) 的必选门�
 - [x] 小智 AI / 自动化专用的 `raise-to-max` 有界 REST 入口、Driver 能力门禁和状态字段已完成；
   不支持真实 ToF 闭环的 Driver 不会退化为普通持续上升。
 - [x] Ulanzi D200H 插件源码已提供请坐、站立、番茄时刻三个键，共用 Desk Gateway status 轮询。
+- [x] 番茄时钟自动循环已实现：ESP 会话模式、到期 15 秒空窗、Web / 手机 / Watch 入口和 host 测试已通过。真机语音、功放与计时并发仍按 V1-13 验收，不记为发布完成。
 
 ## 3. 已实现但仍需验收
 
@@ -87,7 +88,7 @@ V1 是否发布仍以 [V1 版本验收](v1-release-acceptance.md) 的必选门�
 | P1 | 自定义档位与 B12 恢复 | 自定义档位、跨端同步、故障建议和 REST/BLE 控制盒重置均已实现 | 真桌验证档位增删改、重启持久化、8 秒重置、提前 STOP 和边界无误报 |
 | P1 | OLED 状态显示 | SSD1306 已随当前固件启动，页面、运动态和传感器离线逻辑已实现 | 完成显示一致性、轮播、掉线降级和 30 分钟共存稳定性验收 |
 | P1 | 红黄蓝状态灯 | GPIO1/2/8 驱动、语义和 host 测试已实现；隔离固件构建已通过 | 真机核对接线、SoftAP/STA、童锁/上升被拦和升降亮灭；失败不得影响控桌 |
-| P1 | 番茄语音提醒 | 本地状态机、I2S、SPIFFS、REST/Web 和语音资源已实现并通过自动化 | 完成功放/扬声器接线、清晰度、爆音、发热、EMI、计时和运动并发真机验收 |
+| P1 | 番茄语音提醒 | 本地状态机（含自动循环）、I2S、SPIFFS、REST/Web 和 edge-tts 女声占位资源已实现并通过自动化 | 完成功放/扬声器接线、清晰度、爆音、发热、EMI、计时和运动并发真机验收 |
 | P1 | 小智 AI 有界最高位控制 | Desk Gateway 固件、REST 契约和小智云 MCP 桥接代码已完成并通过 Mock/MCP 工具注册检查；云端 Endpoint 注册、常驻部署和真桌语音链路尚未执行 | 先用 REST 验证支持字段、幂等触顶、传感器失效和 STOP，再部署桥接并完成云端工具与真桌语音验收 |
 | P1 | 移动端发布 | 当前为 Development Build | 完成 TestFlight、Android 内测、签名和发布说明 |
 | P3 | MQTT + Home Assistant | 2026-08-19 负责人确认本机 HA 已 Discovery 到 Desk Gateway（Cover / Height / Child lock）。童锁、面板抢占、断线不补执行等完整真桌安全矩阵尚未按清单关闭 | Cover 请坐/起立/停止到达配置档位；retained 命令拒绝；断线不补执行；童锁和面板抢占与现有策略一致 |

@@ -37,7 +37,7 @@ Signing and store builds for iPhone, Android, and Watch: [`docs/guides/mobile-wa
 - The bonded-device card uses REST to show online/controlling state, open the 120 s pairing window, and delete one or all bonds with confirm + retry.
 - Desk Busy `0x80` shows “another device is controlling” while keeping the BLE connection and notify subscription.
 - Older firmware without Config can still move the desk; device settings stay disabled.
-- Home links to Pomodoro. That page shows ESP remaining time and sends seven fixed actions. The phone does not run a second timer.
+- Home links to Pomodoro. That page shows ESP remaining time and sends eight fixed actions, including auto-cycle. The phone does not run a second timer.
 - BLE reads/subscribes Reminder v1. Wi-Fi reads the same snapshot from `GET /api/v1/desk/status`.
 - Duration, voice, volume, and preview save over authenticated REST. BLE desk-control mode still needs the LAN management channel.
 

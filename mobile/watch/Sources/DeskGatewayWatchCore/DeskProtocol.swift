@@ -38,6 +38,7 @@ public enum ReminderAction: UInt8, Sendable {
   case skip = 0x04
   case stop = 0x05
   case snooze = 0x06
+  case startAuto = 0x07
 }
 
 public enum ReminderState: UInt8, Sendable {
@@ -69,6 +70,8 @@ public struct ReminderSnapshot: Equatable, Sendable {
   public let shortBreakMinutes: UInt8
   public let longBreakMinutes: UInt8
   public let focusesPerLongBreak: UInt8
+  public let autoCycle: Bool
+  public let autoAdvanceSeconds: UInt8
 
   public init(
     state: ReminderState,
@@ -83,7 +86,9 @@ public struct ReminderSnapshot: Equatable, Sendable {
     focusMinutes: UInt8,
     shortBreakMinutes: UInt8,
     longBreakMinutes: UInt8,
-    focusesPerLongBreak: UInt8
+    focusesPerLongBreak: UInt8,
+    autoCycle: Bool = false,
+    autoAdvanceSeconds: UInt8 = 0
   ) {
     self.state = state
     self.phase = phase
@@ -98,6 +103,8 @@ public struct ReminderSnapshot: Equatable, Sendable {
     self.shortBreakMinutes = shortBreakMinutes
     self.longBreakMinutes = longBreakMinutes
     self.focusesPerLongBreak = focusesPerLongBreak
+    self.autoCycle = autoCycle
+    self.autoAdvanceSeconds = autoAdvanceSeconds
   }
 }
 
@@ -329,7 +336,9 @@ public enum DeskProtocol {
       focusMinutes: bytes[6],
       shortBreakMinutes: bytes[7],
       longBreakMinutes: bytes[8],
-      focusesPerLongBreak: bytes[9]
+      focusesPerLongBreak: bytes[9],
+      autoCycle: flags & 0x10 != 0,
+      autoAdvanceSeconds: bytes[18]
     )
   }
 

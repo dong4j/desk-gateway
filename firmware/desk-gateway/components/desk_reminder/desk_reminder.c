@@ -77,7 +77,9 @@ static esp_err_t reschedule_timer_locked(int64_t now_us)
 {
     (void)esp_timer_stop(s_timer);
     if (s_model.state != DESK_REMINDER_STATE_RUNNING &&
-        s_model.state != DESK_REMINDER_STATE_SNOOZED) {
+        s_model.state != DESK_REMINDER_STATE_SNOOZED &&
+        !(s_model.state == DESK_REMINDER_STATE_WAITING && s_model.auto_cycle &&
+          s_model.deadline_us > 0)) {
         return ESP_OK;
     }
     int64_t delay_us = s_model.deadline_us - now_us;
@@ -121,6 +123,8 @@ static void reminder_task(void *arg)
         xSemaphoreTake(s_mutex, portMAX_DELAY);
         desk_reminder_effect_t effect = desk_reminder_logic_expire(
             &s_model, generation, &s_config, now_us);
+        /* 自动循环会在 waiting 上再挂空窗 timer，到期后也必须重新调度阶段倒计时。 */
+        (void)reschedule_timer_locked(esp_timer_get_time());
         xSemaphoreGive(s_mutex);
         play_effect(effect);
     }
@@ -220,6 +224,9 @@ desk_reminder_snapshot_t desk_reminder_snapshot(void)
     snapshot.remaining_sec = desk_reminder_logic_remaining_sec(
         &s_model, esp_timer_get_time());
     snapshot.completed_focus_count = s_model.completed_focus_count;
+    snapshot.auto_cycle = s_model.auto_cycle;
+    snapshot.auto_advance_sec = desk_reminder_logic_auto_advance_sec(
+        &s_model, esp_timer_get_time());
     snapshot.config = s_config;
     snapshot.last_error = s_last_error[0] ? s_last_error : NULL;
     xSemaphoreGive(s_mutex);

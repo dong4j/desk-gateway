@@ -26,6 +26,33 @@ export function reminderPrimaryAction(
   }
 }
 
+export function reminderAutoAction(
+  reminder: ReminderSnapshot,
+): ReminderPrimaryAction | null {
+  return reminder.state === 'idle'
+    ? { action: 'start_auto', label: '自动循环' }
+    : null;
+}
+
+export function reminderDisplayedSeconds(reminder: ReminderSnapshot): number {
+  if (reminder.state === 'waiting' && reminder.autoCycle &&
+      reminder.autoAdvanceSec > 0) {
+    return reminder.autoAdvanceSec;
+  }
+  return reminder.remainingSec;
+}
+
+export function reminderStatusHint(reminder: ReminderSnapshot): string | null {
+  if (reminder.state === 'waiting' && reminder.autoCycle &&
+      reminder.autoAdvanceSec > 0) {
+    return `${reminder.autoAdvanceSec} 秒后自动开始`;
+  }
+  if (reminder.state === 'running' && reminder.autoCycle) {
+    return '自动循环进行中';
+  }
+  return null;
+}
+
 export function reminderPhaseLabel(reminder: ReminderSnapshot): string {
   if (reminder.state === 'idle') return '准备开始';
   if (reminder.phase === 'focus') return '专注';

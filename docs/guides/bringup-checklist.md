@@ -43,7 +43,7 @@
 
 - [x] ESP-IDF v6.0.2 隔离固件构建与 BLE/Web 主机测试通过
 - [x] Web Bond 管理 JavaScript 语法与策略测试通过
-- [x] 手机端 `npm run typecheck` 与 55 项测试通过
+- [x] 手机端 `npm run typecheck` 与 56 项测试通过
 - [x] 手机端通用 iOS 无签名构建通过
 - [x] Watch `swift test` 18 项与通用 watchOS 无签名构建通过
 - [x] `git diff --check` 通过

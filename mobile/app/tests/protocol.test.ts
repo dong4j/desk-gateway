@@ -153,16 +153,19 @@ test('encodes the selected Bond ID as a fixed presence packet', () => {
 
 test('decodes Reminder v1 without creating a mobile timer', () => {
   const decoded = decodeReminder([
-    0x01, 0x01, 0x00, 0x00, 0x07, 72, 25, 5, 15, 4,
-    0xdb, 0x05, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x01, 0x00, 0x00, 0x17, 72, 25, 5, 15, 4,
+    0xdb, 0x05, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 12, 0x00,
   ]);
 
   assert.equal(decoded.reminder.state, 'running');
   assert.equal(decoded.reminder.phase, 'focus');
   assert.equal(decoded.reminder.remainingSec, 1499);
   assert.equal(decoded.reminder.completedFocusCount, 7);
+  assert.equal(decoded.reminder.autoCycle, true);
+  assert.equal(decoded.reminder.autoAdvanceSec, 12);
   assert.equal(decoded.audio.enabled, true);
   assert.equal(decoded.audio.volumePercent, 72);
   assert.deepEqual(encodeReminderAction('pause'), [0x02]);
+  assert.deepEqual(encodeReminderAction('start_auto'), [0x07]);
   assert.throws(() => decodeReminder([0x01]), /reminder length/);
 });

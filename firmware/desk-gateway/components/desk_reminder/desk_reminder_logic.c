@@ -18,6 +18,7 @@ void desk_reminder_logic_reset(desk_reminder_model_t *model)
         .phase = DESK_REMINDER_PHASE_FOCUS,
         .alarm_reason = DESK_REMINDER_ALARM_NONE,
         .generation = next_generation,
+        .auto_cycle = false,
     };
 }
 
@@ -42,6 +43,25 @@ static uint32_t phase_duration_sec(desk_reminder_phase_t phase,
     return minutes * 60U;
 }
 
+static uint32_t remaining_until(int64_t deadline_us, int64_t now_us)
+{
+    int64_t remaining_us = deadline_us - now_us;
+    if (remaining_us <= 0) return 0;
+    int64_t rounded = (remaining_us + US_PER_SECOND - 1) / US_PER_SECOND;
+    return rounded > UINT32_MAX ? UINT32_MAX : (uint32_t)rounded;
+}
+
+/** 自动循环在 waiting 上挂 15 秒空窗；手动模式保持 deadline=0。 */
+static void arm_auto_advance(desk_reminder_model_t *model, int64_t now_us)
+{
+    if (!model->auto_cycle) {
+        model->deadline_us = 0;
+        return;
+    }
+    model->deadline_us = now_us +
+                         (int64_t)DESK_REMINDER_AUTO_ADVANCE_SEC * US_PER_SECOND;
+}
+
 static void start_countdown(desk_reminder_model_t *model, uint32_t seconds,
                             int64_t now_us, desk_reminder_state_t state)
 {
@@ -50,6 +70,17 @@ static void start_countdown(desk_reminder_model_t *model, uint32_t seconds,
     model->paused_remaining_sec = 0;
     model->generation++;
     model->deadline_us = now_us + (int64_t)seconds * US_PER_SECOND;
+}
+
+uint32_t desk_reminder_logic_auto_advance_sec(const desk_reminder_model_t *model,
+                                              int64_t now_us)
+{
+    if (!model || !model->auto_cycle ||
+        model->state != DESK_REMINDER_STATE_WAITING ||
+        model->deadline_us == 0) {
+        return 0;
+    }
+    return remaining_until(model->deadline_us, now_us);
 }
 
 uint32_t desk_reminder_logic_remaining_sec(const desk_reminder_model_t *model,
@@ -63,10 +94,7 @@ uint32_t desk_reminder_logic_remaining_sec(const desk_reminder_model_t *model,
         model->state != DESK_REMINDER_STATE_SNOOZED) {
         return 0;
     }
-    int64_t remaining_us = model->deadline_us - now_us;
-    if (remaining_us <= 0) return 0;
-    int64_t rounded = (remaining_us + US_PER_SECOND - 1) / US_PER_SECOND;
-    return rounded > UINT32_MAX ? UINT32_MAX : (uint32_t)rounded;
+    return remaining_until(model->deadline_us, now_us);
 }
 
 bool desk_reminder_logic_apply(desk_reminder_model_t *model,
@@ -80,6 +108,14 @@ bool desk_reminder_logic_apply(desk_reminder_model_t *model,
         if (model->state != DESK_REMINDER_STATE_IDLE &&
             !(model->state == DESK_REMINDER_STATE_WAITING &&
               model->phase == DESK_REMINDER_PHASE_FOCUS)) return false;
+        if (model->state == DESK_REMINDER_STATE_IDLE) model->auto_cycle = false;
+        model->phase = DESK_REMINDER_PHASE_FOCUS;
+        start_countdown(model, phase_duration_sec(model->phase, config), now_us,
+                        DESK_REMINDER_STATE_RUNNING);
+        return true;
+    case DESK_REMINDER_ACTION_START_AUTO:
+        if (model->state != DESK_REMINDER_STATE_IDLE) return false;
+        model->auto_cycle = true;
         model->phase = DESK_REMINDER_PHASE_FOCUS;
         start_countdown(model, phase_duration_sec(model->phase, config), now_us,
                         DESK_REMINDER_STATE_RUNNING);
@@ -114,8 +150,8 @@ bool desk_reminder_logic_apply(desk_reminder_model_t *model,
         model->state = DESK_REMINDER_STATE_WAITING;
         model->alarm_reason = DESK_REMINDER_ALARM_NONE;
         model->paused_remaining_sec = 0;
-        model->deadline_us = 0;
         model->generation++;
+        arm_auto_advance(model, now_us);
         return true;
     case DESK_REMINDER_ACTION_STOP:
         desk_reminder_logic_reset(model);
@@ -140,16 +176,24 @@ desk_reminder_effect_t desk_reminder_logic_expire(
     const desk_reminder_config_t *config, int64_t now_us)
 {
     if (!model || !desk_reminder_config_valid(config) ||
-        generation != model->generation ||
-        (model->state != DESK_REMINDER_STATE_RUNNING &&
+        generation != model->generation) {
+        return DESK_REMINDER_EFFECT_NONE;
+    }
+    if (model->state == DESK_REMINDER_STATE_WAITING && model->auto_cycle &&
+        model->deadline_us > 0 && now_us >= model->deadline_us) {
+        start_countdown(model, phase_duration_sec(model->phase, config), now_us,
+                        DESK_REMINDER_STATE_RUNNING);
+        return DESK_REMINDER_EFFECT_NONE;
+    }
+    if ((model->state != DESK_REMINDER_STATE_RUNNING &&
          model->state != DESK_REMINDER_STATE_SNOOZED) ||
         now_us < model->deadline_us) {
         return DESK_REMINDER_EFFECT_NONE;
     }
     if (model->state == DESK_REMINDER_STATE_SNOOZED) {
         model->state = DESK_REMINDER_STATE_WAITING;
-        model->deadline_us = 0;
         model->generation++;
+        arm_auto_advance(model, now_us);
         return DESK_REMINDER_EFFECT_SNOOZE_DONE;
     }
 
@@ -168,8 +212,8 @@ desk_reminder_effect_t desk_reminder_logic_expire(
         effect = DESK_REMINDER_EFFECT_BREAK_DONE;
     }
     model->state = DESK_REMINDER_STATE_WAITING;
-    model->deadline_us = 0;
     model->generation++;
+    arm_auto_advance(model, now_us);
     return effect;
 }
 
@@ -203,7 +247,7 @@ bool desk_reminder_action_from_name(const char *name,
 {
     static const char *const names[] = {
         "start_focus", "start_break", "pause", "resume",
-        "skip", "stop", "snooze",
+        "skip", "stop", "snooze", "start_auto",
     };
     if (!name || !out_action) return false;
     for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {

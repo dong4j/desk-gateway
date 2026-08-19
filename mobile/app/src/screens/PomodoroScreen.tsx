@@ -20,8 +20,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { DeskClientSnapshot } from '../desk/DeskClient';
 import {
   formatRemaining,
+  reminderAutoAction,
+  reminderDisplayedSeconds,
   reminderPhaseLabel,
   reminderPrimaryAction,
+  reminderStatusHint,
 } from '../desk/reminderPresentation';
 import type { ReminderAction, ReminderConfig } from '../desk/types';
 import type {
@@ -87,6 +90,8 @@ export function PomodoroScreen({
   }
 
   const primary = reminderPrimaryAction(reminder);
+  const auto = reminderAutoAction(reminder);
+  const statusHint = reminderStatusHint(reminder);
   const config = reminder.config;
   const connected = snapshot.phase === 'ready' && reminder.available;
   const secondary: { action: ReminderAction; label: string } | null =
@@ -102,9 +107,11 @@ export function PomodoroScreen({
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.timerCard}>
           <Text style={styles.phase}>{reminderPhaseLabel(reminder)}</Text>
-          <Text style={styles.timer}>{formatRemaining(reminder.remainingSec)}</Text>
+          <Text style={styles.timer}>
+            {formatRemaining(reminderDisplayedSeconds(reminder))}
+          </Text>
           <Text style={styles.progressText}>
-            已完成 {reminder.completedFocusCount} 个专注时段
+            {statusHint || `已完成 ${reminder.completedFocusCount} 个专注时段`}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -118,6 +125,21 @@ export function PomodoroScreen({
           >
             <Text style={styles.primaryButtonText}>{primary.label}</Text>
           </Pressable>
+          {auto ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={!connected || busy}
+              onPress={() => void perform(() => onAction(auto.action))}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                styles.autoButton,
+                (!connected || busy) && styles.disabled,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.autoButtonText}>{auto.label}</Text>
+            </Pressable>
+          ) : null}
           <View style={styles.secondaryRow}>
             {secondary ? (
               <ActionButton
@@ -317,6 +339,8 @@ const styles = StyleSheet.create({
   progressText: { color: palette.inkMuted, fontSize: 14 },
   primaryButton: { width: '100%', minHeight: 52, marginTop: 20, alignItems: 'center', justifyContent: 'center', borderRadius: radii.medium, backgroundColor: palette.ink },
   primaryButtonText: { color: palette.white, fontSize: 17, fontWeight: '700' },
+  autoButton: { marginTop: 10, backgroundColor: palette.surfaceMuted, borderWidth: 1, borderColor: palette.line },
+  autoButtonText: { color: palette.ink, fontSize: 17, fontWeight: '700' },
   secondaryRow: { width: '100%', marginTop: 10, flexDirection: 'row', gap: 10 },
   secondaryButton: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.line, borderRadius: radii.small, backgroundColor: palette.surfaceMuted },
   secondaryButtonText: { color: palette.ink, fontSize: 15, fontWeight: '600' },

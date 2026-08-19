@@ -163,7 +163,7 @@ curl -s -X PUT -H "X-Desk-Key: $DESK_KEY" \
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/reminder/action` | `{"action":"start_focus\|start_break\|pause\|resume\|skip\|stop\|snooze"}` |
+| POST | `/api/v1/reminder/action` | `{"action":"start_focus\|start_break\|pause\|resume\|skip\|stop\|snooze\|start_auto"}` |
 | POST | `/api/v1/reminder/config` | 时长、`audio_enabled`、`volume_percent` |
 | POST | `/api/v1/audio/action` | `{"action":"test_audio","prompt_id":"focus_done"}` 或 `{"action":"stop_audio"}` |
 | POST | `/api/v1/system/restart` | 先 STOP，再重启 ESP32 |

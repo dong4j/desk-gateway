@@ -240,6 +240,7 @@ size_t desk_ble_reminder_encode(const desk_ble_reminder_input_t *input,
     if (input->audio_available) flags |= DESK_BLE_REMINDER_FLAG_AUDIO_AVAILABLE;
     if (input->audio_enabled) flags |= DESK_BLE_REMINDER_FLAG_AUDIO_ENABLED;
     if (input->audio_playing) flags |= DESK_BLE_REMINDER_FLAG_AUDIO_PLAYING;
+    if (input->auto_cycle) flags |= DESK_BLE_REMINDER_FLAG_AUTO_CYCLE;
 
     out[0] = DESK_BLE_REMINDER_VERSION;
     out[1] = input->state;
@@ -256,7 +257,7 @@ size_t desk_ble_reminder_encode(const desk_ble_reminder_input_t *input,
     out[9] = input->focuses_per_long_break;
     put_u32_le(&out[10], input->remaining_sec);
     put_u32_le(&out[14], input->completed_focus_count);
-    out[18] = 0;
+    out[18] = input->auto_advance_sec;
     out[19] = 0;
     return DESK_BLE_REMINDER_LENGTH;
 }
@@ -266,7 +267,7 @@ bool desk_ble_reminder_action_decode(
     desk_ble_reminder_action_t *out_action)
 {
     if (!data || !out_action || len != 1 ||
-        data[0] > DESK_BLE_REMINDER_ACTION_SNOOZE) {
+        data[0] > DESK_BLE_REMINDER_ACTION_START_AUTO) {
         return false;
     }
     *out_action = (desk_ble_reminder_action_t)data[0];

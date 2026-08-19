@@ -74,17 +74,20 @@ func encodesCommands() {
 func decodesReminderV1() throws {
   let reminder = try DeskProtocol.decodeReminder(
     Data([
-      0x01, 0x01, 0x00, 0x00, 0x07, 72, 25, 5, 15, 4,
-      0xDB, 0x05, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x01, 0x01, 0x00, 0x00, 0x17, 72, 25, 5, 15, 4,
+      0xDB, 0x05, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 12, 0x00,
     ]))
 
   #expect(reminder.state == .running)
   #expect(reminder.phase == .focus)
   #expect(reminder.remainingSeconds == 1_499)
   #expect(reminder.completedFocusCount == 7)
+  #expect(reminder.autoCycle)
+  #expect(reminder.autoAdvanceSeconds == 12)
   #expect(reminder.audioEnabled)
   #expect(reminder.volumePercent == 72)
   #expect(DeskProtocol.encode(ReminderAction.pause) == Data([0x02]))
+  #expect(DeskProtocol.encode(ReminderAction.startAuto) == Data([0x07]))
 }
 
 @Test("Watch Client Info uses version 1 and watchOS kind")

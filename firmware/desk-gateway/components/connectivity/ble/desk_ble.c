@@ -946,6 +946,10 @@ static size_t current_reminder(uint8_t out[DESK_BLE_REMINDER_LENGTH])
         .focuses_per_long_break = reminder.config.focuses_per_long_break,
         .remaining_sec = reminder.remaining_sec,
         .completed_focus_count = reminder.completed_focus_count,
+        .auto_cycle = reminder.auto_cycle,
+        .auto_advance_sec = reminder.auto_advance_sec > UINT8_MAX
+                                ? UINT8_MAX
+                                : (uint8_t)reminder.auto_advance_sec,
     };
     return desk_ble_reminder_encode(&input, out, DESK_BLE_REMINDER_LENGTH);
 }
@@ -1004,6 +1008,9 @@ static int reminder_access(uint16_t conn_handle, uint16_t attr_handle,
         break;
     case DESK_BLE_REMINDER_ACTION_SNOOZE:
         core_action = DESK_REMINDER_ACTION_SNOOZE;
+        break;
+    case DESK_BLE_REMINDER_ACTION_START_AUTO:
+        core_action = DESK_REMINDER_ACTION_START_AUTO;
         break;
     default:
         return BLE_ATT_ERR_VALUE_NOT_ALLOWED;

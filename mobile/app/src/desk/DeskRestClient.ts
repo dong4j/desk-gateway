@@ -65,6 +65,8 @@ interface RestStatus {
     alarm_reason?: string;
     remaining_sec?: number;
     completed_focus_count?: number;
+    auto_cycle?: boolean;
+    auto_advance_sec?: number;
     focus_minutes?: number;
     short_break_minutes?: number;
     long_break_minutes?: number;
@@ -678,6 +680,8 @@ function parseReminder(value: RestStatus['reminder']): ReminderSnapshot | null {
     ),
     remainingSec: integerOr(value.remaining_sec, 0),
     completedFocusCount: integerOr(value.completed_focus_count, 0),
+    autoCycle: value.auto_cycle === true,
+    autoAdvanceSec: integerOr(value.auto_advance_sec, 0),
     config: {
       focusMinutes: integerOr(value.focus_minutes, 25),
       shortBreakMinutes: integerOr(value.short_break_minutes, 5),

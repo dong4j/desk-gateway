@@ -21,14 +21,14 @@ struct PomodoroView<Controller: DeskControlling>: View {
             .font(.caption)
             .foregroundStyle(.orange)
 
-          Text(format(seconds: reminder.remainingSeconds))
+          Text(format(seconds: displayedSeconds(reminder)))
             .font(.system(size: 38, weight: .medium, design: .rounded))
             .monospacedDigit()
             .minimumScaleFactor(0.8)
         }
         .padding(.top, 8)
 
-        Text("已完成 \(reminder.completedFocusCount) 次")
+        Text(statusHint(reminder))
           .font(.caption2)
           .foregroundStyle(.secondary)
 
@@ -39,6 +39,15 @@ struct PomodoroView<Controller: DeskControlling>: View {
         .buttonStyle(.borderedProminent)
         .tint(.orange)
         .disabled(!desk.isReady)
+
+        if reminder.state == .idle {
+          Button("自动循环") {
+            desk.perform(.startAuto)
+            WKInterfaceDevice.current().play(.click)
+          }
+          .buttonStyle(.bordered)
+          .disabled(!desk.isReady)
+        }
 
         HStack(spacing: 6) {
           if let secondary = secondary(reminder) {
@@ -114,6 +123,25 @@ struct PomodoroView<Controller: DeskControlling>: View {
     case .shortBreak: return "短休息"
     case .longBreak: return "长休息"
     }
+  }
+
+  private func displayedSeconds(_ reminder: ReminderSnapshot) -> UInt32 {
+    if reminder.state == .waiting && reminder.autoCycle &&
+      reminder.autoAdvanceSeconds > 0 {
+      return UInt32(reminder.autoAdvanceSeconds)
+    }
+    return reminder.remainingSeconds
+  }
+
+  private func statusHint(_ reminder: ReminderSnapshot) -> String {
+    if reminder.state == .waiting && reminder.autoCycle &&
+      reminder.autoAdvanceSeconds > 0 {
+      return "\(reminder.autoAdvanceSeconds) 秒后自动开始"
+    }
+    if reminder.state == .running && reminder.autoCycle {
+      return "自动循环 · 已完成 \(reminder.completedFocusCount) 次"
+    }
+    return "已完成 \(reminder.completedFocusCount) 次"
   }
 
   private func format(seconds: UInt32) -> String {

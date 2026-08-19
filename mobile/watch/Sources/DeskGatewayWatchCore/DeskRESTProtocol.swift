@@ -64,6 +64,7 @@ public enum DeskRESTProtocol {
     case .skip: "skip"
     case .stop: "stop"
     case .snooze: "snooze"
+    case .startAuto: "start_auto"
     }
   }
 
@@ -158,7 +159,9 @@ public enum DeskRESTProtocol {
       focusMinutes: UInt8(clamping: reminder.focusMinutes ?? 25),
       shortBreakMinutes: UInt8(clamping: reminder.shortBreakMinutes ?? 5),
       longBreakMinutes: UInt8(clamping: reminder.longBreakMinutes ?? 15),
-      focusesPerLongBreak: UInt8(clamping: reminder.focusesPerLongBreak ?? 4)
+      focusesPerLongBreak: UInt8(clamping: reminder.focusesPerLongBreak ?? 4),
+      autoCycle: reminder.autoCycle == true,
+      autoAdvanceSeconds: UInt8(clamping: reminder.autoAdvanceSeconds ?? 0)
     )
   }
 
@@ -236,6 +239,8 @@ private struct ReminderResponse: Decodable {
   let shortBreakMinutes: Int?
   let longBreakMinutes: Int?
   let focusesPerLongBreak: Int?
+  let autoCycle: Bool?
+  let autoAdvanceSeconds: Int?
 
   enum CodingKeys: String, CodingKey {
     case available
@@ -247,6 +252,8 @@ private struct ReminderResponse: Decodable {
     case shortBreakMinutes = "short_break_minutes"
     case longBreakMinutes = "long_break_minutes"
     case focusesPerLongBreak = "focuses_per_long_break"
+    case autoCycle = "auto_cycle"
+    case autoAdvanceSeconds = "auto_advance_sec"
   }
 }
 

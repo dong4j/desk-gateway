@@ -29,6 +29,7 @@ assert.doesNotMatch(
 );
 
 assertContains(html, 'id="reminderQuickStart"', '番茄时钟需要快速开始按钮');
+assertContains(html, 'id="reminderAutoStart"', '番茄时钟需要自动循环按钮');
 assertContains(html, 'id="reminderExpandButton"', '番茄时钟需要展开按钮');
 assertContains(
   html,

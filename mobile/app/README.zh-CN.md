@@ -46,7 +46,7 @@ iPhone、Android 与独立 Apple Watch App 的签名、商店内测和正式发�
   并支持系统确认的单删、全删、异步轮询与失败重试。
 - 收到 Desk Busy `0x80` 时显示“另一台设备正在控制”，保持 BLE 连接和状态订阅。
 - 旧固件未提供 Config 时仍可控制桌子，但设备设置会明确禁用。
-- Home 提供番茄时钟入口，Pomodoro 页面显示 ESP 剩余时间并发送七个固定动作，不在手机上另起 Timer。
+- Home 提供番茄时钟入口，Pomodoro 页面显示 ESP 剩余时间并发送八个固定动作（含自动循环），不在手机上另起 Timer。
 - BLE 读取/订阅 Reminder v1；Wi-Fi 从 `/api/v1/desk/status` 读取同一提醒快照。
 - 时长、语音开关、音量和试听通过已鉴权 REST 保存到 ESP；BLE 桌控模式下仍要求局域网管理通道可用。
 

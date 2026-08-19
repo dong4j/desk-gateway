@@ -173,13 +173,15 @@ static void test_reminder_protocol(void)
         .focuses_per_long_break = 4,
         .remaining_sec = 1499,
         .completed_focus_count = 7,
+        .auto_cycle = true,
+        .auto_advance_sec = 12,
     };
     uint8_t reminder[DESK_BLE_REMINDER_LENGTH];
     assert(desk_ble_reminder_encode(&input, reminder, sizeof(reminder)) ==
            DESK_BLE_REMINDER_LENGTH);
     const uint8_t expected[] = {
-        0x01, 0x01, 0x00, 0x00, 0x07, 72, 25, 5, 15, 4,
-        0xdb, 0x05, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x01, 0x01, 0x00, 0x00, 0x17, 72, 25, 5, 15, 4,
+        0xdb, 0x05, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 12, 0x00,
     };
     assert(memcmp(reminder, expected, sizeof(expected)) == 0);
 
@@ -187,6 +189,9 @@ static void test_reminder_protocol(void)
     desk_ble_reminder_action_t action;
     assert(desk_ble_reminder_action_decode(&pause, 1, &action));
     assert(action == DESK_BLE_REMINDER_ACTION_PAUSE);
+    const uint8_t start_auto = DESK_BLE_REMINDER_ACTION_START_AUTO;
+    assert(desk_ble_reminder_action_decode(&start_auto, 1, &action));
+    assert(action == DESK_BLE_REMINDER_ACTION_START_AUTO);
     const uint8_t unknown = 0x7f;
     assert(!desk_ble_reminder_action_decode(&unknown, 1, &action));
 }

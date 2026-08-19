@@ -98,7 +98,7 @@
     func perform(_ action: ReminderAction) {
       guard isReady, let reminder else { return }
       switch action {
-      case .startFocus:
+      case .startFocus, .startAuto:
         publishReminder(state: .running, phase: .focus, remainingSeconds: 25 * 60)
       case .startBreak:
         let seconds: UInt32 = reminder.phase == .longBreak ? 15 * 60 : 5 * 60

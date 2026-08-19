@@ -62,7 +62,8 @@ export type ReminderAction =
   | 'resume'
   | 'skip'
   | 'stop'
-  | 'snooze';
+  | 'snooze'
+  | 'start_auto';
 
 export interface ReminderConfig {
   focusMinutes: number;
@@ -80,6 +81,8 @@ export interface ReminderSnapshot {
   alarmReason: ReminderAlarmReason;
   remainingSec: number;
   completedFocusCount: number;
+  autoCycle: boolean;
+  autoAdvanceSec: number;
   config: ReminderConfig;
   lastError: string | null;
 }

@@ -13,6 +13,9 @@ Asset IDs:
 - `snooze_done`: snooze finished.
 - `attention_chime`: short preview chime, loudness matched to the spoken prompts.
 
-`scripts/check-audio-assets.sh` checks format and required files before build. Firmware only accepts these IDs. There is no file-path or upload API.
+`scripts/check-audio-assets.sh` checks format and required files before build.
+Regenerate the three spoken prompts with `scripts/generate-reminder-voices.sh`
+(`edge-tts` female voice). Firmware only accepts these IDs. There is no
+file-path or upload API.
 
 Licensing and redistribution limits: [LICENSE.md](./LICENSE.md).

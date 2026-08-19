@@ -42,6 +42,7 @@ const reminderActionCode: Record<ReminderAction, number> = {
   skip: 0x04,
   stop: 0x05,
   snooze: 0x06,
+  start_auto: 0x07,
 };
 
 const configFieldCode: Record<DeskConfigField, number> = {
@@ -252,6 +253,8 @@ export function decodeReminder(
       alarmReason,
       remainingSec: readUint32LE(bytes, 10),
       completedFocusCount: readUint32LE(bytes, 14),
+      autoCycle: (flags & 0x10) !== 0,
+      autoAdvanceSec: bytes[18],
       config: {
         focusMinutes: bytes[6],
         shortBreakMinutes: bytes[7],

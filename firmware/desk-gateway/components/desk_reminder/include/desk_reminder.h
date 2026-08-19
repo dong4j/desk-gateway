@@ -21,6 +21,8 @@ typedef struct {
     desk_reminder_alarm_reason_t alarm_reason;
     uint32_t remaining_sec;
     uint32_t completed_focus_count;
+    bool auto_cycle;
+    uint32_t auto_advance_sec;
     desk_reminder_config_t config;
     const char *last_error;
 } desk_reminder_snapshot_t;

@@ -66,6 +66,7 @@
   const reminderPhase = document.getElementById('reminderPhase');
   const reminderCompactStatus = document.getElementById('reminderCompactStatus');
   const reminderQuickStart = document.getElementById('reminderQuickStart');
+  const reminderAutoStart = document.getElementById('reminderAutoStart');
   const reminderExpandButton = document.getElementById('reminderExpandButton');
   const reminderExpandLabel = document.getElementById('reminderExpandLabel');
   const reminderDetails = document.getElementById('reminderDetails');
@@ -73,6 +74,7 @@
   const reminderStatus = document.getElementById('reminderStatus');
   const reminderCycle = document.getElementById('reminderCycle');
   const reminderPrimary = document.getElementById('reminderPrimary');
+  const reminderAuto = document.getElementById('reminderAuto');
   const reminderPause = document.getElementById('reminderPause');
   const reminderSkip = document.getElementById('reminderSkip');
   const reminderSnooze = document.getElementById('reminderSnooze');
@@ -657,6 +659,9 @@
     reminderPhase.textContent = view.phaseLabel;
     reminderCompactStatus.textContent = `${view.statusText} · ${view.timeText}`;
     reminderQuickStart.disabled = !view.available || view.primaryAction !== 'start_focus';
+    reminderAutoStart.disabled = !view.available || !view.canStartAuto;
+    reminderAuto.hidden = !view.canStartAuto;
+    reminderAuto.disabled = !view.available;
     reminderTime.textContent = view.timeText;
     reminderStatus.textContent = view.available
       ? view.statusText : (reminder.last_error || '番茄时钟不可用');
@@ -988,6 +993,12 @@
     await reminderAction('start_focus');
     applyReminderStatus(lastStatus.reminder || {}, lastStatus.audio || {});
   };
+  reminderAutoStart.onclick = async () => {
+    reminderAutoStart.disabled = true;
+    await reminderAction('start_auto');
+    applyReminderStatus(lastStatus.reminder || {}, lastStatus.audio || {});
+  };
+  reminderAuto.onclick = () => reminderAction('start_auto');
   reminderPrimary.onclick = () => reminderAction(reminderPrimary.dataset.action);
   reminderPause.onclick = () => reminderAction(reminderPause.dataset.action);
   reminderSkip.onclick = () => reminderAction('skip');

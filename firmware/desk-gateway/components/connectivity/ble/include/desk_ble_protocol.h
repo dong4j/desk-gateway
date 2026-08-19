@@ -64,6 +64,7 @@ typedef enum {
     DESK_BLE_REMINDER_ACTION_SKIP = 0x04,
     DESK_BLE_REMINDER_ACTION_STOP = 0x05,
     DESK_BLE_REMINDER_ACTION_SNOOZE = 0x06,
+    DESK_BLE_REMINDER_ACTION_START_AUTO = 0x07,
 } desk_ble_reminder_action_t;
 
 enum {
@@ -82,6 +83,7 @@ enum {
     DESK_BLE_REMINDER_FLAG_AUDIO_AVAILABLE = UINT8_C(1) << 1,
     DESK_BLE_REMINDER_FLAG_AUDIO_ENABLED = UINT8_C(1) << 2,
     DESK_BLE_REMINDER_FLAG_AUDIO_PLAYING = UINT8_C(1) << 3,
+    DESK_BLE_REMINDER_FLAG_AUTO_CYCLE = UINT8_C(1) << 4,
 };
 
 enum {
@@ -144,6 +146,8 @@ typedef struct {
     uint8_t focuses_per_long_break;
     uint32_t remaining_sec;
     uint32_t completed_focus_count;
+    bool auto_cycle;
+    uint8_t auto_advance_sec;
 } desk_ble_reminder_input_t;
 
 /** 解析 Command characteristic 的单字节指令。 */
