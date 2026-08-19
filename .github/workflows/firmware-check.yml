@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -31,7 +31,7 @@ jobs:
     container: espressif/idf:v6.0.2
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Actions 覆盖镜像 ENTRYPOINT，不会自动 source export.sh。
       # check-firmware.sh 在同一层 shell 里激活 IDF venv 后再编。
