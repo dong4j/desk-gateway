@@ -280,6 +280,10 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 右侧不再补上拉：原厂面板板载的两只约 `1.99 kΩ` 上拉已经存在。红线只给原厂面板和上拉
 供电，依然禁止连接 ESP32 `3V3`。
 
+若要在不拔网线的情况下切回原厂面板直连控制盒，用继电器旁路，见
+[原厂面板 / 控制盒继电器旁路](../hardware/panel-bypass-relay.md)。
+该路径 **方案已选定，真机未接线、未验收**，不能代替本节已勾选的 B.4。
+
 #### B.4.1 焊接后断电检查
 
 - [x] 左 pin 1 ↔ 右 pin 1 接近 `0 Ω`

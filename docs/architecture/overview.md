@@ -27,6 +27,9 @@ Phase 2 是主动中间人：原厂面板走 GPIO6/7 软件代理，控制盒走
 
 ![双口 RJ45 透传数据流：面板 GPIO6/7 与多端汇合后从左口出站](images/dual-rj45-passthrough-flow.png)
 
+不拔网线切回原厂直连的继电器旁路见
+[硬件方案](../hardware/panel-bypass-relay.md)。方案已选定，真机未接线，拓扑图仍是当前中间人。
+
 ## 当前状态
 
 > 截至 2026-08-17：Phase 1 已完成。Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵

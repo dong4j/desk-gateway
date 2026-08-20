@@ -109,6 +109,10 @@ idf.py -p PORT flash monitor
 
 **不要**把左 pin 2 跳到右 pin 2，或左 pin 4 跳到右 pin 4：那会绕过 ESP32 事务代理。面板侧不要再补一对上拉；原厂面板 CLK/DAT 到 3.3V 已测约 `1.99 kΩ`。红线跳线只把控制盒 3.3V 送给原厂面板供电，仍然不得接到 ESP32 `3V3`。
 
+不拔网线切回原厂直连的继电器旁路见
+[`docs/hardware/panel-bypass-relay.md`](../../docs/hardware/panel-bypass-relay.md)。
+该路径方案已选定，真机未接线、固件未实现，不能代替上面的 Phase 2 代理接线。
+
 `CONFIG_DESK_MXTARK_PANEL_PROXY=y` 时，控制盒侧仍是 GPIO4/5 上的硬件 I2C Slave `@0x24`。GPIO6/7 以约 9.6 kHz 开漏软件 Master 复放抓到的 TM1650 事务，把原厂按键送进现有仲裁器，并在原厂面板上显示校准后的 TOF400C 高度。物理面板键优先于 Web 运动；Panel 权限和童锁走同一套 `desk_core` 策略。面板超时或断线立即发布为空闲，避免运动被锁住。
 
 原始 `idle_12mhz_full.sr` 抓包是两次 STOP 分隔的事务，约 `9.6 kHz`：写 `0x48/0x01`，等约 `29 us`，再读 `0x49/DR`，以控制器 `ACK + STOP` 结束；下一次写大约 `95 us` 后开始。ESP-IDF 6 的 Master API 会合并写/读并强制标准 `NACK + STOP`，无法复放该序列。面板侧代理用隔离开漏 GPIO 实现，NACK 或超时时总是尝试 STOP。GPIO6/7 不得与其他外设共用。

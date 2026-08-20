@@ -142,6 +142,12 @@ the panel side; the original panel already measured approximately `1.99 kΩ` fro
 3.3V to CLK and DAT. The red jumper only carries the controller's 3.3V to power
 the original panel and must still not connect to ESP32 `3V3`.
 
+Optional relay bypass (original panel direct to the control box without unplugging
+RJ45) is documented in
+[`docs/hardware/panel-bypass-relay.md`](../../docs/hardware/panel-bypass-relay.md).
+The scheme is chosen; wiring, firmware, and acceptance are **not** done. It does
+not replace the Phase 2 proxy wiring above.
+
 With `CONFIG_DESK_MXTARK_PANEL_PROXY=y`, the controller side remains the
 hardware I2C Slave `@0x24` on GPIO4/5. GPIO6/7 reproduce the captured TM1650
 transactions as a 9.6 kHz open-drain software Master, publish original-panel

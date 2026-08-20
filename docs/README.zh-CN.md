@@ -87,6 +87,7 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 | [固件 README](../firmware/desk-gateway/README.zh-CN.md) | 编译、接线、面板代理、高度策略 |
 | [逻辑分析仪抓包](./hardware/protocol-capture.md) | Phase 0 流程 |
 | [高度数据解析与通信方案调整](./hardware/i2c-restoration.md) | 为何离开软件多地址、回到硬件 `@0x24`，高度改走 ToF |
+| [原厂面板继电器旁路](./hardware/panel-bypass-relay.md) | 不拔网线切回原厂直连；方案已选定，真机未接线 |
 
 ## 后续生态
 
@@ -105,6 +106,7 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 |---|---|
 | [移动端技术选型](./history/mobile-app-technology-selection.md) | React Native / Expo 决策 |
 | [M1/M2 实施计划](./history/plans/2026-08-06-desk-gateway-m1-m2.md) | 2026-08-06 任务计划 |
+| [继电器旁路实施计划](./history/plans/2026-08-20-panel-bypass-relay.md) | 2026-08-20 硬件第一期；固件第二期未开工 |
 
 ## 工程规范
 

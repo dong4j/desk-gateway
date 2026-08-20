@@ -90,6 +90,7 @@ Architecture diagrams (PNG only) live in
 | [Firmware README](../firmware/desk-gateway/README.md) | Build, wiring, panel proxy, height policy |
 | [Logic-analyzer capture](./hardware/protocol-capture.md) | Phase 0 flow |
 | [Height parsing and I²C restore](./hardware/i2c-restoration.md) | Why the default is hardware `@0x24` again, and height moved to ToF |
+| [Original-panel relay bypass](./hardware/panel-bypass-relay.md) | Direct panel-to-box without unplugging RJ45; scheme chosen, not wired |
 
 ## Later ecosystem
 
@@ -108,6 +109,7 @@ Not user manuals. Keep for design context:
 |---|---|
 | [Mobile technology selection](./history/mobile-app-technology-selection.md) | React Native / Expo decisions |
 | [M1/M2 implementation plan](./history/plans/2026-08-06-desk-gateway-m1-m2.md) | 2026-08-06 task plan |
+| [Relay bypass implementation plan](./history/plans/2026-08-20-panel-bypass-relay.md) | 2026-08-20 hardware phase; firmware not started |
 
 ## Engineering standards
 
