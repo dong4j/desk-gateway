@@ -5,6 +5,8 @@
  * 写端用奇数序号标记“正在发布”。读端若在奇数上无限忙等，高优先级的
  * yd_tof_guard / yd_panel 会把双核占满，低优先级的 desk_tof 无法把序号
  * 改回偶数，IDLE 喂狗失败。因此失败几次后必须 vTaskDelay，超时则放弃。
+ * 放弃时必须沿用上次成功高度，不能把「这次没读到」写成「高度未知」，
+ * 否则上升保护和档位闭环会把正在输出的升/降键掐掉。
  */
 #pragma once
 
@@ -42,6 +44,26 @@ bool desk_tof_snapshot_seq_consistent(uint32_t begin_seq, uint32_t end_seq);
  */
 desk_tof_snapshot_retry_t desk_tof_snapshot_retry_action(
     unsigned failed_attempts);
+
+/** 一次完整 seqlock 读到的高度字段，供超时回退使用。 */
+typedef struct {
+    bool height_known;
+    int height_mm;
+    int raw_height_mm;
+    int control_height_mm;
+    uint32_t height_sample_id;
+} desk_tof_height_view_t;
+
+/**
+ * 把 seqlock 读结果收成对外高度。
+ *
+ * seqlock 成功且写端声明未知：传感器真的过期，清掉缓存。
+ * seqlock 超时：这不是传感器掉线，沿用 last_good，避免误停运动。
+ */
+void desk_tof_snapshot_resolve_height(bool seqlock_ok,
+                                      const desk_tof_height_view_t *fresh,
+                                      desk_tof_height_view_t *last_good,
+                                      desk_tof_height_view_t *out);
 
 #ifdef __cplusplus
 }

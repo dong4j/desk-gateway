@@ -105,6 +105,72 @@ static void test_stuck_writer_reader_loop_yields_then_abandons(void)
                         DESK_TOF_SNAPSHOT_YIELD_ATTEMPTS + 1U);
 }
 
+static void make_known(desk_tof_height_view_t *view, int mm, uint32_t id)
+{
+    *view = (desk_tof_height_view_t){
+        .height_known = true,
+        .height_mm = mm,
+        .raw_height_mm = mm,
+        .control_height_mm = mm,
+        .height_sample_id = id,
+    };
+}
+
+/** seqlock 超时不得把已有高度打成未知，否则会误停升/降和档位。 */
+static void test_timeout_keeps_last_good_height(void)
+{
+    desk_tof_height_view_t last_good;
+    desk_tof_height_view_t out = {0};
+    desk_tof_height_view_t fresh = {0};
+
+    make_known(&last_good, 866, 12);
+    desk_tof_snapshot_resolve_height(false, &fresh, &last_good, &out);
+    assert(out.height_known);
+    assert(out.height_mm == 866);
+    assert(out.height_sample_id == 12U);
+}
+
+/** 启动后还没有成功样本时，超时仍然是未知。 */
+static void test_timeout_without_cache_stays_unknown(void)
+{
+    desk_tof_height_view_t last_good = {0};
+    desk_tof_height_view_t out;
+    desk_tof_height_view_t fresh = {0};
+
+    make_known(&out, 1, 1);
+    desk_tof_snapshot_resolve_height(false, &fresh, &last_good, &out);
+    assert(!out.height_known);
+    assert(out.height_mm == -1);
+}
+
+/** 写端确认未知（过期）时必须清缓存，不能继续用旧高度放行上升。 */
+static void test_writer_unknown_clears_cache(void)
+{
+    desk_tof_height_view_t last_good;
+    desk_tof_height_view_t fresh = {0};
+    desk_tof_height_view_t out = {0};
+
+    make_known(&last_good, 866, 12);
+    desk_tof_snapshot_resolve_height(true, &fresh, &last_good, &out);
+    assert(!out.height_known);
+    assert(!last_good.height_known);
+    assert(out.height_mm == -1);
+}
+
+static void test_successful_read_updates_cache(void)
+{
+    desk_tof_height_view_t last_good = {0};
+    desk_tof_height_view_t fresh;
+    desk_tof_height_view_t out = {0};
+
+    make_known(&fresh, 550, 20);
+    desk_tof_snapshot_resolve_height(true, &fresh, &last_good, &out);
+    assert(out.height_known);
+    assert(out.height_mm == 550);
+    assert(last_good.height_mm == 550);
+    assert(last_good.height_sample_id == 20U);
+}
+
 int main(void)
 {
     test_even_stable_seq_is_consistent();
@@ -114,6 +180,10 @@ int main(void)
     test_later_failures_yield_to_preempted_writer();
     test_stuck_odd_seq_abandons_after_bounded_retries();
     test_stuck_writer_reader_loop_yields_then_abandons();
+    test_timeout_keeps_last_good_height();
+    test_timeout_without_cache_stays_unknown();
+    test_writer_unknown_clears_cache();
+    test_successful_read_updates_cache();
     puts("desk_tof_snapshot_logic_test: ok");
     return 0;
 }

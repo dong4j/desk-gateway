@@ -26,3 +26,41 @@ desk_tof_snapshot_retry_t desk_tof_snapshot_retry_action(
     }
     return DESK_TOF_SNAPSHOT_RETRY_ABANDON;
 }
+
+static void clear_height_view(desk_tof_height_view_t *view)
+{
+    *view = (desk_tof_height_view_t){
+        .height_known = false,
+        .height_mm = -1,
+        .raw_height_mm = -1,
+        .control_height_mm = -1,
+        .height_sample_id = 0,
+    };
+}
+
+void desk_tof_snapshot_resolve_height(bool seqlock_ok,
+                                      const desk_tof_height_view_t *fresh,
+                                      desk_tof_height_view_t *last_good,
+                                      desk_tof_height_view_t *out)
+{
+    if (!last_good || !out) {
+        return;
+    }
+
+    if (seqlock_ok && fresh) {
+        if (fresh->height_known) {
+            *last_good = *fresh;
+            *out = *fresh;
+            return;
+        }
+        clear_height_view(last_good);
+        clear_height_view(out);
+        return;
+    }
+
+    if (last_good->height_known) {
+        *out = *last_good;
+        return;
+    }
+    clear_height_view(out);
+}

@@ -58,6 +58,7 @@ static atomic_uint_fast32_t s_height_publish_seq = ATOMIC_VAR_INIT(0);
 static atomic_bool s_height_known = ATOMIC_VAR_INIT(false);
 static atomic_int s_right_gap_mm = ATOMIC_VAR_INIT(-1);
 static atomic_bool s_right_gap_known = ATOMIC_VAR_INIT(false);
+static desk_tof_height_view_t s_last_good_height;
 static bool s_started;
 static i2c_master_bus_handle_t s_bus;
 
@@ -417,6 +418,7 @@ desk_tof_snapshot_t desk_tof_snapshot(void)
     desk_tof_snapshot_t snapshot = {0};
     unsigned failed_attempts = 0;
     bool height_copied = false;
+    desk_tof_height_view_t fresh = {0};
 
     /*
      * 高优先级读端不能在奇数序号上死循环：写端 desk_tof 优先级更低，
@@ -426,14 +428,14 @@ desk_tof_snapshot_t desk_tof_snapshot(void)
     for (;;) {
         uint_fast32_t begin_seq = atomic_load(&s_height_publish_seq);
         if (desk_tof_snapshot_seq_readable((uint32_t)begin_seq)) {
-            snapshot.height_mm = atomic_load(&s_height_mm);
-            snapshot.raw_height_mm = atomic_load(&s_raw_height_mm);
-            snapshot.control_height_mm = atomic_load(&s_control_height_mm);
-            snapshot.height_known = atomic_load(&s_height_known);
+            fresh.height_mm = atomic_load(&s_height_mm);
+            fresh.raw_height_mm = atomic_load(&s_raw_height_mm);
+            fresh.control_height_mm = atomic_load(&s_control_height_mm);
+            fresh.height_known = atomic_load(&s_height_known);
             uint_fast32_t end_seq = atomic_load(&s_height_publish_seq);
             if (desk_tof_snapshot_seq_consistent((uint32_t)begin_seq,
                                                  (uint32_t)end_seq)) {
-                snapshot.height_sample_id = (uint32_t)(end_seq / 2U);
+                fresh.height_sample_id = (uint32_t)(end_seq / 2U);
                 height_copied = true;
                 break;
             }
@@ -442,7 +444,6 @@ desk_tof_snapshot_t desk_tof_snapshot(void)
         desk_tof_snapshot_retry_t action =
             desk_tof_snapshot_retry_action(failed_attempts++);
         if (action == DESK_TOF_SNAPSHOT_RETRY_ABANDON) {
-            ESP_LOGW(TAG, "height snapshot timed out; treating height as unknown");
             break;
         }
         if (action == DESK_TOF_SNAPSHOT_RETRY_YIELD) {
@@ -450,15 +451,17 @@ desk_tof_snapshot_t desk_tof_snapshot(void)
         }
     }
 
+    desk_tof_height_view_t resolved = {0};
+    desk_tof_snapshot_resolve_height(height_copied, &fresh, &s_last_good_height,
+                                     &resolved);
+    snapshot.height_known = resolved.height_known;
+    snapshot.height_mm = resolved.height_mm;
+    snapshot.raw_height_mm = resolved.raw_height_mm;
+    snapshot.control_height_mm = resolved.control_height_mm;
+    snapshot.height_sample_id = resolved.height_sample_id;
+
     snapshot.right_gap_mm = atomic_load(&s_right_gap_mm);
     snapshot.right_gap_known = atomic_load(&s_right_gap_known);
-    if (!height_copied || !snapshot.height_known) {
-        snapshot.height_known = false;
-        snapshot.height_mm = -1;
-        snapshot.raw_height_mm = -1;
-        snapshot.control_height_mm = -1;
-        snapshot.height_sample_id = 0;
-    }
     if (!snapshot.right_gap_known) {
         snapshot.right_gap_mm = -1;
     }
