@@ -192,3 +192,37 @@ See [SECURITY.md](SECURITY.md) ([中文](SECURITY.zh-CN.md)). Do not port-forwar
 ## Disclaimer
 
 Not affiliated with any desk manufacturer. Reverse-engineered protocol notes are for interoperability on hardware you own. Use at your own risk; moving furniture can cause injury or damage.
+
+## Also from the author: Starcat
+
+<div align="center">
+<a href="https://starcat.ink"><img src="https://raw.githubusercontent.com/starcat-app/starcat-pro/main/banner.webp" width="100%" alt="Starcat"/></a>
+<p><a href="https://starcat.ink">Starcat</a> is a native macOS app for people whose GitHub Stars have outgrown a bookmark list.</p>
+<p>
+<a href="https://starcat.ink"><img src="https://img.shields.io/badge/website-starcat.ink-38BDF8?style=flat&color=blue" alt="website"/></a>
+<a href="https://dong4j.app/starcat/"><img src="https://img.shields.io/badge/Mac%20App%20Store-dong4j.app-lightgrey.svg?style=flat&color=blue" alt="Mac App Store"/></a>
+<a href="https://starcat.ink/downloads/Starcat-1.3.0-arm64.dmg"><img src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey.svg?style=flat&color=blue" alt="platform"/></a>
+<a href="https://github.com/starcat-app/starcat-pro"><img src="https://img.shields.io/github/issues/starcat-app/starcat-pro?style=flat&color=blue" alt="issues"/></a>
+</p>
+</div>
+
+It syncs starred repositories into a local-first desktop workspace, renders READMEs, adds tags, notes and reading status, tracks releases, evaluates repository health, and turns saved projects into a searchable, askable knowledge base. Since 1.3.0 it also includes My Projects, library and repository insights, macOS desktop widgets, and Alfred / uTools / Raycast search. With AI enabled, Starcat can summarize READMEs, translate docs, suggest tags, and answer questions with repository context.
+
+<div align="center">
+<img width="900" src="https://raw.githubusercontent.com/starcat-app/starcat-pro/main/main.webp" alt="Starcat main window"/>
+</div>
+
+Current public version: **Starcat 1.3.0** (macOS 15 Sequoia or newer, Apple Silicon). Core organization is free; Pro / AI workflows use App Store in-app purchase or a Direct license.
+
+- Website: [starcat.ink](https://starcat.ink)
+- Mac App Store: [Starcat for GitHub](https://apps.apple.com/app/starcat-for-github/id6788809803?mt=12) · landing page [dong4j.app/starcat](https://dong4j.app/starcat/)
+- Docs: [starcat.mintlify.app](https://starcat.mintlify.app/)
+- Support / changelog: [starcat-app/starcat-pro](https://github.com/starcat-app/starcat-pro)
+
+Homebrew is the preferred Direct install:
+
+```bash
+brew tap starcat-app/starcat
+brew trust starcat-app/starcat
+brew install --cask starcat
+```

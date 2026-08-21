@@ -192,3 +192,37 @@ docs/                      需求、架构、使用说明
 ## 免责声明
 
 与任何升降桌厂商无关联。协议笔记仅用于你拥有的设备上的互通。使用风险自负；家具运动可能导致人身或财物损伤。
+
+## 作者的另一个项目：Starcat
+
+<div align="center">
+<a href="https://starcat.ink"><img src="https://raw.githubusercontent.com/starcat-app/starcat-pro/main/banner.webp" width="100%" alt="Starcat"/></a>
+<p><a href="https://starcat.ink">Starcat</a> 是一款原生 macOS 应用，面向 GitHub Stars 已经超出普通收藏夹规模的用户。</p>
+<p>
+<a href="https://starcat.ink"><img src="https://img.shields.io/badge/website-starcat.ink-38BDF8?style=flat&color=blue" alt="website"/></a>
+<a href="https://dong4j.app/starcat/"><img src="https://img.shields.io/badge/Mac%20App%20Store-dong4j.app-lightgrey.svg?style=flat&color=blue" alt="Mac App Store"/></a>
+<a href="https://starcat.ink/downloads/Starcat-1.3.0-arm64.dmg"><img src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey.svg?style=flat&color=blue" alt="platform"/></a>
+<a href="https://github.com/starcat-app/starcat-pro"><img src="https://img.shields.io/github/issues/starcat-app/starcat-pro?style=flat&color=blue" alt="issues"/></a>
+</p>
+</div>
+
+它把 starred repositories 同步到本地优先的桌面工作区，渲染 README，支持标签、私有笔记和阅读状态，追踪 Release，评估仓库健康度，并把收藏升级为可检索、可追问的本地知识库。从 1.3.0 起还可以集中管理「我的项目」、查看全局与单仓库洞察、使用 macOS 桌面小组件，并通过 Alfred / uTools / Raycast 快速找回仓库。启用 AI 后，Starcat 可以生成 README 摘要、翻译项目文档、推荐标签，并基于仓库上下文问答。
+
+<div align="center">
+<img width="900" src="https://raw.githubusercontent.com/starcat-app/starcat-pro/main/main.webp" alt="Starcat 主窗口"/>
+</div>
+
+当前公开版本为 **Starcat 1.3.0**（macOS 15 Sequoia 或更高，Apple Silicon）。核心整理能力可免费使用；Pro / AI 工作流通过 App Store 内购或 Direct 授权开通。
+
+- 官网：[starcat.ink](https://starcat.ink)
+- Mac App Store：[Starcat for GitHub](https://apps.apple.com/app/starcat-for-github/id6788809803?mt=12) · 落地页 [dong4j.app/starcat](https://dong4j.app/starcat/)
+- 文档：[starcat.mintlify.app](https://starcat.mintlify.app/)
+- 支持与更新日志：[starcat-app/starcat-pro](https://github.com/starcat-app/starcat-pro)
+
+首选用 Homebrew 安装 Direct 版本：
+
+```bash
+brew tap starcat-app/starcat
+brew trust starcat-app/starcat
+brew install --cask starcat
+```
