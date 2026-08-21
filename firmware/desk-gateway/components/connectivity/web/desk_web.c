@@ -2,8 +2,8 @@
  * @file desk_web.c
  * @brief Bearer / X-Desk-Key 认证 + REST + 嵌入静态资源
  *
- * 状态由前端短轮询获取。ESP-IDF HTTP handler 在 server task 中执行，
- * 不在同步 handler 内维持长连接，避免状态流阻塞急停等控制请求。
+ * 状态由前端短轮询获取：空闲约 1 s，运动中 250 ms。ESP-IDF HTTP handler
+ * 在 server task 中执行，不在同步 handler 内维持长连接，避免状态流阻塞急停。
  *
  * JSON 通过 Component Manager 依赖 espressif/cjson（IDF 6 已移出内置 json）。
  */
@@ -50,6 +50,8 @@ extern const uint8_t www_index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t www_index_html_end[] asm("_binary_index_html_end");
 extern const uint8_t www_hold_control_js_start[] asm("_binary_hold_control_js_start");
 extern const uint8_t www_hold_control_js_end[] asm("_binary_hold_control_js_end");
+extern const uint8_t www_status_poll_js_start[] asm("_binary_status_poll_js_start");
+extern const uint8_t www_status_poll_js_end[] asm("_binary_status_poll_js_end");
 extern const uint8_t www_bond_management_js_start[] asm("_binary_bond_management_js_start");
 extern const uint8_t www_bond_management_js_end[] asm("_binary_bond_management_js_end");
 extern const uint8_t www_height_presets_js_start[] asm("_binary_height_presets_js_start");
@@ -1114,6 +1116,11 @@ static esp_err_t handler_hold_control_js(httpd_req_t *req)
     return send_embed(req, "application/javascript", www_hold_control_js_start,
                       www_hold_control_js_end);
 }
+static esp_err_t handler_status_poll_js(httpd_req_t *req)
+{
+    return send_embed(req, "application/javascript", www_status_poll_js_start,
+                      www_status_poll_js_end);
+}
 static esp_err_t handler_bond_management_js(httpd_req_t *req)
 {
     return send_embed(req, "application/javascript",
@@ -1326,8 +1333,14 @@ esp_err_t desk_web_start(void)
     cfg.server_port = 80;
     cfg.uri_match_fn = httpd_uri_match_wildcard;
     cfg.max_uri_handlers = 36;
+    /* 7 会话 + 3 内部口；LWIP 必须大于该和再加上 MQTT，见 sdkconfig.defaults。 */
     cfg.max_open_sockets = 7;
     cfg.lru_purge_enable = true;
+    /* 电脑睡眠留下的半开 TCP 要靠 keepalive 回收，否则 accept(23)。 */
+    cfg.keep_alive_enable = true;
+    cfg.keep_alive_idle = 5;
+    cfg.keep_alive_interval = 5;
+    cfg.keep_alive_count = 3;
     cfg.stack_size = 8192;
 
     esp_err_t err = httpd_start(&s_server, &cfg);
@@ -1342,6 +1355,7 @@ esp_err_t desk_web_start(void)
         {.uri = "/setup.html", .method = HTTP_GET, .handler = handler_setup_page},
         {.uri = "/login.html", .method = HTTP_GET, .handler = handler_login_page},
         {.uri = "/hold-control.js", .method = HTTP_GET, .handler = handler_hold_control_js},
+        {.uri = "/status-poll.js", .method = HTTP_GET, .handler = handler_status_poll_js},
         {.uri = "/bond-management.js", .method = HTTP_GET, .handler = handler_bond_management_js},
         {.uri = "/height-presets.js", .method = HTTP_GET, .handler = handler_height_presets_js},
         {.uri = "/reminder-control.js", .method = HTTP_GET, .handler = handler_reminder_control_js},

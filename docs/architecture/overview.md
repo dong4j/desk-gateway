@@ -70,7 +70,7 @@ docs/guides/                ← 用法与接线
 - **仅局域网**；简单 Bearer 密码登录  
 - 控制：升 / 降 / 停 / 坐姿 / 站姿 / **童锁**；高度有效且满足 ToF 上升策略时执行闭环档位  
 - UI：品牌 + 升降桌示意图；`moving_up/down` 时示意图实时升降；有高度则按 mm 映射，无高度则按命令做相对动效  
-- 状态：鉴权后的 `GET /api/v1/desk/status` 每 250ms 短轮询；返回 ToF 高度、右侧间距、`upward_blocked`、`child_lock`、`control_sources` 和已保存的高度设置  
+- 状态：鉴权后的 `GET /api/v1/desk/status` 空闲约 1 s、运动中 250 ms 短轮询；返回 ToF 高度、右侧间距、`upward_blocked`、`child_lock`、`control_sources` 和已保存的高度设置  
 
 ## 手机 App 双通道
 

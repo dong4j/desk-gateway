@@ -263,7 +263,7 @@ desk-gateway/
 }
 ```
 
-客户端每 250ms 请求一次 `GET /status` 驱动示意图。当前不提供同步 SSE 长连接，
+客户端空闲时约每 1 s、运动或控制盒重置时每 250ms 请求一次 `GET /status` 驱动示意图。当前不提供同步 SSE 长连接，
 避免 ESP-IDF HTTP server handler 长时间占用 server task、影响急停等控制请求；未来如恢复 SSE，必须使用异步请求生命周期并验证控制并发。
 
 ### 6.4 Web UI / UX

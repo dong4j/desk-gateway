@@ -318,7 +318,7 @@ position = clamp(round((height_mm - preset1_height_mm)
 
 ### 8.2 发布节流
 
-MQTT 不复用 Web 的 250ms 无条件发布：
+MQTT 不复用 Web 的状态轮询（空闲 1 s / 运动 250 ms）：
 
 - 状态、童锁、权限或配置发生变化时立即发布。
 - 运动中高度变化达到 5mm，或距离上次状态发布达到 500ms 时发布。

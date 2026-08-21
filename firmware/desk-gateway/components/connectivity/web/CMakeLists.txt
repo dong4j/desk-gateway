@@ -7,6 +7,7 @@ idf_component_register(
         "www/login.html"
         "www/index.html"
         "www/hold-control.js"
+        "www/status-poll.js"
         "www/bond-management.js"
         "www/height-presets.js"
         "www/reminder-control.js"

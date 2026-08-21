@@ -1234,9 +1234,15 @@
     void refreshBondDevices();
     void refreshHeightPresets();
   }
-  tick();
+  /* 空闲 1 s、运动 250 ms，避免标签页长时间开着把 httpd 套接字占满。 */
+  const armStatusPoll = () => {
+    if (restarting) return;
+    window.setTimeout(() => {
+      void tick().then(armStatusPoll);
+    }, DeskStatusPoll.intervalMs(lastStatus));
+  };
+  void tick().then(armStatusPoll);
   loadMqttConfig().catch(() => {
     mqttMsg.textContent = '无法读取 MQTT 配置';
   });
-  setInterval(tick, 250);
 })();

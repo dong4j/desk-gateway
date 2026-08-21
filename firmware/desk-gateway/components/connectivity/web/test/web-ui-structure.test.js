@@ -37,6 +37,13 @@ assertContains(
   '番茄时钟配置区必须默认折叠',
 );
 assertContains(html, 'id="appDialog"', '页面需要统一的自定义弹窗');
+assertContains(html, 'src="/status-poll.js"', '状态轮询节奏必须作为独立脚本加载');
+assertContains(app, 'DeskStatusPoll.intervalMs', '状态轮询必须按快照选择间隔');
+assert.doesNotMatch(
+  app,
+  /setInterval\(\s*tick,\s*250\s*\)/,
+  '空闲标签不得再以 250ms 固定轮询 status',
+);
 assertContains(app, 'function openAppDialog(options)', '交互需要复用统一弹窗入口');
 assertContains(app, 'function confirmAction(options)', '危险操作需要复用确认弹窗');
 assertContains(

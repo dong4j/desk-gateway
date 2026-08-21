@@ -78,3 +78,7 @@ CONFIG_DESK_REMINDER_ENABLED=y
 
 # ToF 读数同时用于显示、档位闭环和上升安全限制，禁止回退到模拟值。
 # CONFIG_DESK_SIM_HEIGHT is not set
+
+# httpd 占用 max_open_sockets(7)+3 内部口，MQTT Client 再占至少 1 个。
+# 默认 10 会在浏览器轮询与 MQTT 同时在线时 accept(23)/ENFILE。
+CONFIG_LWIP_MAX_SOCKETS=16

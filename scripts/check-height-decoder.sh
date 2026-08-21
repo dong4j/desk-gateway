@@ -189,10 +189,13 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 node --check "${WEB_DIR}/www/app.js"
+node --check "${WEB_DIR}/www/hold-control.js"
+node --check "${WEB_DIR}/www/status-poll.js"
 node --check "${WEB_DIR}/www/bond-management.js"
 node --check "${WEB_DIR}/www/height-presets.js"
 node --check "${WEB_DIR}/www/reminder-control.js"
 node "${WEB_DIR}/test/hold-control.test.js"
+node "${WEB_DIR}/test/status-poll.test.js"
 node "${WEB_DIR}/test/bond-management.test.js"
 node "${WEB_DIR}/test/height-presets.test.js"
 node "${WEB_DIR}/test/source-toggle.test.js"

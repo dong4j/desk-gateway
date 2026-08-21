@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 日期 | 2026-08-19 |
+| 日期 | 2026-08-21 |
 | 基线 | 当前主固件 `desk_web.c` 已注册路由 |
 | 使用场景 | 脚本、Karabiner、GoatRemote、小智 MCP、Ulanzi、手机 Wi-Fi 回退 |
 
@@ -51,7 +51,7 @@ Authorization: Bearer <login token>
 
 ## 状态
 
-`GET /api/v1/desk/status` 需要鉴权。Web 约每 250 ms 轮询一次。常用字段：
+`GET /api/v1/desk/status` 需要鉴权。Web 空闲约每 1 s 轮询一次，运动或控制盒重置期间改为 250 ms。常用字段：
 
 | 字段 | 含义 |
 |---|---|
