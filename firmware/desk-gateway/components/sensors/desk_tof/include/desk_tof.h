@@ -34,13 +34,7 @@ typedef struct {
 /** 启动后台初始化与采样任务；传感器离线不会阻止其他网关功能启动。 */
 esp_err_t desk_tof_start(i2c_master_bus_handle_t bus);
 
-/**
- * 返回最近一组未过期的测距结果；未知高度字段统一为 -1。
- *
- * 发布序号卡住时读端会让出 CPU，避免忙等触发 Task WDT。超时沿用上次
- * 读成功的高度，不把「这次没读到」当成传感器未知去禁止上升或停档位。
- * 写端超过 1 秒没有新样本时，高度仍会变为未知。
- */
+/** 返回最近一组未过期的测距结果；未知高度字段统一为 -1。 */
 desk_tof_snapshot_t desk_tof_snapshot(void);
 
 #ifdef __cplusplus

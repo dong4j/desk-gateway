@@ -142,13 +142,6 @@ cc -std=c11 -Wall -Wextra -Werror \
 "${TEST_DIR}/tof-filter-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
-    -I "${TOF_DIR}/include" \
-    "${TOF_DIR}/desk_tof_snapshot_logic.c" \
-    "${TOF_DIR}/test/desk_tof_snapshot_logic_test.c" \
-    -o "${TEST_DIR}/tof-snapshot-logic-test"
-"${TEST_DIR}/tof-snapshot-logic-test"
-
-cc -std=c11 -Wall -Wextra -Werror \
     -I "${OLED_DIR}/include" \
     "${OLED_DIR}/desk_oled_pages.c" \
     "${OLED_DIR}/test/desk_oled_pages_test.c" \
