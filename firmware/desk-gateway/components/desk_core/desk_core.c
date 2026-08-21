@@ -9,7 +9,6 @@
  */
 #include "desk_core.h"
 #include "desk_auto_lock.h"
-#include "desk_motion_watch.h"
 
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -717,57 +716,14 @@ static void probe_startup_height_if_unknown(const desk_driver_t *drv)
     }
 }
 
-static desk_motion_watch_kind_t motion_watch_kind(desk_status_t status)
-{
-    switch (status) {
-    case DESK_STATUS_MOVING_UP:
-        return DESK_MOTION_WATCH_UP;
-    case DESK_STATUS_MOVING_DOWN:
-        return DESK_MOTION_WATCH_DOWN;
-    case DESK_STATUS_GOTO_PRESET:
-        return DESK_MOTION_WATCH_TARGET;
-    case DESK_STATUS_IDLE:
-    case DESK_STATUS_ERROR:
-    default:
-        return DESK_MOTION_WATCH_IDLE;
-    }
-}
-
 /**
- * 只使用驱动已经发布的真实高度，判断控制码输出后桌体是否确实移动。
- *
- * 诊断成立时先发布提示再 STOP；若高度传感器本身冻结，停止比继续输出更安全。
- * 高度未知时不猜测 B12，也不会改变原有控制行为。
+ * 自动童锁仍需要周期 tick。B12 无位移检测已关掉：它既不能加快启动，
+ * 又曾在控制盒还没转时误 STOP，把第一次按键废掉。
  */
 static void motion_watch_task(void *arg)
 {
     (void)arg;
-    desk_motion_watch_t watch = {0};
     while (true) {
-        const desk_driver_t *drv = desk_driver_get_active();
-        if (!drv || !drv->get_status || !drv->get_height_mm ||
-            atomic_load(&s_controller_reset_active)) {
-            desk_motion_watch_reset(&watch);
-            auto_child_lock_tick();
-            vTaskDelay(pdMS_TO_TICKS(DESK_MOTION_WATCH_POLL_MS));
-            continue;
-        }
-
-        int height_mm = -1;
-        bool height_known = drv->get_height_mm(&height_mm) == ESP_OK;
-        desk_motion_watch_result_t result = desk_motion_watch_update(
-            &watch, motion_watch_kind(drv->get_status()), height_known,
-            height_mm, DESK_HEIGHT_MM_MIN, s_max_height_mm,
-            (uint32_t)(esp_timer_get_time() / 1000ULL));
-        if (result == DESK_MOTION_WATCH_PROGRESS) {
-            atomic_store(&s_controller_reset_recommended, false);
-        } else if (result == DESK_MOTION_WATCH_STALLED) {
-            atomic_store(&s_controller_reset_recommended, true);
-            ESP_LOGW(TAG,
-                     "motion stalled at %d mm; controller reset recommended",
-                     height_mm);
-            (void)desk_core_stop();
-        }
         auto_child_lock_tick();
         vTaskDelay(pdMS_TO_TICKS(DESK_MOTION_WATCH_POLL_MS));
     }

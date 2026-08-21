@@ -316,8 +316,8 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 - [ ] 重复重置和 Web 升降请求被拒绝，不会覆盖当前重置序列
 - [ ] 点击“停”可提前中断，并立即恢复 `DR=0x2E`
 - [ ] 不手动中断时，约 8 秒后日志出现 `reason=controller_reset_complete` 并恢复 `DR=0x2E`
-- [ ] Web/App 持续操作升降 2.5 秒且真实高度变化不足 8 mm 时，仅提示一次“可能是 B12”并先停止输出
-- [ ] 桌子处于最低/最高边界或操作时间不足 2.5 秒时，不出现 B12 误提示
+- [ ] B12 无位移看门狗当前关闭，不在运动中自动提示或 STOP；控制盒故障重置仍走手动 8 秒入口
+- [ ] 桌子处于最低/最高边界时，不出现 B12 误提示
 - [ ] Web/App 接受提示后可分别通过 REST/BLE 启动同一条 8 秒重置序列
 - [ ] Watch 收到 B12 建议状态后仅提示一次；确认后通过 BLE System Characteristic 启动
   同一条 8 秒重置序列，重置期间上升、下降和档位入口均禁用

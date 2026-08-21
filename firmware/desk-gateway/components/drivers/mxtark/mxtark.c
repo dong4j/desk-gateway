@@ -887,6 +887,13 @@ static bool IRAM_ATTR on_request_cb(i2c_slave_dev_handle_t i2c_slave,
     return hp == pdTRUE;
 }
 
+/** Keep the hardware TX path stocked with the current key byte. */
+static void write_controller_dr(uint8_t dr)
+{
+    uint32_t written = 0;
+    (void)i2c_slave_write(s_ctx.handle, &dr, 1, &written, 50);
+}
+
 static void slave_tx_task(void *arg)
 {
     slave_ctx_t *ctx = (slave_ctx_t *)arg;
@@ -895,9 +902,7 @@ static void slave_tx_task(void *arg)
         if (xQueueReceive(ctx->tx_q, &token, portMAX_DELAY) != pdTRUE) {
             continue;
         }
-        uint8_t dr = (uint8_t)atomic_load(&s_dr);
-        uint32_t written = 0;
-        (void)i2c_slave_write(ctx->handle, &dr, 1, &written, 50);
+        write_controller_dr((uint8_t)atomic_load(&s_dr));
     }
 }
 #endif
@@ -908,6 +913,17 @@ static void publish_controller_dr(uint8_t dr)
     uint8_t previous = (uint8_t)atomic_exchange(&s_dr, dr);
 #if CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
     mxtark_soft_i2c_esp_set_dr(dr);
+#endif
+#if !CONFIG_DESK_MXTARK_SOFT_I2C_MULTI_ADDRESS
+    /*
+     * Idle polling queues 0x2E into a deep TX ring. Changing the key without
+     * flushing that ring makes the control box keep reading "no press" for
+     * seconds, so hold and preset both feel like a 5 s start delay.
+     */
+    if (s_ctx.handle && previous != dr) {
+        (void)i2c_slave_reset_tx_fifo(s_ctx.handle);
+        write_controller_dr(dr);
+    }
 #endif
     if (previous != dr) {
         ESP_LOGI(TAG, "DR=0x%02X", dr);
@@ -1001,7 +1017,8 @@ static esp_err_t yd_init(void)
         .scl_io_num = CONFIG_DESK_I2C_SCL_GPIO,
         .sda_io_num = CONFIG_DESK_I2C_SDA_GPIO,
         .slave_addr = ADDR_KEY_7BIT,
-        .send_buf_depth = 64,
+        /* One-byte key replies must not accumulate a multi-second idle queue. */
+        .send_buf_depth = 8,
         .receive_buf_depth = 64,
         .addr_bit_len = I2C_ADDR_BIT_LEN_7,
     };
