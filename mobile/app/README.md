@@ -14,6 +14,8 @@ How to move the desk: [`docs/guides/control-methods.md`](../../docs/guides/contr
 
 First iPhone install: [`docs/guides/mobile-ios-device-deployment.md`](../../docs/guides/mobile-ios-device-deployment.md).
 
+Personal iPhone Release package that runs without Metro: [`docs/guides/mobile-ios-release-package.md`](../../docs/guides/mobile-ios-release-package.md).
+
 First Android install: [`docs/guides/mobile-android-device-deployment.md`](../../docs/guides/mobile-android-device-deployment.md).
 
 Signing and store builds for iPhone, Android, and Watch: [`docs/guides/mobile-watch-production-release.md`](../../docs/guides/mobile-watch-production-release.md).
@@ -82,6 +84,12 @@ npm start
 
 ```bash
 npm run ios:device -- 00008101-0000000000000000
+```
+
+For a personal phone that should run without Metro, follow [iOS local Release package](../../docs/guides/mobile-ios-release-package.md):
+
+```bash
+npm run ios:release
 ```
 
 This is a bounded upstream workaround, not a fake UIScene port. Remove the script once Expo / React Native supports iOS 27 and go back to `npm run ios`.

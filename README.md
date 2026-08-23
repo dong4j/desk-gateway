@@ -150,6 +150,7 @@ Start at [docs/README.md](docs/README.md) ([中文](docs/README.zh-CN.md)). High
 | [CHANGELOG.md](CHANGELOG.md) | Unreleased snapshot; V1 is not tagged |
 | [docs/guides/control-methods.md](docs/guides/control-methods.md) | All ways to move the desk (Chinese) |
 | [docs/guides/local-multi-client-setup.en.md](docs/guides/local-multi-client-setup.en.md) | IP, password, and path checklist |
+| [docs/guides/mobile-ios-release-package.md](docs/guides/mobile-ios-release-package.md) | Personal iPhone Release package that runs without Metro (Chinese) |
 | [docs/guides/rest-api.md](docs/guides/rest-api.md) | REST contract |
 | [docs/status/current-status-and-priorities.md](docs/status/current-status-and-priorities.md) | What is done vs still to accept |
 | [docs/status/v1-release-acceptance.md](docs/status/v1-release-acceptance.md) | V1 release gates |

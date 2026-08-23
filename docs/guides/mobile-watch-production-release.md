@@ -234,8 +234,10 @@ open -a Xcode DeskGateway.xcworkspace
 7. 通过后选择 Distribute App → App Store Connect → Upload；
 8. 保存 Archive、上传时间、版本、build 和发布 commit。
 
-当前 `npm run ios:device` 只生成 Debug `.app` 并安装真机，不能代替 Archive，也不能生成
-可提交 App Store 的 `.ipa`。
+当前 `npm run ios:device` 只生成 Debug `.app` 并安装真机。给自己的 iPhone 打本机
+正式包见 [iOS 本机正式包](mobile-ios-release-package.md)；那条路径仍使用 Apple
+Development 签名，不能代替 Archive，也不能生成可提交 App Store 的 `.ipa`，
+也不能把 V1-12 标成完成。
 
 ### 5.4 TestFlight
 

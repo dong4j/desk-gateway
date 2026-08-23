@@ -155,7 +155,7 @@ cp integrations/karabiner/desk-gateway.json \
 
 ### 4.5 iPhone / Android
 
-1. 不能用 Expo Go。按 [iOS 真机部署](mobile-ios-device-deployment.md) 或 [Android 真机部署](mobile-android-device-deployment.md) 装 Development Build。
+1. 不能用 Expo Go。日常调试按 [iOS 真机部署](mobile-ios-device-deployment.md) 或 [Android 真机部署](mobile-android-device-deployment.md) 安装。只给自己的 iPhone 装、且不打算开 Metro 时，按 [iOS 本机正式包](mobile-ios-release-package.md) 执行 `ios:release`。
 2. 手机和网关同一局域网（REST 回退和 Bond 管理需要）。
 3. 设置里填写 REST 地址和 `X-Desk-Key`（当前 Web 密码）。自动模式优先 BLE，BLE 失败才走 REST。
 4. 首次 BLE 配对：在已登录 Web 或已有 App 里打开 **120 秒配对窗口**，扫描 `DeskGateway`，允许系统配对。iPhone 写 Client Info `01 02`，Android 写 `01 03`，不要用 STOP 当握手。

@@ -20,6 +20,9 @@ BLE 优先、Wi-Fi 回退、mDNS 和安全边界见
 iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 [`docs/guides/mobile-ios-device-deployment.md`](../../docs/guides/mobile-ios-device-deployment.md)。
 
+给自己的 iPhone 打包本机正式包（装上后不需要 `npm start`）见
+[`docs/guides/mobile-ios-release-package.md`](../../docs/guides/mobile-ios-release-package.md)。
+
 Android 真机的 SDK/ADB 准备、首次构建安装、重新构建条件和故障排查见
 [`docs/guides/mobile-android-device-deployment.md`](../../docs/guides/mobile-android-device-deployment.md)。
 
@@ -98,6 +101,13 @@ npm start
 
 ```bash
 npm run ios:device -- 00008101-0000000000000000
+```
+
+只装自己的 iPhone、并且装上后不需要 `npm start` 时，按
+[iOS 本机正式包](../../docs/guides/mobile-ios-release-package.md) 执行：
+
+```bash
+npm run ios:release
 ```
 
 这是一条有边界的上游兼容措施，不伪造 UIScene 适配。Expo / React Native 正式支持

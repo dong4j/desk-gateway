@@ -107,7 +107,7 @@ curl -s -X POST -H "X-Desk-Key: $DESK_KEY" \
 
 ## 手机与手表
 
-iPhone App 不能用 Expo Go，需要 Development Build。自动模式优先连广播名 `DeskGateway` 的 BLE；BLE 失败或断开后回退局域网 REST。设置页可改成仅 BLE 或仅 Wi-Fi，并填写 `X-Desk-Key`。
+iPhone App 不能用 Expo Go。日常改代码用 Development Build（`npm run ios:device` + `npm start`）；只给自己的手机装一份不依赖 Metro 的包，按 [iOS 本机正式包](mobile-ios-release-package.md) 执行 `npm run ios:release`。自动模式优先连广播名 `DeskGateway` 的 BLE；BLE 失败或断开后回退局域网 REST。设置页可改成仅 BLE 或仅 Wi-Fi，并填写 `X-Desk-Key`。
 
 Home 页长按升降、松手 STOP，并显示 ToF 高度和童锁。另一台设备正在运动时，本机收到 Desk Busy `0x80`，连接保持，不能抢升降，STOP 仍然有效。
 

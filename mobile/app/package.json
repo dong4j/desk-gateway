@@ -28,6 +28,7 @@
     "android:device": "bash scripts/run-android-device.sh",
     "ios": "expo run:ios",
     "ios:device": "bash scripts/run-ios-device.sh",
+    "ios:release": "bash scripts/run-ios-release.sh",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "doctor": "npx expo-doctor"

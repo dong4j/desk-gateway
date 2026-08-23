@@ -35,6 +35,7 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 | 写脚本或接第三方工具 | [REST API](./guides/rest-api.md) |
 | 接到 Home Assistant | [用 Home Assistant 控制升降桌](./guides/home-assistant-mqtt.md) |
 | 接线、上电、排障 | [真机验收清单](./guides/bringup-checklist.md) |
+| 给自己的 iPhone 装不依赖 Metro 的正式包 | [iOS 本机正式包](./guides/mobile-ios-release-package.md) |
 | 看还剩哪些真机门禁 | [当前状态与任务优先级](./status/current-status-and-priorities.md) |
 
 ## 状态
@@ -58,6 +59,7 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 | [小智 AI 控桌](./guides/xiaozhi-ai-desk-control.md) | 语音到 MCP 再到 REST |
 | [小智固件与本地 Server](./guides/xiaozhi-firmware-and-local-server.md) | 小智硬件侧部署 |
 | [iOS 真机部署](./guides/mobile-ios-device-deployment.md) | iPhone Development Build |
+| [iOS 本机正式包](./guides/mobile-ios-release-package.md) | 给自己的 iPhone 打包 Release，装上后不需要 Metro |
 | [Android 真机部署](./guides/mobile-android-device-deployment.md) | Android SDK / ADB |
 | [三端正式发布](./guides/mobile-watch-production-release.md) | iPhone、Android、Watch 签名与内测 |
 | [手机 App](../mobile/app/README.zh-CN.md) | React Native 能力与开发命令 |

@@ -155,7 +155,7 @@ Open `http://<device-ip>/` or `http://desk-gateway.local/`. Hold to move, releas
 
 ### 4.5 iPhone / Android
 
-1. Do not use Expo Go. Install a Development Build: [iOS](mobile-ios-device-deployment.md) or [Android](mobile-android-device-deployment.md).
+1. Do not use Expo Go. Daily Debug install: [iOS](mobile-ios-device-deployment.md) or [Android](mobile-android-device-deployment.md). For a personal iPhone package that does not need Metro, follow [iOS local Release package](mobile-ios-release-package.md) and run `ios:release`.
 2. Phone and gateway on the same LAN (REST fallback and bond management need it).
 3. Settings: REST URL and `X-Desk-Key` (current Web password). Auto prefers BLE and falls back to REST.
 4. First BLE pair: open the **120 s pairing window** on authenticated Web or an already-paired app, scan `DeskGateway`, accept system pairing. iPhone writes Client Info `01 02`, Android `01 03`. Do not handshake with STOP.

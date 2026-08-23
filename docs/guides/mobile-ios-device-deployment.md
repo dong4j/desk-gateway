@@ -8,10 +8,15 @@
 | 当前包类型 | Debug Development Build |
 | 适用阶段 | BLE 技术验证与真机调试 |
 
-本文说明 Desk Gateway 移动端如何构建并部署到 iPhone，重点解释
+本文说明 Desk Gateway 移动端如何用 Debug Development Build 部署到 iPhone，重点解释
 `npm start`、`npm run ios:device` 的职责，以及什么情况下需要重新构建 App。
 
-> 当前流程生成的是开发调试包，不是可以提交 TestFlight 或 App Store 的正式发布包。
+给自己的 iPhone 打一份不依赖 Metro 的本机正式包，见
+[iOS 本机正式包](mobile-ios-release-package.md)。商店签名和 TestFlight 见
+[三端正式发布](mobile-watch-production-release.md)。
+
+> 本文生成的是开发调试包。`ios:device` 必须配合 Metro，不是 TestFlight / App Store
+> 发布包。
 
 ## 1. 三个容易混淆的概念
 
@@ -39,7 +44,8 @@ TestFlight 和 App Store 使用 Release Archive、Distribution 签名及发布�
 Profile。它与本文的 Debug Development Build 是两条不同流程。
 
 当前项目尚未配置正式发布流程，因此 `npm run ios:device` 不会生成可提交 App Store 的
-`.ipa` 文件。
+`.ipa` 文件。本机正式包的打包步骤不在本文，见
+[iOS 本机正式包](mobile-ios-release-package.md)。
 
 ## 2. 两条命令分别做什么
 
@@ -92,6 +98,9 @@ ${TMPDIR}/desk-gateway-xcode26/Build/Products/Debug-iphoneos/DeskGateway.app
 ```
 
 该命令不会启动 Metro，因此日常调试时还需要保持 `npm start` 运行。
+
+本机正式包用 `npm run ios:release`，步骤见
+[iOS 本机正式包](mobile-ios-release-package.md)。
 
 ## 3. 首次真机部署前提
 
@@ -180,6 +189,9 @@ cd /Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/mobile/app
 npm run ios:device
 ```
 
+只装自己的 iPhone、并且装上后不打算再开 Metro 时，不要用上面的 Debug 命令，改走
+[iOS 本机正式包](mobile-ios-release-package.md)。
+
 脚本完成后会自动安装并启动 App。第一次安装时，iOS 可能要求确认开发者 App；按照系统
 提示完成信任后重新打开 Desk Gateway。
 
@@ -228,6 +240,8 @@ npm run ios:device
 | 修改本地网络、Bonjour 或 HTTP 配置 | 需要 | 需要 |
 | 修改 Bundle ID、签名 Team | 需要 | 需要 |
 | App 被删除或换了一台 iPhone | 需要 | 需要 |
+
+本机正式包改了业务代码也要重装，见 [iOS 本机正式包](mobile-ios-release-package.md)。
 
 ## 6. 为什么当前不能直接使用 `npm run ios`
 
@@ -347,7 +361,10 @@ npm start          → Metro 开发服务器
 npm run ios:device → Debug .app 编译、签名、安装和启动
 ```
 
-未来正式发布至少还需要：
+本机正式包见 [iOS 本机正式包](mobile-ios-release-package.md)。它也不是
+TestFlight / App Store 包。
+
+未来商店正式发布至少还需要：
 
 1. 确认 Expo / React Native 已支持目标稳定版 Xcode 与 iOS SDK；
 2. 配置正式版本号和 Build Number；
@@ -377,3 +394,5 @@ npm run ios:device
 
 - `npm start`：把最新业务代码提供给已经安装的 App；
 - `npm run ios:device`：重新制造、签名并安装手机上的 App 外壳。
+
+本机正式包见 [iOS 本机正式包](mobile-ios-release-package.md)。

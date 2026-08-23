@@ -38,6 +38,7 @@ Architecture diagrams (PNG only) live in
 | Script or integrate over HTTP | [REST API](./guides/rest-api.md) |
 | Connect Home Assistant over MQTT | [Home Assistant / MQTT](./guides/home-assistant-mqtt.en.md) |
 | Wire, power, and debug hardware | [Bring-up checklist](./guides/bringup-checklist.md) |
+| Install a personal iPhone package that does not need Metro | [iOS local Release package](./guides/mobile-ios-release-package.md) |
 | See which hardware gates remain | [Current status and priorities](./status/current-status-and-priorities.md) |
 
 ## Status
@@ -61,6 +62,7 @@ Architecture diagrams (PNG only) live in
 | [XiaoZhi AI desk control](./guides/xiaozhi-ai-desk-control.md) | Voice → MCP → REST |
 | [XiaoZhi firmware and local server](./guides/xiaozhi-firmware-and-local-server.md) | XiaoZhi hardware-side deploy |
 | [iOS device deploy](./guides/mobile-ios-device-deployment.md) | iPhone Development Build |
+| [iOS local Release package](./guides/mobile-ios-release-package.md) | Personal iPhone Release; no Metro |
 | [Android device deploy](./guides/mobile-android-device-deployment.md) | Android SDK / ADB |
 | [Store release](./guides/mobile-watch-production-release.md) | iPhone, Android, Watch signing |
 | [Phone app](../mobile/app/README.md) | React Native capabilities and commands |
