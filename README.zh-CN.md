@@ -8,6 +8,8 @@
 
 Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网和 BLE 上用多种客户端操作真实升降桌。Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌验收。Matter 不在本阶段。局域网 Home Assistant 可按 [接入说明](docs/guides/home-assistant-mqtt.md) 用 MQTT Cover 控桌，不纳入 V1。
 
+少数派首页推荐：[AI 助力改造非智能升降桌：智能升降、语音控制、多端联动……](https://sspai.com/post/113563)
+
 ![局域网 Web：按住升降、档位、童锁、番茄钟](docs/images/readme/web-control.webp)
 
 ![iPhone App 与 Apple Watch：BLE 优先，REST 回退](docs/images/readme/mobile-and-watch.webp)
@@ -147,6 +149,7 @@ docs/                      需求、架构、使用说明
 
 | 文档 | 说明 |
 |------|------|
+| [少数派：AI 助力改造非智能升降桌](https://sspai.com/post/113563) | 首页推荐长文：改造过程、抓包与多端联动 |
 | [CHANGELOG.md](CHANGELOG.md) | 未发布快照；V1 尚未打 tag |
 | [docs/guides/control-methods.md](docs/guides/control-methods.md) | 多种方式控桌 |
 | [docs/guides/local-multi-client-setup.md](docs/guides/local-multi-client-setup.md) | 改 IP、密码、路径，把多端部署到本机局域网 |

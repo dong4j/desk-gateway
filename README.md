@@ -8,6 +8,8 @@ Open-source **standing-desk smart gateway** for ESP32-S3. Vendor protocols live 
 
 Phase 1 is complete: the gateway can emulate the original Mxtark panel and move a real desk from multiple clients on the LAN and over BLE. Phase 2 original-panel pass-through, disconnect-STOP, arbitration, and lockout have been accepted on the real desk. Matter is not in this release. LAN Home Assistant can drive sit/stand/stop through an MQTT Cover; see [the HA guide](docs/guides/home-assistant-mqtt.en.md). That path is not a V1 gate.
 
+Featured on SSPAI (Chinese): [AI 助力改造非智能升降桌：智能升降、语音控制、多端联动……](https://sspai.com/post/113563)
+
 ![LAN Web UI: hold to move, presets, child lock, Pomodoro](docs/images/readme/web-control.webp)
 
 ![iPhone app and Apple Watch: BLE first, REST fallback](docs/images/readme/mobile-and-watch.webp)
@@ -147,6 +149,7 @@ Start at [docs/README.md](docs/README.md) ([中文](docs/README.zh-CN.md)). High
 
 | Doc | Description |
 |-----|-------------|
+| [SSPAI: standing-desk retrofit (Chinese)](https://sspai.com/post/113563) | Homepage-featured write-up of the capture, retrofit, and multi-client setup |
 | [CHANGELOG.md](CHANGELOG.md) | Unreleased snapshot; V1 is not tagged |
 | [docs/guides/control-methods.md](docs/guides/control-methods.md) | All ways to move the desk (Chinese) |
 | [docs/guides/local-multi-client-setup.en.md](docs/guides/local-multi-client-setup.en.md) | IP, password, and path checklist |
