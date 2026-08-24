@@ -20,7 +20,7 @@ Desk Gateway 把厂商协议收进 `mxtark` Driver。下面这些入口都走同
 | `desk-preset.sh` / curl | REST | 脚本、快捷键、旋钮 | [REST API](rest-api.md) |
 | USB 串口 | UART | 烧录后立刻验证、排障 | 下文 |
 | iPhone App | BLE 优先，REST 回退 | 随身控制、配对管理 | [手机 App](../../mobile/app/README.zh-CN.md) |
-| Android App | 同上 | 扫描、配对、长按控制和异常停止 | [Android 部署](mobile-android-device-deployment.md) |
+| Android App | 同上 | 扫描、配对、长按控制和异常停止 | [Android 部署](mobile-android-device-deployment.md)；本机正式包见 [Android 本机正式包](mobile-android-release-package.md) |
 | Apple Watch | BLE 或 REST | Crown 连续升降 | [Watch README](../../mobile/watch/README.zh-CN.md) |
 | LightBlue | BLE GATT | 协议调试 | [BLE Profile](../architecture/ble-accessory-profile.md) |
 | Karabiner 快捷键 | REST | 键盘切坐姿 / 站姿 / 停止 | [键盘与旋钮](keyboard-voice-control.md) |
@@ -117,6 +117,7 @@ Android 与 iPhone 使用同一套代码，真机已完成扫描、配对、Noti
 
 - [iOS 真机部署](mobile-ios-device-deployment.md)
 - [Android 真机部署](mobile-android-device-deployment.md)
+- [Android 本机正式包](mobile-android-release-package.md)
 - [Watch README](../../mobile/watch/README.zh-CN.md)
 
 用 LightBlue 验证 GATT 时，按 [BLE Accessory Profile](../architecture/ble-accessory-profile.md) 的 UUID 和加密 Write 流程操作。未打开配对窗口时，新设备不能下发运动命令。

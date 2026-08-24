@@ -12,8 +12,9 @@
 无线调试安装到 Android 真机。项目使用了 `react-native-ble-manager` 原生模块，不能用
 Expo Go 代替 Development Build。
 
-> 当前流程用于本地调试，不生成可提交 Google Play 的正式 AAB。Android 签名、内测轨道
-> 和发布流程仍是独立任务。
+> 当前流程用于本地调试，不生成可提交 Google Play 的正式 AAB。给自己的手机打一份
+> 不依赖 Metro 的本机正式包，见 [Android 本机正式包](mobile-android-release-package.md)。
+> Play 签名和内测见 [三端正式发布](mobile-watch-production-release.md)。
 
 ## 1. 命令职责
 
@@ -29,6 +30,8 @@ Expo Go 代替 Development Build。
 6. 把 Metro `8081` reverse 到手机，方便 USB 下加载 bundle。
 
 不要用 `expo start` 的 Expo Go 路径代替这条命令。BLE 原生模块不在 Expo Go 里。
+本机正式包用 `npm run android:release`，步骤见
+[Android 本机正式包](mobile-android-release-package.md)。
 
 首次安装、换手机、原生依赖变化或 `app.json` 原生配置变化后使用该命令。
 
@@ -185,8 +188,9 @@ cd /Users/dong4j/Developer/1.AI/ai-incubator/desk-gateway/mobile/app/android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-随后回到 `mobile/app` 运行 `npm start`。Debug APK 只用于开发设备；正式内测或 Google
-Play 发布需要独立配置版本号、Release 签名、AAB 和发布凭据。
+随后回到 `mobile/app` 运行 `npm start`。Debug APK 只用于开发设备。本机正式包见
+[Android 本机正式包](mobile-android-release-package.md)；Google Play 仍要独立配置
+版本号、Release 签名、AAB 和发布凭据。
 
 ## 7. 首次 BLE 和 REST 验收
 

@@ -151,6 +151,7 @@ docs/                      需求、架构、使用说明
 | [docs/guides/control-methods.md](docs/guides/control-methods.md) | 多种方式控桌 |
 | [docs/guides/local-multi-client-setup.md](docs/guides/local-multi-client-setup.md) | 改 IP、密码、路径，把多端部署到本机局域网 |
 | [docs/guides/mobile-ios-release-package.md](docs/guides/mobile-ios-release-package.md) | 给自己的 iPhone 打包本机正式包，装上后不需要 Metro |
+| [docs/guides/mobile-android-release-package.md](docs/guides/mobile-android-release-package.md) | 给自己的 Android 打包本机正式包，装上后不需要 Metro |
 | [docs/guides/rest-api.md](docs/guides/rest-api.md) | REST 契约 |
 | [docs/status/current-status-and-priorities.md](docs/status/current-status-and-priorities.md) | 已完成与待验收 |
 | [docs/status/v1-release-acceptance.md](docs/status/v1-release-acceptance.md) | V1 发布门禁 |

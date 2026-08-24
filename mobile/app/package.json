@@ -26,6 +26,7 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "android:device": "bash scripts/run-android-device.sh",
+    "android:release": "bash scripts/run-android-release.sh",
     "ios": "expo run:ios",
     "ios:device": "bash scripts/run-ios-device.sh",
     "ios:release": "bash scripts/run-ios-release.sh",

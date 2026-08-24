@@ -26,6 +26,9 @@ iOS 真机的首次部署、命令职责、重新构建条件和故障排查见
 Android 真机的 SDK/ADB 准备、首次构建安装、重新构建条件和故障排查见
 [`docs/guides/mobile-android-device-deployment.md`](../../docs/guides/mobile-android-device-deployment.md)。
 
+给自己的 Android 打包本机正式包（装上后不需要 `npm start`）见
+[`docs/guides/mobile-android-release-package.md`](../../docs/guides/mobile-android-release-package.md)。
+
 iPhone、Android 与独立 Apple Watch App 的签名、商店内测和正式发布流程见
 [`docs/guides/mobile-watch-production-release.md`](../../docs/guides/mobile-watch-production-release.md)。
 
@@ -81,6 +84,13 @@ npm run android:device -- emulator-5554
 
 首次运行会生成被 `.gitignore` 忽略的 `android` 原生目录。当前开发机尚未安装
 Android 工具链时，脚本会在 Gradle 开始前失败并说明缺了什么，不要用 Expo Go 绕过。
+
+只装自己的 Android、并且装上后不需要 `npm start` 时，按
+[Android 本机正式包](../../docs/guides/mobile-android-release-package.md) 执行：
+
+```bash
+npm run android:release
+```
 
 ### iOS 27 Beta 真机
 

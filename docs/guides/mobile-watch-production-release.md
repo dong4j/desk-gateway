@@ -322,6 +322,9 @@ npx eas-cli@latest build:configure
 
 ### 6.3 签名 Preview APK
 
+给自己的 Android 打本机正式包见 [Android 本机正式包](mobile-android-release-package.md)。
+那条路径仍使用 debug 签名，不能代替本节的 EAS Preview，也不能把 V1-12 标成完成。
+
 先生成不依赖 Metro、可以直接安装的内部候选包：
 
 ```bash

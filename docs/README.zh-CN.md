@@ -36,6 +36,7 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 | 接到 Home Assistant | [用 Home Assistant 控制升降桌](./guides/home-assistant-mqtt.md) |
 | 接线、上电、排障 | [真机验收清单](./guides/bringup-checklist.md) |
 | 给自己的 iPhone 装不依赖 Metro 的正式包 | [iOS 本机正式包](./guides/mobile-ios-release-package.md) |
+| 给自己的 Android 装不依赖 Metro 的正式包 | [Android 本机正式包](./guides/mobile-android-release-package.md) |
 | 看还剩哪些真机门禁 | [当前状态与任务优先级](./status/current-status-and-priorities.md) |
 
 ## 状态
@@ -61,6 +62,7 @@ Phase 2 原厂面板透传、断线 STOP、仲裁和童锁真屏蔽已在真桌�
 | [iOS 真机部署](./guides/mobile-ios-device-deployment.md) | iPhone Development Build |
 | [iOS 本机正式包](./guides/mobile-ios-release-package.md) | 给自己的 iPhone 打包 Release，装上后不需要 Metro |
 | [Android 真机部署](./guides/mobile-android-device-deployment.md) | Android SDK / ADB |
+| [Android 本机正式包](./guides/mobile-android-release-package.md) | 给自己的 Android 打包 Release APK，装上后不需要 Metro |
 | [三端正式发布](./guides/mobile-watch-production-release.md) | iPhone、Android、Watch 签名与内测 |
 | [手机 App](../mobile/app/README.zh-CN.md) | React Native 能力与开发命令 |
 | [Apple Watch](../mobile/watch/README.zh-CN.md) | watchOS 构建、签名、真机门禁 |

@@ -177,6 +177,7 @@ Xcode 账号、Team `8WCUMGCWMB`、以及这台 iPhone 是否在该开发签名�
 | 文档 | 看什么 |
 |---|---|
 | [iOS 真机部署](mobile-ios-device-deployment.md) | Debug + Metro 日常开发 |
+| [Android 本机正式包](mobile-android-release-package.md) | 同一目标的 Android 路径 |
 | [三端正式发布](mobile-watch-production-release.md) | TestFlight / App Store，当前 NO-GO |
 | [手机 App README](../../mobile/app/README.zh-CN.md) | 能力列表和开发命令 |
 | [V1 版本验收](../status/v1-release-acceptance.md) | V1-12 商店内测门禁，不要用本文关闭 |

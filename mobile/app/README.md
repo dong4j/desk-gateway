@@ -18,6 +18,8 @@ Personal iPhone Release package that runs without Metro: [`docs/guides/mobile-io
 
 First Android install: [`docs/guides/mobile-android-device-deployment.md`](../../docs/guides/mobile-android-device-deployment.md).
 
+Personal Android Release APK that runs without Metro: [`docs/guides/mobile-android-release-package.md`](../../docs/guides/mobile-android-release-package.md).
+
 Signing and store builds for iPhone, Android, and Watch: [`docs/guides/mobile-watch-production-release.md`](../../docs/guides/mobile-watch-production-release.md).
 
 ## Current capabilities
@@ -68,6 +70,12 @@ npm run android:device -- emulator-5554
 ```
 
 The first run generates the gitignored `android/` tree. If the Android toolchain is missing, the script fails before Gradle. Do not bypass that with Expo Go.
+
+For a personal Android phone that should run without Metro, follow [Android local Release package](../../docs/guides/mobile-android-release-package.md):
+
+```bash
+npm run android:release
+```
 
 ### iOS 27 Beta device
 
