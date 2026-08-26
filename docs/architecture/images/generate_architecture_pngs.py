@@ -1348,7 +1348,7 @@ def render_dual_tof_wiring() -> Path:
     lines = [
         "两颗默认地址都是 0x29。启动时 GPIO12/13 一起拉低，先唤醒 TOF050C 改到 0x30，再唤醒 TOF400C 留在 0x29。",
         "VIN 接开发板 3V3，与 ESP32 共地。禁止用桌子 RJ45 红线。INT 不接，固件轮询。",
-        "产品高度是处理后的 TOF400C 距离，不是控制盒数码管。TOF050C 只在低于 800 mm 时做右侧间距保护。",
+        "产品高度是处理后的 TOF400C 距离，不是控制盒数码管。TOF050C 全程要求 70 mm 侧距，低于 800 mm 时要求 100 mm。",
         "GPIO10/11 这条 I²C1 也给 OLED 用。换模块后断电检查 SCL/SDA 到 3V3 的并联上拉。",
     ]
     for i, line in enumerate(lines):

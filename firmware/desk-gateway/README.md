@@ -189,8 +189,8 @@ The historical controller-digit decoder and software-I²C Slave stay available
 only behind explicit experimental Kconfig switches; they are not compiled into
 the default component source list. The separate TOF400C on GPIO10/11 now
 supplies the raw, filtered control height as well as the Web/OLED/original-panel
-display. TOF050C blocks upward motion only while height is below `800 mm` and
-the right gap is below `80 mm`; the `940 mm` ceiling is always enforced. See
+display. TOF050C requires at least `70 mm` of right-side clearance throughout
+the upward range and at least `100 mm` below `800 mm`; the `940 mm` ceiling is always enforced. See
 `docs/hardware/i2c-restoration.md` for the controller-side
 rollback evidence.
 
@@ -203,8 +203,7 @@ owns the noisy lower stop. Presets 1/4 default to `550 mm` and `870 mm`. These
 values use the filtered TOF400C distance directly, without converting it to
 tape-measure desktop height. They are persisted and synchronized across Web,
 BLE, and the mobile App. Upward motion is blocked when
-TOF400C is unavailable; below `800 mm`, it is also blocked when TOF050C is
-unavailable.
+TOF400C or TOF050C is unavailable.
 
 Authenticated automation that explicitly needs the highest safe position uses
 `POST /api/v1/desk/raise-to-max`. The endpoint is available only when the active

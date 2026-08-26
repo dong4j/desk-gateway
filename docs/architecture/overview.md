@@ -44,7 +44,7 @@ Phase 2 是主动中间人：原厂面板走 GPIO6/7 软件代理，控制盒走
 | `desk_core` + Driver 框架 | 已实现；含统一停止、运动超时、档位、全局童锁和来源权限 |
 | WiFi + Web（局域网、密码、UI、升降动效） | 基础真机路径已完成；实时显示 TOF400C 高度和右侧 TOF050C 间距；ToF 已参与档位和上升保护 |
 | 手机 App 双通道 | iPhone 与 Android BLE 真机控制已完成；Client Info、Desk Busy 和配对设备 REST 管理 UI 已实现；超距自动回退矩阵待验收 |
-| 高度 | TOF400C 处理后距离直接作为产品高度；档位、最高高度和右侧障碍物真机安全矩阵已通过 |
+| 高度 | TOF400C 处理后距离直接作为产品高度；档位和最高高度旧矩阵曾通过，新版全程 70 mm / 低位 100 mm 右侧保护待真机复验 |
 | BLE / Loctek / Jiecang | BLE 三连接、运动所有权、配对窗口和 Bond 管理已实现；iPhone、Watch、Android 真机并发已通过；Loctek / Jiecang 为 stub |
 | Apple Watch | SwiftUI/CoreBluetooth App 真机扫描、配对、Crown 与三客户端并发已通过 |
 | 双 RJ45 中间人、面板仲裁、童锁真屏蔽 | GPIO6/7 主动事务代理、短行程、断线 STOP、仲裁和真屏蔽已在真桌通过 |

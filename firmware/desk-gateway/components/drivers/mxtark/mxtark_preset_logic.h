@@ -21,9 +21,10 @@
 /* Fragmented display transitions may legitimately arrive in larger batches. */
 #define MXTARK_HEIGHT_TRANSITION_MAX_SPEED_MM_PER_S 35
 
-/* TOF400C 直接读数低于此高度时，TOF050C 才参与右侧障碍判断。 */
-#define MXTARK_TOF_OBSTACLE_HEIGHT_MM 800
-#define MXTARK_TOF_MIN_RIGHT_GAP_MM   80
+/* 低位留出更大侧距；全行程仍保留不可绕过的最小安全间距。 */
+#define MXTARK_TOF_LOW_HEIGHT_MM            800
+#define MXTARK_TOF_MIN_RIGHT_GAP_MM         70
+#define MXTARK_TOF_LOW_MIN_RIGHT_GAP_MM     100
 
 typedef enum {
     MXTARK_PRESET_STOP = 0,

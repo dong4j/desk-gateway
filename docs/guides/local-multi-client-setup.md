@@ -230,7 +230,7 @@ chmod 600 integrations/xiaozhi-mcp/.env
 | Karabiner 没反应 | JSON 仍指向别人的仓库路径；Complex Modifications 未启用；脚本本身 REST 已失败 |
 | 手机扫描不到 | 未开 120 秒窗口、已有 3 个 Central、权限/定位、Bond 冲突 |
 | 「另一台设备正在控制」 | 当前端不是运动所有者；可 STOP，不要再抢 HOLD |
-| 桌子升不起来 | ToF 高度未知、已到最高、或低于 800 mm 且右侧间距未知/过近；下降和 STOP 应仍可用 |
+| 桌子升不起来 | 任一 ToF 状态未知、已到最高、全程侧距不足 70 mm，或低于 800 mm 时侧距不足 100 mm；下降和 STOP 应仍可用 |
 | DHCP 换 IP 后全家失效 | 把第 3 节所有 REST 地址改成新 IP |
 
 集成总览：[integrations/README.zh-CN.md](../../integrations/README.zh-CN.md)。

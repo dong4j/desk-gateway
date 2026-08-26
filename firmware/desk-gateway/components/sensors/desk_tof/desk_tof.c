@@ -9,6 +9,7 @@
 #include "desk_tof.h"
 
 #include "desk_tof_filter.h"
+#include "desk_tof_snapshot_logic.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_log.h"
@@ -413,26 +414,43 @@ esp_err_t desk_tof_start(i2c_master_bus_handle_t bus)
 desk_tof_snapshot_t desk_tof_snapshot(void)
 {
     desk_tof_snapshot_t snapshot = {0};
-    uint_fast32_t begin_seq = 0;
-    uint_fast32_t end_seq = 0;
-    do {
-        begin_seq = atomic_load(&s_height_publish_seq);
-        if ((begin_seq & 1U) != 0U) {
-            continue;
+    unsigned failed_attempts = 0;
+    bool height_copied = false;
+
+    for (;;) {
+        uint_fast32_t begin_seq = atomic_load(&s_height_publish_seq);
+        if (desk_tof_snapshot_seq_readable((uint32_t)begin_seq)) {
+            snapshot.height_mm = atomic_load(&s_height_mm);
+            snapshot.raw_height_mm = atomic_load(&s_raw_height_mm);
+            snapshot.control_height_mm = atomic_load(&s_control_height_mm);
+            snapshot.height_known = atomic_load(&s_height_known);
+            uint_fast32_t end_seq = atomic_load(&s_height_publish_seq);
+            if (desk_tof_snapshot_seq_consistent((uint32_t)begin_seq,
+                                                 (uint32_t)end_seq)) {
+                snapshot.height_sample_id = (uint32_t)(end_seq / 2U);
+                height_copied = true;
+                break;
+            }
         }
-        snapshot.height_mm = atomic_load(&s_height_mm);
-        snapshot.raw_height_mm = atomic_load(&s_raw_height_mm);
-        snapshot.control_height_mm = atomic_load(&s_control_height_mm);
-        snapshot.height_known = atomic_load(&s_height_known);
-        end_seq = atomic_load(&s_height_publish_seq);
-    } while (begin_seq != end_seq || (end_seq & 1U) != 0U);
-    snapshot.height_sample_id = (uint32_t)(end_seq / 2U);
+
+        desk_tof_snapshot_retry_t action =
+            desk_tof_snapshot_retry_action(failed_attempts++);
+        if (action == DESK_TOF_SNAPSHOT_RETRY_ABANDON) {
+            break;
+        }
+        if (action == DESK_TOF_SNAPSHOT_RETRY_YIELD) {
+            vTaskDelay(1);
+        }
+    }
+
     snapshot.right_gap_mm = atomic_load(&s_right_gap_mm);
     snapshot.right_gap_known = atomic_load(&s_right_gap_known);
-    if (!snapshot.height_known) {
+    if (!height_copied || !snapshot.height_known) {
+        snapshot.height_known = false;
         snapshot.height_mm = -1;
         snapshot.raw_height_mm = -1;
         snapshot.control_height_mm = -1;
+        snapshot.height_sample_id = 0;
     }
     if (!snapshot.right_gap_known) {
         snapshot.right_gap_mm = -1;

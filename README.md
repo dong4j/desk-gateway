@@ -14,7 +14,7 @@ Featured on SSPAI (Chinese): [AI 助力改造非智能升降桌：智能升降�
 
 ![iPhone app and Apple Watch: BLE first, REST fallback](docs/images/readme/mobile-and-watch.webp)
 
-> **Safety:** Keep a person nearby when the desk moves. TOF400C height and TOF050C right-side clearance take part in upward decisions: upward motion is blocked when height is unknown, the ceiling is reached, or height is below 80 cm while right-side clearance is unknown or below 8 cm. DOWN and STOP stay available. Use **LAN only** — do not expose the Web UI to the public Internet.
+> **Safety:** Keep a person nearby when the desk moves. TOF400C height and TOF050C right-side clearance take part in upward decisions: upward motion is blocked when either sensor is unknown, the ceiling is reached, right-side clearance is below 7 cm at any height, or height is below 80 cm while clearance is below 10 cm. DOWN and STOP stay available. Use **LAN only** — do not expose the Web UI to the public Internet.
 
 ## What you can do now
 
@@ -171,13 +171,14 @@ Start at [docs/README.md](docs/README.md) ([中文](docs/README.zh-CN.md)). High
 - [x] LAN Web, REST, UART, BLE, iPhone App, Watch, keyboard/knob, XiaoZhi MCP, Ulanzi D200H
 - [x] Configurable 550 mm preset floor across firmware, Web, App, Watch, REST, BLE Config v3
 - [x] Three-client BLE ownership, Client Info, pairing windows, Web/mobile Bond management
-- [x] Dual-ToF preset, ceiling, and right-side obstacle hardware safety matrix
+- [x] Dual-ToF preset and ceiling loop; revised right-side obstacle matrix awaits hardware reacceptance
 - [x] Phase 2 real-desk pass-through, disconnect-STOP, arbitration, true lockout
 - [x] Abnormal-stop matrix and Android hardware acceptance
 - [x] iPhone + Apple Watch + Android three-client hardware matrix
 
 **Still open**
 
+- [ ] Revised right-side obstacle hardware matrix
 - [ ] Matter
 - [ ] OTA firmware updates
 - [ ] Additional desk drivers (Loctek, Jiecang, …)

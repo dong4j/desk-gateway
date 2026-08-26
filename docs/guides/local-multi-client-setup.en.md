@@ -230,7 +230,7 @@ Someone at the desk:
 | Karabiner does nothing | JSON still points at someone else’s checkout; rules not enabled; script REST already failing |
 | Phone never finds the desk | Pairing window closed, three Centrals already up, permission/location, stale Bond |
 | “Another device is controlling” | This client is not the motion owner; STOP still works |
-| Will not go up | ToF height unknown, at ceiling, or below 800 mm with right gap unknown/too small; down and STOP should still work |
+| Will not go up | Either ToF is unknown, the ceiling is reached, right gap is below 70 mm at any height, or below 100 mm while height is under 800 mm; down and STOP should still work |
 | Everything died after DHCP | Update every REST URL in section 3 |
 
 Integrations index: [integrations/README.md](../../integrations/README.md).

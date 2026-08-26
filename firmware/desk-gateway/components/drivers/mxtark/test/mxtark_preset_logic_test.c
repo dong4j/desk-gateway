@@ -88,14 +88,16 @@ int main(void)
            MXTARK_PRESET_ACTION_CORRECTION_LIMIT);
     assert(control.phase == MXTARK_PRESET_PHASE_IDLE);
 
-    /* 右侧障碍仅在高度严格低于 80 cm 时阻止上升。 */
+    /* 全行程小于 7 cm 都阻止上升，低于 80 cm 时扩展到 10 cm。 */
     assert(mxtark_tof_upward_blocked(false, -1, true, 100, 940));
-    assert(mxtark_tof_upward_blocked(true, 799, true, 79, 940));
-    assert(!mxtark_tof_upward_blocked(true, 799, true, 80, 940));
+    assert(mxtark_tof_upward_blocked(true, 799, true, 99, 940));
+    assert(!mxtark_tof_upward_blocked(true, 799, true, 100, 940));
     assert(mxtark_tof_upward_blocked(true, 799, false, -1, 940));
-    assert(!mxtark_tof_upward_blocked(true, 800, true, 79, 940));
-    assert(!mxtark_tof_upward_blocked(true, 800, false, -1, 940));
-    assert(!mxtark_tof_upward_blocked(true, 939, true, 10, 940));
+    assert(mxtark_tof_upward_blocked(true, 800, true, 69, 940));
+    assert(!mxtark_tof_upward_blocked(true, 800, true, 70, 940));
+    assert(mxtark_tof_upward_blocked(true, 800, false, -1, 940));
+    assert(mxtark_tof_upward_blocked(true, 939, true, 69, 940));
+    assert(!mxtark_tof_upward_blocked(true, 939, true, 70, 940));
     assert(mxtark_tof_upward_blocked(true, 940, true, 100, 940));
 
     /* The captured upward 89 -> 87 regression must never replace height. */

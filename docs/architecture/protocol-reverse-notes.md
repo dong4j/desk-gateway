@@ -987,7 +987,7 @@ ESP32 内部待回传字节改变，不能证明控制盒已经发起 `0x24` 轮
 
 产品固件现已回到已知稳定提交 `3269faa` 的原则：ESP32-S3 硬件 I²C Slave 只应答 `0x24`，
 不 ACK、不解析 `0x34–0x37`。控制盒 digit 不再作为产品高度。产品高度由独立 TOF400C 提供，
-TOF050C 只做低位右侧保护。完整经过见
+TOF050C 提供全行程最小侧距和低位增强侧距保护。完整经过见
 [`hardware/i2c-restoration.md`](../hardware/i2c-restoration.md)，传感器策略见
 [`tof-safety.md`](./tof-safety.md)。
 

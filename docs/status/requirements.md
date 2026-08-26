@@ -14,7 +14,7 @@
 
 > **实现状态（2026-08-17）**：Phase 1 已完成。Web、REST、串口、BLE、iPhone App、Android App、
 > Watch、键盘/旋钮、小智 MCP 和 Ulanzi D200H 都可以经 `desk_core` 控桌。产品固件通过硬件
-> I²C Slave `@0x24` 输出升、降和停止键码；TOF400C 作为产品高度，TOF050C 提供低位右侧保护。
+> I²C Slave `@0x24` 输出升、降和停止键码；TOF400C 作为产品高度，TOF050C 提供全行程最小侧距和低位增强侧距保护。
 > Phase 2 双 RJ45 透传、断线 STOP、仲裁和童锁真屏蔽已在真桌通过。异常停止矩阵、
 > 三客户端并发和双 ToF 安全矩阵已通过。唯一汇总状态以
 > [当前状态与任务优先级](current-status-and-priorities.md) 为准；用法见

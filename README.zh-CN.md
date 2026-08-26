@@ -14,7 +14,7 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 
 ![iPhone App 与 Apple Watch：BLE 优先，REST 回退](docs/images/readme/mobile-and-watch.webp)
 
-> **安全：** 升降时请有人在旁。TOF400C 高度和 TOF050C 右侧间距已进入上升裁决：高度未知、达到最高高度，或高度低于 80 cm 且右侧间距未知/小于 8 cm 时禁止上升。下降和 STOP 始终可用。Web **仅限局域网**，不要做公网端口映射。
+> **安全：** 升降时请有人在旁。TOF400C 高度和 TOF050C 右侧间距已进入上升裁决：任一传感器状态未知、达到最高高度、任意高度右侧间距小于 7 cm，或高度低于 80 cm 且右侧间距小于 10 cm 时禁止上升。下降和 STOP 始终可用。Web **仅限局域网**，不要做公网端口映射。
 
 ## 现在能怎么控桌
 
@@ -171,13 +171,14 @@ docs/                      需求、架构、使用说明
 - [x] 局域网 Web、REST、串口、BLE、iPhone App、Watch、键盘/旋钮、小智 MCP、Ulanzi D200H
 - [x] 固件、Web、App、Watch、REST、BLE Config v3 支持可配置的 550 mm 最低档位
 - [x] BLE 三连接所有权、Client Info、配对窗口、Web/手机 Bond 管理
-- [x] 双 ToF 档位、最高高度、右侧障碍物真机安全矩阵
+- [x] 双 ToF 档位和最高高度闭环；新版右侧障碍物矩阵待真机复验
 - [x] Phase 2 真桌透传、断线 STOP、仲裁、童锁真屏蔽
 - [x] 异常停止矩阵和 Android 真机验收
 - [x] iPhone、Apple Watch、Android 三台真机并发矩阵
 
 **仍开放**
 
+- [ ] 新版右侧障碍物矩阵真机复验
 - [ ] Matter
 - [ ] OTA 固件升级
 - [ ] 更多厂商 Driver

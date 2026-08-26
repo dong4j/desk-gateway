@@ -132,11 +132,11 @@ I (...) mxtark: control-box height input disabled; waiting for external TOF sour
 I (...) mxtark: I2C slave @0x24 SCL=4 SDA=5
 ```
 
-历史上的控制盒 digit 解码器和软件 I²C Slave 只在显式实验 Kconfig 后面，不会编进默认组件源列表。GPIO10/11 上的独立 TOF400C 现在提供滤波后的控制高度，并供给 Web / OLED / 原厂面板显示。TOF050C 只在高度低于 `800 mm` 且右侧间距低于 `80 mm` 时禁止上升；`940 mm` 上限始终生效。控制盒侧回退证据见 `docs/hardware/i2c-restoration.md`。
+历史上的控制盒 digit 解码器和软件 I²C Slave 只在显式实验 Kconfig 后面，不会编进默认组件源列表。GPIO10/11 上的独立 TOF400C 现在提供滤波后的控制高度，并供给 Web / OLED / 原厂面板显示。TOF050C 在全行程要求右侧间距不小于 `70 mm`，高度低于 `800 mm` 时提高到 `100 mm`；任一 ToF 状态未知也禁止上升，`940 mm` 上限始终生效。控制盒侧回退证据见 `docs/hardware/i2c-restoration.md`。
 
 ## 最高安全高度
 
-已鉴权 Web 设置页把 `min_height_mm` 和 `max_height_mm` 存进 NVS。默认 `550 mm` 和 `940 mm`，物理输入范围 `550–940 mm`。最低高度只校验档位输入，因为下止点由控制盒自己处理。档位 1/4 默认 `550 mm` 和 `870 mm`。这些值直接使用滤波后的 TOF400C 距离，不换算成卷尺桌面高度。它们在 Web、BLE 和手机 App 之间持久化并同步。TOF400C 不可用时禁止上升；低于 `800 mm` 时 TOF050C 不可用也禁止上升。
+已鉴权 Web 设置页把 `min_height_mm` 和 `max_height_mm` 存进 NVS。默认 `550 mm` 和 `940 mm`，物理输入范围 `550–940 mm`。最低高度只校验档位输入，因为下止点由控制盒自己处理。档位 1/4 默认 `550 mm` 和 `870 mm`。这些值直接使用滤波后的 TOF400C 距离，不换算成卷尺桌面高度。它们在 Web、BLE 和手机 App 之间持久化并同步。TOF400C 或 TOF050C 不可用时都禁止上升。
 
 需要明确升到最高安全位的已鉴权自动化使用 `POST /api/v1/desk/raise-to-max`。仅当当前 Driver 声明带真实高度反馈的设备侧有界动作时才开放；不会退化为手动 `/api/v1/desk/up` 长按。对外语音或 MCP 工具暴露该动作前，先查 `GET /api/v1/desk/status` 里的 `raise_to_max_supported`。
 

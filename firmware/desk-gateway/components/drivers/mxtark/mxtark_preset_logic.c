@@ -130,13 +130,13 @@ bool mxtark_tof_upward_blocked(bool height_known, int height_mm,
                                  bool right_gap_known, int right_gap_mm,
                                  int max_height_mm)
 {
-    if (!height_known || height_mm >= max_height_mm) {
+    if (!height_known || height_mm >= max_height_mm || !right_gap_known) {
         return true;
     }
-    if (height_mm >= MXTARK_TOF_OBSTACLE_HEIGHT_MM) {
-        return false;
-    }
-    return !right_gap_known || right_gap_mm < MXTARK_TOF_MIN_RIGHT_GAP_MM;
+    int minimum_gap_mm = height_mm < MXTARK_TOF_LOW_HEIGHT_MM
+                             ? MXTARK_TOF_LOW_MIN_RIGHT_GAP_MM
+                             : MXTARK_TOF_MIN_RIGHT_GAP_MM;
+    return right_gap_mm < minimum_gap_mm;
 }
 
 bool mxtark_height_transition_valid(
