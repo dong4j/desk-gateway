@@ -108,8 +108,8 @@ mxtark_preset_action_t mxtark_preset_control_update(
 /**
  * 判断当前 TOF 数据是否必须阻止上升。
  *
- * 高度未知时无法保证 94 cm 上限，必须阻止上升。高度低于 80 cm 时，
- * 右侧距离未知或小于 8 cm 也必须阻止；达到 80 cm 后不再使用右侧距离。
+ * 高度未知时无法保证 90 cm 上限，必须阻止上升。右侧距离未知或全行程
+ * 小于 7 cm 时也必须阻止；高度低于 80 cm 时要求至少 10 cm。
  */
 bool mxtark_tof_upward_blocked(bool height_known, int height_mm,
                                  bool right_gap_known, int right_gap_mm,

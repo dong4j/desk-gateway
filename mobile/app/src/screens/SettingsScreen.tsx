@@ -65,9 +65,9 @@ import { palette, radii } from '../ui/theme';
 const MIN_DESK_HEIGHT_CM = DESK_MIN_HEIGHT_MM / 10;
 const MAX_DESK_HEIGHT_CM = DESK_MAX_HEIGHT_MM / 10;
 const MAX_HEIGHT_TICKS = [
-  55, 60, 65, 70, 75, 80, 85, 90, 94,
+  55, 60, 65, 70, 75, 80, 85, 90,
 ] as const;
-const MAX_HEIGHT_LABELS = [55, 65, 75, 85, 94] as const;
+const MAX_HEIGHT_LABELS = [55, 65, 75, 85, 90] as const;
 
 interface SettingsScreenProps {
   snapshot: DeskClientSnapshot;
@@ -414,7 +414,9 @@ export function SettingsScreen({
     if (!Number.isFinite(centimetres) ||
         centimetres < minHeightCm ||
         centimetres > MAX_DESK_HEIGHT_CM) {
-      setMaxHeightError(`请输入 ${minHeightCm.toFixed(1)}–94 cm`);
+      setMaxHeightError(
+        `请输入 ${minHeightCm.toFixed(1)}–${MAX_DESK_HEIGHT_CM} cm`,
+      );
       setMaxHeightMessage(null);
       return;
     }
@@ -462,7 +464,8 @@ export function SettingsScreen({
         preset1Mm < minHeightMm || preset1Mm >= preset4Mm ||
         preset4Mm > MAX_DESK_HEIGHT_CM * 10) {
       setPresetHeightError(
-        `请坐需低于站立，档位高度范围为 ${minHeightCm.toFixed(1)}–94 cm`,
+        `请坐需低于站立，档位高度范围为 ${
+          minHeightCm.toFixed(1)}–${MAX_DESK_HEIGHT_CM} cm`,
       );
       setPresetHeightMessage(null);
       return;
@@ -1572,7 +1575,7 @@ function HapticLevelSelector({
   );
 }
 
-/** Map a centimetre mark onto the fixed 55–94 cm raw-ToF scale. */
+/** Map a centimetre mark onto the fixed 55–90 cm raw-ToF scale. */
 function maxHeightTickPosition(value: number): `${number}%` {
   const progress =
     (value - MIN_DESK_HEIGHT_CM) /

@@ -9,12 +9,12 @@ import Testing
 func decodesStateV1() throws {
   let state = try DeskProtocol.decodeState(
     Data([
-      0x01, 0x01, 0xF9, 0x00, 0xD0, 0x02, 0xAC, 0x03,
+      0x01, 0x01, 0xF9, 0x00, 0xD0, 0x02, 0x84, 0x03,
     ]))
 
   #expect(state.motion == .movingUp)
   #expect(state.heightMillimeters == 720)
-  #expect(state.maximumHeightMillimeters == 940)
+  #expect(state.maximumHeightMillimeters == 900)
   #expect(state.childLockEnabled == false)
   #expect(state.bluetoothControlAllowed)
   #expect(state.upwardMotionBlocked)
@@ -37,10 +37,10 @@ func preservesUnknownHeight() throws {
 func decodesConfigV2() throws {
   let config = try DeskProtocol.decodeConfiguration(
     Data([
-      0x02, 0x0F, 0xAC, 0x03, 0x30, 0x02, 0x66, 0x03,
+      0x02, 0x0F, 0x84, 0x03, 0x30, 0x02, 0x66, 0x03,
     ]))
 
-  #expect(config.maximumHeightMillimeters == 940)
+  #expect(config.maximumHeightMillimeters == 900)
   #expect(config.minimumHeightMillimeters == 550)
   #expect(config.sittingHeightMillimeters == 560)
   #expect(config.standingHeightMillimeters == 870)
@@ -51,11 +51,11 @@ func decodesConfigV2() throws {
 func decodesConfigV3() throws {
   let config = try DeskProtocol.decodeConfiguration(
     Data([
-      0x03, 0x0F, 0xAC, 0x03, 0x26, 0x02, 0x66, 0x03, 0x26, 0x02,
+      0x03, 0x0F, 0x84, 0x03, 0x26, 0x02, 0x66, 0x03, 0x26, 0x02,
     ]))
 
   #expect(config.minimumHeightMillimeters == 550)
-  #expect(config.maximumHeightMillimeters == 940)
+  #expect(config.maximumHeightMillimeters == 900)
   #expect(config.sittingHeightMillimeters == 550)
   #expect(config.standingHeightMillimeters == 870)
 }

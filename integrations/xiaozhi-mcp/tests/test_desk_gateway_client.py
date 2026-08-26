@@ -26,7 +26,7 @@ def safe_status(**overrides: Any) -> dict[str, Any]:
     status: dict[str, Any] = {
         "status": "idle",
         "height_mm": 870,
-        "max_height_mm": 940,
+        "max_height_mm": 900,
         "preset1_height_mm": 560,
         "preset4_height_mm": 870,
         "height_sim": False,
@@ -139,7 +139,7 @@ class DeskGatewayClientTests(unittest.TestCase):
         )
 
     def test_raise_to_max_is_idempotent_at_maximum_height(self) -> None:
-        self.server.status_payload = safe_status(height_mm=940)
+        self.server.status_payload = safe_status(height_mm=900)
 
         result = self.client.raise_to_max()
 

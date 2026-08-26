@@ -53,7 +53,7 @@ xcodebuild -project DeskGatewayWatch.xcodeproj \
 在 Xcode 中使用 Watch Simulator 运行 `DeskGatewayWatch` 的 Debug 构建时，App 会自动
 使用本地 Mock，不再扫描 BLE。页面顶部的橙色“模拟”标识表示当前没有连接真实升降桌：
 
-- 初始高度为 `72.0 cm`，安全上限为 `94.0 cm`；
+- 初始高度为 `72.0 cm`，安全上限为 `90.0 cm`；
 - Digital Crown 可以模拟持续上升/下降；watchdog 每 `250 ms` 续期，`500 ms` 无输入 STOP；
 - “请坐”模拟移动到 `55 cm`，“站立”模拟移动到 `87 cm`；
 - 运动期间显示的 STOP 可以立即中断模拟动作。
@@ -65,7 +65,7 @@ Debug 和所有 Release 构建始终使用真实的 `DeskConnectionManager`，�
 
 模拟器建议按以下顺序测试：
 
-1. 确认顶部显示“已连接”和橙色“模拟”，高度为 `72.0 cm`、安全上限为 `94.0 cm`；
+1. 确认顶部显示“已连接”和橙色“模拟”，高度为 `72.0 cm`、安全上限为 `90.0 cm`；
 2. 旋转 Digital Crown，确认高度连续变化，停止旋转后状态回到“已连接”；
 3. 点击“请坐”或“站立”，确认高度向对应档位变化且界面出现 STOP；
 4. 在运动过程中点击 STOP，确认高度立即停止变化。

@@ -36,7 +36,7 @@
         childLockEnabled: false,
         bluetoothControlAllowed: true,
         minimumHeightMillimeters: 550,
-        maximumHeightMillimeters: 940,
+        maximumHeightMillimeters: 900,
         sittingHeightMillimeters: 550,
         standingHeightMillimeters: 870
       )
@@ -128,7 +128,7 @@
       deskState = DeskState(
         motion: .idle,
         heightMillimeters: currentHeightMillimeters,
-        maximumHeightMillimeters: configuration?.maximumHeightMillimeters ?? 940,
+        maximumHeightMillimeters: configuration?.maximumHeightMillimeters ?? 900,
         heightIsSimulated: true,
         childLockEnabled: false,
         bluetoothControlAllowed: true,
@@ -185,7 +185,7 @@
 
     /// 每个 tick 移动 3 mm，并严格限制在 Mock 的物理范围内。
     private func stepContinuousMotion(_ motion: DeskMotion) {
-      let maximum = configuration?.maximumHeightMillimeters ?? 940
+      let maximum = configuration?.maximumHeightMillimeters ?? 900
       switch motion {
       case .movingUp:
         currentHeightMillimeters = min(maximum, currentHeightMillimeters + 3)
@@ -218,7 +218,7 @@
 
     /// 所有状态都带 `heightIsSimulated`，避免调试数据被误认为真实测量。
     private func publishState(motion: DeskMotion) {
-      let maximum = configuration?.maximumHeightMillimeters ?? 940
+      let maximum = configuration?.maximumHeightMillimeters ?? 900
       deskState = DeskState(
         motion: motion,
         heightMillimeters: currentHeightMillimeters,

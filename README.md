@@ -45,7 +45,7 @@ How to use each client: [docs/guides/control-methods.md](docs/guides/control-met
 - **Pluggable drivers:** `mxtark` implemented; Loctek / Jiecang stubs
 - **desk_core:** hold up/down, jog, stop, presets, global child-lock, per-source REST/Bluetooth/panel permissions in NVS
 - **Dual-ToF:** TOF400C is the product height; TOF050C is right-side clearance; both paths debounce and expire
-- **Closed-loop presets:** configurable floor / sit / stand / ceiling, defaults 550 / 550 / 870 / 940 mm; the floor does not force a downward STOP
+- **Closed-loop presets:** configurable floor / sit / stand / ceiling, defaults 550 / 550 / 870 / 900 mm; the floor does not force a downward STOP
 - **Wi-Fi + SoftAP** and a password-protected **LAN Web UI**
 - **BLE Accessory Profile:** up to three Centrals, one motion owner, encrypted Client Info, pairing windows, Bond management, hold leases, disconnect-stop
 - **Same height everywhere:** Web / REST / BLE / OLED / original panel use the filtered TOF400C distance

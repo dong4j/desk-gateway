@@ -42,7 +42,7 @@ xcodebuild -project DeskGatewayWatch.xcodeproj \
 
 A Watch Simulator Debug run uses a local mock and does not scan BLE. The orange “模拟” badge means there is no real desk:
 
-- Initial height `72.0 cm`, ceiling `94.0 cm`.
+- Initial height `72.0 cm`, ceiling `90.0 cm`.
 - Digital Crown simulates continuous up/down. Watchdog renews every `250 ms`; `500 ms` without input sends STOP.
 - Sit moves to `55 cm`, stand to `87 cm`.
 - STOP during motion aborts the mock immediately.
@@ -52,7 +52,7 @@ The mock is compiled in only under `DEBUG && targetEnvironment(simulator)`. Watc
 
 Suggested simulator order:
 
-1. Confirm “已连接” plus orange “模拟”, height `72.0 cm`, ceiling `94.0 cm`.
+1. Confirm “已连接” plus orange “模拟”, height `72.0 cm`, ceiling `90.0 cm`.
 2. Rotate the Crown; height should change, then return to “已连接” after stop.
 3. Tap sit or stand; height should move and STOP should appear.
 4. Tap STOP during motion; height must freeze.

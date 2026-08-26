@@ -14,9 +14,10 @@ test('normalizes custom height preset names and centimetres', () => {
   assert.equal(heightPresetMmFromCm('55'), 550);
   assert.throws(() => heightPresetMmFromCm('54.9'), /55.0/);
   assert.equal(heightPresetMmFromCm('72.5'), 725);
+  assert.equal(heightPresetMmFromCm('90'), 900);
+  assert.throws(() => heightPresetMmFromCm('90.1'), /90.0/);
   assert.throws(() => normalizeHeightPresetName('   '), /名称/);
   assert.throws(() => normalizeHeightPresetName('坏\n名称'), /控制字符/);
-  assert.throws(() => heightPresetMmFromCm('95'), /55.0/);
   assert.throws(() => heightPresetMmFromCm('59.9', 600), /60.0/);
 });
 

@@ -120,8 +120,8 @@ test('keeps Config v2 writes compatible and rejects only the new minimum field',
   await client.initialize();
   await client.scanAndConnect();
 
-  await client.setMaxHeightMm(940);
-  assert.deepEqual(adapter.writes.at(-1), [2, 5, 0xac, 0x03]);
+  await client.setMaxHeightMm(900);
+  assert.deepEqual(adapter.writes.at(-1), [2, 5, 0x84, 0x03]);
   await assert.rejects(async () => client.setMinHeightMm(550),
     /minimum preset height/);
   client.dispose();

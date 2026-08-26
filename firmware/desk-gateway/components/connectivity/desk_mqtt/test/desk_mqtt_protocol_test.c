@@ -128,7 +128,7 @@ static void test_state_and_result_json(void)
         .have_previous_height = false,
         .preset1_height_mm = 550,
         .preset4_height_mm = 870,
-        .max_height_mm = 940,
+        .max_height_mm = 900,
         .child_lock = false,
         .upward_blocked = false,
         .mqtt_control_enabled = true,

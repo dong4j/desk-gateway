@@ -1,5 +1,7 @@
 /** App 多高度档位的输入校验与错误文案，保持为纯函数便于主机测试。 */
 
+import { DESK_MAX_HEIGHT_MM } from './heightPresentation';
+
 export function normalizeHeightPresetName(value: string): string {
   const name = value.trim();
   if (!name) {
@@ -31,9 +33,9 @@ export function heightPresetMmFromCm(
 ): number {
   const heightMm = Math.round(Number(value) * 10);
   if (!Number.isInteger(heightMm) || heightMm < minimumHeightMm ||
-      heightMm > 940) {
+      heightMm > DESK_MAX_HEIGHT_MM) {
     throw new Error(
-      `档位高度范围为 ${(minimumHeightMm / 10).toFixed(1)}–94.0 cm`,
+      `档位高度范围为 ${(minimumHeightMm / 10).toFixed(1)}–90.0 cm`,
     );
   }
   return heightMm;

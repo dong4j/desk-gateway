@@ -45,7 +45,7 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 - **可插拔驱动：** `mxtark` 已实现；Loctek / Jiecang 为 stub
 - **desk_core：** 按住升/降、jog、停止、档位；全局童锁与 REST/蓝牙/面板来源权限写入 NVS
 - **双 ToF：** TOF400C 作为产品高度，TOF050C 作为右侧间距；两路都有防抖和失效检测
-- **高度闭环：** 最低档位、坐姿、站姿、最高安全高度默认为 550 / 550 / 870 / 940 mm；最低档位不触发下行 STOP
+- **高度闭环：** 最低档位、坐姿、站姿、最高安全高度默认为 550 / 550 / 870 / 900 mm；最低档位不触发下行 STOP
 - **Wi-Fi + SoftAP** 与带密码的 **局域网 Web**
 - **BLE Accessory Profile：** 最多三个 Central、单一运动所有者、加密 Client Info、配对窗口、Bond 管理、长按租约、断连停止
 - **高度一致：** Web / REST / BLE / OLED / 原厂面板都用处理后的 TOF400C 距离

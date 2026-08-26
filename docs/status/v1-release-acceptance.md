@@ -3,10 +3,10 @@
 | 项 | 内容 |
 |---|---|
 | 文档编号 | DG-ACCEPT-V1 |
-| 版本 | 1.1 |
-| 日期 | 2026-08-17 |
+| 版本 | 1.2 |
+| 日期 | 2026-08-26 |
 | 产品范围 | Mxtark 升降桌、ESP32-S3 Gateway、Web、iPhone、Android、Apple Watch |
-| 状态 | P0 真机门禁已通过；P1 发布门禁未完成 |
+| 状态 | P0 新版安全矩阵待真机复验；P1 发布门禁未完成 |
 | 状态汇总 | [当前状态与任务优先级](current-status-and-priorities.md) |
 | 详细操作 | [真机接线、排障与验收清单](../guides/bringup-checklist.md) |
 
@@ -54,7 +54,7 @@ V1 发布判定：
 | Android App commit / build |  | [ ] |
 | Watch App commit / build |  | [ ] |
 | 测试桌型号 | Mxtark | [ ] |
-| 默认 `min / max / preset1 / preset4` | `550 / 940 / 550 / 870 mm` | [ ] |
+| 默认 `min / max / preset1 / preset4` | `550 / 900 / 550 / 870 mm` | [ ] |
 | TOF050C / TOF400C | 已接线且状态有效 | [ ] |
 | 原厂面板 | 已接入右侧 RJ45 代理口 | [ ] |
 
@@ -105,7 +105,7 @@ V1 发布判定：
 详细步骤以[双 ToF 距离传感器接入与安全策略](../architecture/tof-safety.md)第 7 节为准。
 
 - [x] 连续冷启动 20 次，两颗 ToF 地址、采样和 OLED 共存稳定。
-- [ ] 550 / 870 mm 档位和 940 mm 最高高度在新版快照读取下闭环停止。
+- [ ] 550 / 870 mm 档位和 900 mm 最高高度在新版快照读取下闭环停止。
 - [ ] 任意高度右侧距离未知或小于 70 mm 会停止并禁止上升。
 - [ ] 高度低于 800 mm 时，右侧距离小于 100 mm 会停止并禁止上升。
 - [ ] 70 mm 和低位 100 mm 边界符合“等于允许、小于停止”。

@@ -190,15 +190,16 @@ only behind explicit experimental Kconfig switches; they are not compiled into
 the default component source list. The separate TOF400C on GPIO10/11 now
 supplies the raw, filtered control height as well as the Web/OLED/original-panel
 display. TOF050C requires at least `70 mm` of right-side clearance throughout
-the upward range and at least `100 mm` below `800 mm`; the `940 mm` ceiling is always enforced. See
+the upward range and at least `100 mm` below `800 mm`; the `900 mm` ceiling is always enforced. See
 `docs/hardware/i2c-restoration.md` for the controller-side
 rollback evidence.
 
 ## Maximum safe height
 
 The authenticated Web settings panel stores `min_height_mm` and `max_height_mm`
-in NVS. They default to `550 mm` and `940 mm`; the physical input range is
-`550–940 mm`. The minimum only validates preset input because the control box
+in NVS. They default to `550 mm` and `900 mm`; the physical input range is
+`550–900 mm`. A stored ceiling above `900 mm` is rejected at startup and falls
+back to the default. The minimum only validates preset input because the control box
 owns the noisy lower stop. Presets 1/4 default to `550 mm` and `870 mm`. These
 values use the filtered TOF400C distance directly, without converting it to
 tape-measure desktop height. They are persisted and synchronized across Web,

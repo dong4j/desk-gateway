@@ -91,7 +91,7 @@ Provider 不接受工具名中的句点，可统一改成 `desk_get_status`、`d
 Desk Gateway 当前默认值为：
 
 ```text
-最高安全高度：940 mm
+最高安全高度：900 mm
 最低档位：    550 mm
 档位 1：      550 mm
 档位 4：      870 mm
@@ -114,7 +114,7 @@ Desk Gateway 当前默认值为：
 - TOF400C 在运动中不可用时停止。
 - TOF050C 右侧距离在任意高度小于 `70 mm` 都会停止；高度低于 `800 mm` 时阈值提高到
   `100 mm`。右侧传感器不可用也会阻止上升。
-- 默认最高安全高度是 `940 mm`，可配置范围是 `min_height_mm..940 mm`；当前最低档位默认值是 `550 mm`。
+- 默认最高安全高度是 `900 mm`，可配置范围是 `min_height_mm..900 mm`；当前最低档位默认值是 `550 mm`。
 
 `POST /api/v1/desk/raise-to-max` 与 Web 长按使用的 `/api/v1/desk/up` 分开。前者只有在 Driver
 明确声明 `raise_to_max` 能力时才会执行，不支持的 Driver 会返回错误，不能退化成普通持续
@@ -157,7 +157,7 @@ curl --fail --silent --show-error \
   "upward_blocked": false,
   "raise_to_max_supported": true,
   "min_height_mm": 550,
-  "max_height_mm": 940,
+  "max_height_mm": 900,
   "preset1_height_mm": 550,
   "preset4_height_mm": 870,
   "control_sources": {

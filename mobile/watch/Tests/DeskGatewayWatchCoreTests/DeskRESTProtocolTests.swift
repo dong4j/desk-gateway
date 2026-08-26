@@ -27,7 +27,7 @@ func restStatusProjectsDeviceState() throws {
       "controller_reset_active":false,
       "controller_reset_recommended":true,
       "min_height_mm":550,
-      "max_height_mm":940,
+      "max_height_mm":900,
       "preset1_height_mm":560,
       "preset4_height_mm":880,
       "control_sources":{"rest":true,"bluetooth":false},

@@ -8,6 +8,7 @@
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
   };
+  const productMaximumHeightMm = 900;
   const railFill = document.getElementById('railFill');
   const tofHeightEl = document.getElementById('tofHeight');
   const rightGapEl = document.getElementById('rightGap');
@@ -524,7 +525,7 @@
               value: (preset.height_mm / 10).toFixed(1),
               inputMode: 'decimal',
               min: (lastStatus.min_height_mm ?? 550) / 10,
-              max: 94,
+              max: productMaximumHeightMm / 10,
               step: 0.1,
             },
           ],
@@ -1102,9 +1103,9 @@
     const minHeightMm = Math.round(Number(minHeightInput.value) * 10);
     const preset1HeightMm = Number(lastStatus.preset1_height_mm);
     if (!Number.isInteger(minHeightMm) || minHeightMm < 550 ||
-        minHeightMm > 940 ||
+        minHeightMm > productMaximumHeightMm ||
         (Number.isInteger(preset1HeightMm) && minHeightMm > preset1HeightMm)) {
-      msg.textContent = '请输入 55.0–94.0 cm，且不能高于当前最低档位';
+      msg.textContent = '请输入 55.0–90.0 cm，且不能高于当前最低档位';
       return;
     }
     try {
@@ -1124,8 +1125,8 @@
     const maxHeightMm = Math.round(Number(maxHeightInput.value) * 10);
     const minimumHeightMm = lastStatus.min_height_mm ?? 550;
     if (!Number.isInteger(maxHeightMm) || maxHeightMm < minimumHeightMm ||
-        maxHeightMm > 940) {
-      msg.textContent = `请输入 ${(minimumHeightMm / 10).toFixed(1)}–94.0 cm`;
+        maxHeightMm > productMaximumHeightMm) {
+      msg.textContent = `请输入 ${(minimumHeightMm / 10).toFixed(1)}–90.0 cm`;
       return;
     }
     const requestedCm = (maxHeightMm / 10).toFixed(1);
@@ -1147,9 +1148,9 @@
         !Number.isInteger(preset4HeightMm) ||
         preset1HeightMm < (lastStatus.min_height_mm ?? 550) ||
         preset1HeightMm >= preset4HeightMm ||
-        preset4HeightMm > 940) {
+        preset4HeightMm > productMaximumHeightMm) {
       msg.textContent = `请坐需低于站立，档位高度范围为 ${
-        ((lastStatus.min_height_mm ?? 550) / 10).toFixed(1)}–94 cm`;
+        ((lastStatus.min_height_mm ?? 550) / 10).toFixed(1)}–90 cm`;
       return;
     }
     try {

@@ -73,7 +73,7 @@ public enum DeskRESTProtocol {
     let response = try JSONDecoder().decode(StatusResponse.self, from: data)
     let motion = try decodeMotion(response.status)
     let minimum = try height(response.minHeightMillimeters ?? 550, field: "min_height_mm")
-    let maximum = try height(response.maxHeightMillimeters ?? 940, field: "max_height_mm")
+    let maximum = try height(response.maxHeightMillimeters ?? 900, field: "max_height_mm")
     let sitting = try height(
       response.preset1HeightMillimeters ?? 550,
       field: "preset1_height_mm"

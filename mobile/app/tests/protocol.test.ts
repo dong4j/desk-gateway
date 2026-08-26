@@ -102,10 +102,10 @@ test('decodes Config snapshots and encodes field-only writes', () => {
   assert.equal(configV2.minHeightMm, 550);
 
   const configV3 = decodeDeskConfig([
-    0x03, 0b0000_1110, 0xac, 0x03, 0x26, 0x02, 0x66, 0x03, 0x26, 0x02,
+    0x03, 0b0000_1110, 0x84, 0x03, 0x26, 0x02, 0x66, 0x03, 0x26, 0x02,
   ]);
   assert.equal(configV3.minHeightMm, 550);
-  assert.equal(configV3.maxHeightMm, 940);
+  assert.equal(configV3.maxHeightMm, 900);
   assert.equal(configV3.preset1HeightMm, 550);
   assert.equal(configV3.preset4HeightMm, 870);
 
@@ -114,8 +114,8 @@ test('decodes Config snapshots and encodes field-only writes', () => {
   assert.deepEqual(encodeDeskConfigWrite('preset1_height_mm', 650), [3, 6, 0x8a, 2]);
   assert.deepEqual(encodeDeskConfigWrite('min_height_mm', 550), [3, 8, 0x26, 2]);
   assert.deepEqual(
-    encodeDeskConfigWrite('max_height_mm', 940, 2),
-    [2, 5, 0xac, 3],
+    encodeDeskConfigWrite('max_height_mm', 900, 2),
+    [2, 5, 0x84, 3],
   );
   assert.throws(
     () => encodeDeskConfigWrite('min_height_mm', 550, 2),

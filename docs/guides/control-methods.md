@@ -32,7 +32,7 @@ Desk Gateway 把厂商协议收进 `mxtark` Driver。下面这些入口都走同
 | Home Assistant / MQTT | 局域网 MQTT Cover | 请坐 / 起立 / 停止 | [HA 接入说明](home-assistant-mqtt.md) |
 | OLED | I²C 显示 | 只看高度和状态，不控桌 | [OLED](../architecture/oled-status-display.md) |
 
-默认档位：坐姿 `550 mm`（档位 1），站姿 `870 mm`（档位 4），最高安全高度 `940 mm`。高度来自 TOF400C，不是控制盒数码管。
+默认档位：坐姿 `550 mm`（档位 1），站姿 `870 mm`（档位 4），最高安全高度 `900 mm`。高度来自 TOF400C，不是控制盒数码管。
 
 ## 共同规则
 

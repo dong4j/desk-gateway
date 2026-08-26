@@ -262,7 +262,7 @@ CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
   `NSAllowsLocalNetworking` ATS 配置；
 - Apple Watch Series 11（46 mm）watchOS 27 Simulator 已完成定向构建、安装和启动；
 - Simulator Debug 构建会自动使用本地 `MockDeskController`，以 `72.0 cm` 为初始高度，
-  `56 / 87 / 94 cm` 为坐姿、站姿和安全上限，支持 Crown 连续升降、250 ms watchdog
+  `56 / 87 / 90 cm` 为坐姿、站姿和安全上限，支持 Crown 连续升降、250 ms watchdog
   续期、500 ms 无输入 STOP、固定高度和手动
   STOP 的 UI 测试；页面必须
   显示橙色“模拟”标识；

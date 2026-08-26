@@ -62,7 +62,7 @@ Authorization: Bearer <login token>
 | `child_lock` / `child_lock_reason` | 全局童锁 |
 | `upward_blocked` | 当前是否禁止上升 |
 | `raise_to_max_supported` | 能否使用有界最高位 |
-| `min_height_mm` / `max_height_mm` | 默认 `550` / `940` |
+| `min_height_mm` / `max_height_mm` | 默认 `550` / `900` |
 | `preset1_height_mm` / `preset4_height_mm` | 默认 `550` / `870` |
 | `control_sources.rest\|bluetooth\|panel\|mqtt` | 来源开关；MQTT 默认关闭 |
 | `mqtt.client_enabled` / `mqtt.connected` / `mqtt.last_error` | MQTT Client 诊断；不含密码 |
@@ -112,7 +112,7 @@ curl -s -X POST -H "X-Desk-Key: $DESK_KEY" \
 | POST | `/api/v1/desk/child-lock` | `{"enabled": true\|false}` |
 | POST | `/api/v1/desk/access` | `{"source":"rest\|bluetooth\|panel\|mqtt","enabled":true\|false}` |
 | POST | `/api/v1/desk/min-height` | `{"min_height_mm": 550}` |
-| POST | `/api/v1/desk/max-height` | `{"max_height_mm": 940}` |
+| POST | `/api/v1/desk/max-height` | `{"max_height_mm": 900}` |
 | POST | `/api/v1/desk/presets` | `{"preset1_height_mm":550,"preset4_height_mm":870}` |
 | GET | `/api/v1/desk/height-presets` | 自定义档位列表 |
 | POST | `/api/v1/desk/height-presets` | 新建自定义档位 |

@@ -120,7 +120,7 @@ test('merges REST audio state while BLE remains the active control transport', a
     status: 'idle',
     height_mm: 720,
     height_known: true,
-    max_height_mm: 940,
+    max_height_mm: 900,
     control_sources: { rest: true, bluetooth: true, panel: false },
     audio: {
       available: true,

@@ -114,7 +114,7 @@ zsh -lc 'export IDF_PYTHON_ENV_PATH=/Users/dong4j/.espressif/tools/python/v6.0.2
 ### 高度与安全
 
 - 产品高度 = 处理后的 **TOF400C** 距离。不要把控制盒 digit 解析当产品高度源。
-- 默认 `min / max / preset1 / preset4` = **550 / 940 / 550 / 870 mm**。最低高度只约束档位输入，不触发下行 STOP。
+- 默认 `min / max / preset1 / preset4` = **550 / 900 / 550 / 870 mm**。最低高度只约束档位输入，不触发下行 STOP。
 - 高度或右侧间距未知、达到最高高度、任意高度右侧间距小于 70 mm，或高度低于 800 mm 且右侧间距小于 100 mm 时禁止上升。下降和 STOP 始终可用。
 - 测试运动时必须写明：有人在桌旁；不要把“命令已发送”当成桌子真的动了。
 

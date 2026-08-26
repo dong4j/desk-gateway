@@ -11,6 +11,7 @@
   }
 }(typeof globalThis !== 'undefined' ? globalThis : this, () => {
   'use strict';
+  const productMaximumHeightMm = 900;
 
   function normalizeName(value) {
     const name = String(value ?? '').trim();
@@ -27,9 +28,9 @@
   function heightMmFromCm(value, minimumHeightMm = 550) {
     const heightMm = Math.round(Number(value) * 10);
     if (!Number.isInteger(heightMm) || heightMm < minimumHeightMm ||
-        heightMm > 940) {
+        heightMm > productMaximumHeightMm) {
       throw new Error(
-        `档位高度范围为 ${(minimumHeightMm / 10).toFixed(1)}–94.0 cm`);
+        `档位高度范围为 ${(minimumHeightMm / 10).toFixed(1)}–90.0 cm`);
     }
     return heightMm;
   }

@@ -513,8 +513,8 @@ static void update_tof_preset_control(desk_tof_snapshot_t snapshot,
  * Enforce the ToF ceiling/obstacle policy during motion and close preset loops.
  *
  * Entry checks reject unsafe commands before motion; this task is still
- * required because a safe command can later reach 94 cm or encounter an
- * obstacle below 80 cm. STOP goes through the panel arbiter so a held original
+ * required because a safe command can later reach 90 cm or encounter an
+ * obstacle while moving. STOP goes through the panel arbiter so a held original
  * panel key remains suppressed until it is released.
  */
 static void tof_control_task(void *arg)
