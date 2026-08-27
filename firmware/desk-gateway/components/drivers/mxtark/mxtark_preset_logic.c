@@ -54,6 +54,7 @@ void mxtark_preset_control_reset(mxtark_preset_control_t *control)
         .target_mm = -1,
         .direction = MXTARK_PRESET_STOP,
         .phase = MXTARK_PRESET_PHASE_IDLE,
+        .progress_height_mm = -1,
     };
 }
 
@@ -70,6 +71,7 @@ void mxtark_preset_control_start(mxtark_preset_control_t *control,
         .direction = direction,
         .phase = MXTARK_PRESET_PHASE_MOVING,
         .last_sample_id = current_sample_id,
+        .progress_height_mm = -1,
     };
 }
 
@@ -82,25 +84,58 @@ mxtark_preset_action_t mxtark_preset_control_update(
     int stop_margin_mm,
     int settle_tolerance_mm,
     uint32_t settle_ms,
-    unsigned int max_corrections)
+    unsigned int max_corrections,
+    int no_progress_near_target_mm,
+    int no_progress_min_delta_mm,
+    uint32_t no_progress_timeout_ms)
 {
     if (!control || control->phase == MXTARK_PRESET_PHASE_IDLE ||
         control_height_mm < 0 || stable_height_mm < 0 ||
         stop_margin_mm < 0 || settle_tolerance_mm < 0 ||
+        no_progress_near_target_mm < stop_margin_mm ||
+        no_progress_min_delta_mm <= 0 || no_progress_timeout_ms == 0 ||
         sample_id == control->last_sample_id) {
         return MXTARK_PRESET_ACTION_NONE;
     }
     control->last_sample_id = sample_id;
 
     if (control->phase == MXTARK_PRESET_PHASE_MOVING) {
-        if (!mxtark_preset_reached(control_height_mm, control->target_mm,
-                                   stop_margin_mm, control->direction)) {
+        if (mxtark_preset_reached(control_height_mm, control->target_mm,
+                                  stop_margin_mm, control->direction)) {
+            control->phase = MXTARK_PRESET_PHASE_SETTLING;
+            control->direction = MXTARK_PRESET_STOP;
+            control->settle_started_ms = now_ms;
+            control->progress_height_mm = -1;
+            control->progress_started_ms = 0;
+            return MXTARK_PRESET_ACTION_STOP_AND_SETTLE;
+        }
+
+        /*
+         * 只在档位下降已经接近目标时检查进展，避免把电机启动延迟或高位
+         * 正常下降误判为机械到底，也不影响 jog/hold 的响应路径。
+         */
+        bool monitor_down_progress =
+            control->direction == MXTARK_PRESET_DOWN &&
+            control_height_mm <=
+                control->target_mm + no_progress_near_target_mm;
+        if (!monitor_down_progress) {
+            control->progress_height_mm = -1;
+            control->progress_started_ms = 0;
             return MXTARK_PRESET_ACTION_NONE;
         }
-        control->phase = MXTARK_PRESET_PHASE_SETTLING;
-        control->direction = MXTARK_PRESET_STOP;
-        control->settle_started_ms = now_ms;
-        return MXTARK_PRESET_ACTION_STOP_AND_SETTLE;
+        if (control->progress_height_mm < 0 ||
+            control->progress_height_mm - control_height_mm >=
+                no_progress_min_delta_mm) {
+            control->progress_height_mm = control_height_mm;
+            control->progress_started_ms = now_ms;
+            return MXTARK_PRESET_ACTION_NONE;
+        }
+        if ((uint32_t)(now_ms - control->progress_started_ms) >=
+            no_progress_timeout_ms) {
+            mxtark_preset_control_reset(control);
+            return MXTARK_PRESET_ACTION_NO_PROGRESS;
+        }
+        return MXTARK_PRESET_ACTION_NONE;
     }
 
     if ((uint32_t)(now_ms - control->settle_started_ms) < settle_ms) {
@@ -121,6 +156,8 @@ mxtark_preset_action_t mxtark_preset_control_update(
     control->phase = MXTARK_PRESET_PHASE_MOVING;
     control->direction = error_mm < 0 ? MXTARK_PRESET_UP
                                      : MXTARK_PRESET_DOWN;
+    control->progress_height_mm = -1;
+    control->progress_started_ms = 0;
     return control->direction == MXTARK_PRESET_UP
                ? MXTARK_PRESET_ACTION_MOVE_UP
                : MXTARK_PRESET_ACTION_MOVE_DOWN;

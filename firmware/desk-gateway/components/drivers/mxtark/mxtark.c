@@ -84,6 +84,10 @@ static const char *TAG = "mxtark";
 #define PRESET_SETTLE_TOLERANCE_MM 5
 /* 校正必须有界；传感器或机械异常时不能在目标两侧持续振荡。 */
 #define PRESET_MAX_CORRECTIONS 2U
+/* 仅在目标附近识别机械到底，不能把普通下行启动延迟带回控制路径。 */
+#define PRESET_NO_PROGRESS_NEAR_TARGET_MM 20
+#define PRESET_NO_PROGRESS_MIN_DELTA_MM 3
+#define PRESET_NO_PROGRESS_TIMEOUT_MS 1500U
 
 /*
  * A clean TM1650 refresh is about 7 ms. The wider 20 ms window tolerates task
@@ -441,7 +445,8 @@ static void update_tof_preset_control(desk_tof_snapshot_t snapshot,
         &s_preset_control, snapshot.control_height_mm, snapshot.height_mm,
         snapshot.height_sample_id, now_ms, PRESET_STOP_MARGIN_MM,
         PRESET_SETTLE_TOLERANCE_MM, PRESET_SETTLE_MS,
-        PRESET_MAX_CORRECTIONS);
+        PRESET_MAX_CORRECTIONS, PRESET_NO_PROGRESS_NEAR_TARGET_MM,
+        PRESET_NO_PROGRESS_MIN_DELTA_MM, PRESET_NO_PROGRESS_TIMEOUT_MS);
     corrections = s_preset_control.correction_count;
     atomic_store(&s_preset_target_mm, s_preset_control.target_mm);
     atomic_store(&s_preset_direction, s_preset_control.direction);
@@ -497,6 +502,12 @@ static void update_tof_preset_control(desk_tof_snapshot_t snapshot,
                  "preset correction limit: stable=%d target=%d tolerance=%d",
                  snapshot.height_mm, target_mm,
                  PRESET_SETTLE_TOLERANCE_MM);
+        err = set_dr(DR_IDLE);
+        break;
+    case MXTARK_PRESET_ACTION_NO_PROGRESS:
+        ESP_LOGW(TAG,
+                 "preset no progress: control=%d stable=%d target=%d; stopping",
+                 snapshot.control_height_mm, snapshot.height_mm, target_mm);
         err = set_dr(DR_IDLE);
         break;
     case MXTARK_PRESET_ACTION_NONE:

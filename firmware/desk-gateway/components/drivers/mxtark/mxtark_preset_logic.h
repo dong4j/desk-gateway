@@ -45,6 +45,7 @@ typedef enum {
     MXTARK_PRESET_ACTION_MOVE_DOWN,
     MXTARK_PRESET_ACTION_COMPLETE,
     MXTARK_PRESET_ACTION_CORRECTION_LIMIT,
+    MXTARK_PRESET_ACTION_NO_PROGRESS,
 } mxtark_preset_action_t;
 
 /** 纯逻辑层的上升保护原因；运行时再映射到厂商无关 Driver 枚举。 */
@@ -67,6 +68,8 @@ typedef struct {
     unsigned int correction_count;
     uint32_t settle_started_ms;
     uint32_t last_sample_id;
+    int progress_height_mm;
+    uint32_t progress_started_ms;
 } mxtark_preset_control_t;
 
 /** Return the configured target in millimetres, or -1 for an unsupported preset. */
@@ -101,7 +104,8 @@ void mxtark_preset_control_start(mxtark_preset_control_t *control,
  * 消费一组新的控制/稳定高度并返回驱动动作。
  *
  * 首次越过停车边界后进入稳定等待；稳定高度仍超出容差时最多反向校正
- * max_corrections 次。达到上限必须结束，不能在目标两侧无限振荡。
+ * max_corrections 次。下降进入目标附近后若持续没有有效进展，也必须结束，
+ * 避免机械最低位高于配置目标时一直保持下降命令。
  */
 mxtark_preset_action_t mxtark_preset_control_update(
     mxtark_preset_control_t *control,
@@ -112,7 +116,10 @@ mxtark_preset_action_t mxtark_preset_control_update(
     int stop_margin_mm,
     int settle_tolerance_mm,
     uint32_t settle_ms,
-    unsigned int max_corrections);
+    unsigned int max_corrections,
+    int no_progress_near_target_mm,
+    int no_progress_min_delta_mm,
+    uint32_t no_progress_timeout_ms);
 
 /**
  * 判断当前 TOF 数据是否必须阻止上升。

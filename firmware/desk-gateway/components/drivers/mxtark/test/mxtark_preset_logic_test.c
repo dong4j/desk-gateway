@@ -42,50 +42,91 @@ int main(void)
     mxtark_preset_control_reset(&control);
     mxtark_preset_control_start(&control, 870, MXTARK_PRESET_UP, 10);
     assert(mxtark_preset_control_update(
-               &control, 864, 858, 11, 100, 5, 5, 500, 2) ==
+               &control, 864, 858, 11, 100, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_NONE);
     assert(mxtark_preset_control_update(
-               &control, 866, 860, 12, 200, 5, 5, 500, 2) ==
+               &control, 866, 860, 12, 200, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
     assert(mxtark_preset_control_update(
-               &control, 875, 876, 13, 500, 5, 5, 500, 2) ==
+               &control, 875, 876, 13, 500, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_NONE);
     assert(mxtark_preset_control_update(
-               &control, 876, 876, 14, 700, 5, 5, 500, 2) ==
+               &control, 876, 876, 14, 700, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_MOVE_DOWN);
     assert(mxtark_preset_control_update(
-               &control, 873, 875, 15, 800, 5, 5, 500, 2) ==
+               &control, 873, 875, 15, 800, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
     assert(mxtark_preset_control_update(
-               &control, 871, 872, 16, 1300, 5, 5, 500, 2) ==
+               &control, 871, 872, 16, 1300, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_COMPLETE);
     assert(control.phase == MXTARK_PRESET_PHASE_IDLE);
 
     /* 同一样本不能被 50 ms 控制循环重复消费并提前结束稳定等待。 */
     mxtark_preset_control_start(&control, 870, MXTARK_PRESET_UP, 20);
     assert(mxtark_preset_control_update(
-               &control, 866, 860, 21, 100, 5, 5, 500, 2) ==
+               &control, 866, 860, 21, 100, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
     assert(mxtark_preset_control_update(
-               &control, 866, 870, 21, 700, 5, 5, 500, 2) ==
+               &control, 866, 870, 21, 700, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_NONE);
 
     /* 连续过冲达到校正上限后必须结束，不能在目标两侧无限振荡。 */
     assert(mxtark_preset_control_update(
-               &control, 878, 878, 22, 700, 5, 5, 500, 2) ==
+               &control, 878, 878, 22, 700, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_MOVE_DOWN);
     assert(mxtark_preset_control_update(
-               &control, 874, 878, 23, 800, 5, 5, 500, 2) ==
+               &control, 874, 878, 23, 800, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
     assert(mxtark_preset_control_update(
-               &control, 862, 862, 24, 1300, 5, 5, 500, 2) ==
+               &control, 862, 862, 24, 1300, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_MOVE_UP);
     assert(mxtark_preset_control_update(
-               &control, 866, 862, 25, 1400, 5, 5, 500, 2) ==
+               &control, 866, 862, 25, 1400, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
     assert(mxtark_preset_control_update(
-               &control, 879, 879, 26, 1900, 5, 5, 500, 2) ==
+               &control, 879, 879, 26, 1900, 5, 5, 500, 2, 20, 3, 1500) ==
            MXTARK_PRESET_ACTION_CORRECTION_LIMIT);
+    assert(control.phase == MXTARK_PRESET_PHASE_IDLE);
+
+    /* 目标附近仍在缓慢下降时持续刷新进展窗口，不能提前误停。 */
+    mxtark_preset_control_start(&control, 550, MXTARK_PRESET_DOWN, 90);
+    assert(mxtark_preset_control_update(
+               &control, 568, 568, 91, 100, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_NONE);
+    assert(mxtark_preset_control_update(
+               &control, 565, 565, 92, 1500, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_NONE);
+    assert(mxtark_preset_control_update(
+               &control, 562, 562, 93, 2900, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_NONE);
+    assert(mxtark_preset_control_update(
+               &control, 559, 559, 94, 4300, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_NONE);
+    assert(mxtark_preset_control_update(
+               &control, 554, 554, 95, 5700, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
+
+    /*
+     * 真桌最低位稳定在约 559 mm，而坐姿目标仍是 550 mm。第一次停车后
+     * 的向下校正若 1.5 秒没有至少 3 mm 进展，必须主动结束，不能等待
+     * desk_core 的 15 秒总超时。
+     */
+    mxtark_preset_control_start(&control, 550, MXTARK_PRESET_DOWN, 100);
+    assert(mxtark_preset_control_update(
+               &control, 554, 561, 101, 100, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_STOP_AND_SETTLE);
+    assert(mxtark_preset_control_update(
+               &control, 559, 561, 102, 600, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_MOVE_DOWN);
+    assert(mxtark_preset_control_update(
+               &control, 559, 559, 103, 700, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_NONE);
+    assert(mxtark_preset_control_update(
+               &control, 558, 559, 104, 1400, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_NONE);
+    assert(mxtark_preset_control_update(
+               &control, 558, 559, 105, 2200, 5, 5, 500, 2, 20, 3, 1500) ==
+           MXTARK_PRESET_ACTION_NO_PROGRESS);
     assert(control.phase == MXTARK_PRESET_PHASE_IDLE);
 
     /* 全行程小于 7 cm 都阻止上升，低于 80 cm 时扩展到 10 cm。 */
