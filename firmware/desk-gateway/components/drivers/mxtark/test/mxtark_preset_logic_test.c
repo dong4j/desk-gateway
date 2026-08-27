@@ -90,15 +90,23 @@ int main(void)
 
     /* 全行程小于 7 cm 都阻止上升，低于 80 cm 时扩展到 10 cm。 */
     assert(mxtark_tof_upward_blocked(false, -1, true, 100, 900));
+    assert(mxtark_tof_upward_block_reason(false, -1, true, 100, 900) ==
+           MXTARK_TOF_BLOCK_HEIGHT_UNKNOWN);
     assert(mxtark_tof_upward_blocked(true, 799, true, 99, 900));
     assert(!mxtark_tof_upward_blocked(true, 799, true, 100, 900));
     assert(mxtark_tof_upward_blocked(true, 799, false, -1, 900));
     assert(mxtark_tof_upward_blocked(true, 800, true, 69, 900));
     assert(!mxtark_tof_upward_blocked(true, 800, true, 70, 900));
     assert(mxtark_tof_upward_blocked(true, 800, false, -1, 900));
+    assert(mxtark_tof_upward_block_reason(true, 800, false, -1, 900) ==
+           MXTARK_TOF_BLOCK_RIGHT_GAP_UNKNOWN);
     assert(mxtark_tof_upward_blocked(true, 899, true, 69, 900));
+    assert(mxtark_tof_upward_block_reason(true, 899, true, 69, 900) ==
+           MXTARK_TOF_BLOCK_RIGHT_GAP);
     assert(!mxtark_tof_upward_blocked(true, 899, true, 70, 900));
     assert(mxtark_tof_upward_blocked(true, 900, true, 100, 900));
+    assert(mxtark_tof_upward_block_reason(true, 900, true, 100, 900) ==
+           MXTARK_TOF_BLOCK_MAX_HEIGHT);
 
     /* The captured upward 89 -> 87 regression must never replace height. */
     assert(!mxtark_height_transition_valid(

@@ -11,6 +11,7 @@
 #include "desk_audio.h"
 #include "desk_core.h"
 #include "desk_mqtt.h"
+#include "desk_motion_audio.h"
 #include "desk_oled.h"
 #include "desk_peripheral_i2c.h"
 #include "desk_reminder.h"
@@ -95,6 +96,14 @@ void app_main(void)
         ESP_LOGW(TAG, "desk_oled_start: %s", esp_err_to_name(oled_err));
     }
 #endif
+#endif
+#if CONFIG_DESK_AUDIO_ENABLED
+    esp_err_t motion_audio_err = desk_motion_audio_start();
+    if (motion_audio_err != ESP_OK) {
+        /* 运动语音只能降级，不能让音频硬件问题阻断任何安全控制入口。 */
+        ESP_LOGW(TAG, "desk_motion_audio_start: %s",
+                 esp_err_to_name(motion_audio_err));
+    }
 #endif
     ESP_ERROR_CHECK(desk_ble_start());
 

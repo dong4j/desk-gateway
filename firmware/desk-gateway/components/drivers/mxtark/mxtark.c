@@ -1365,6 +1365,35 @@ static bool yd_is_upward_blocked(void)
 #endif
 }
 
+/** 保留安全判断的唯一事实来源，只把 Mxtark 原因翻译成 Driver 契约。 */
+static desk_upward_block_reason_t yd_get_upward_block_reason(void)
+{
+#if CONFIG_DESK_TOF_ENABLE
+    desk_tof_snapshot_t snapshot = desk_tof_snapshot();
+    int safety_height_mm = snapshot.control_height_mm >= 0
+                               ? snapshot.control_height_mm
+                               : snapshot.height_mm;
+    switch (mxtark_tof_upward_block_reason(
+        snapshot.height_known, safety_height_mm,
+        snapshot.right_gap_known, snapshot.right_gap_mm,
+        atomic_load(&s_max_height_mm))) {
+    case MXTARK_TOF_BLOCK_HEIGHT_UNKNOWN:
+        return DESK_UPWARD_BLOCK_HEIGHT_UNKNOWN;
+    case MXTARK_TOF_BLOCK_RIGHT_GAP_UNKNOWN:
+        return DESK_UPWARD_BLOCK_RIGHT_GAP_UNKNOWN;
+    case MXTARK_TOF_BLOCK_MAX_HEIGHT:
+        return DESK_UPWARD_BLOCK_MAX_HEIGHT;
+    case MXTARK_TOF_BLOCK_RIGHT_GAP:
+        return DESK_UPWARD_BLOCK_RIGHT_GAP;
+    case MXTARK_TOF_BLOCK_NONE:
+    default:
+        return DESK_UPWARD_BLOCK_NONE;
+    }
+#else
+    return DESK_UPWARD_BLOCK_NONE;
+#endif
+}
+
 static desk_status_t yd_get_status(void)
 {
 #if MXTARK_CLOSED_LOOP_ENABLED
@@ -1430,6 +1459,7 @@ const desk_driver_t mxtark_driver = {
     .set_max_height_mm = yd_set_max_height_mm,
     .set_preset_heights_mm = yd_set_preset_heights_mm,
     .is_upward_blocked = yd_is_upward_blocked,
+    .get_upward_block_reason = yd_get_upward_block_reason,
     .set_panel_enabled = yd_set_panel_enabled,
     .get_status = yd_get_status,
     .get_caps = yd_get_caps,

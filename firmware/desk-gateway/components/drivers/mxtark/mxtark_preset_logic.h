@@ -47,6 +47,15 @@ typedef enum {
     MXTARK_PRESET_ACTION_CORRECTION_LIMIT,
 } mxtark_preset_action_t;
 
+/** 纯逻辑层的上升保护原因；运行时再映射到厂商无关 Driver 枚举。 */
+typedef enum {
+    MXTARK_TOF_BLOCK_NONE = 0,
+    MXTARK_TOF_BLOCK_HEIGHT_UNKNOWN,
+    MXTARK_TOF_BLOCK_RIGHT_GAP_UNKNOWN,
+    MXTARK_TOF_BLOCK_MAX_HEIGHT,
+    MXTARK_TOF_BLOCK_RIGHT_GAP,
+} mxtark_tof_block_reason_t;
+
 /**
  * 档位闭环的纯状态。运行时只在驱动控制任务中推进，主机测试用相同逻辑
  * 回放测距延迟和停车过冲，避免只测试一个静态阈值。
@@ -114,6 +123,12 @@ mxtark_preset_action_t mxtark_preset_control_update(
 bool mxtark_tof_upward_blocked(bool height_known, int height_mm,
                                  bool right_gap_known, int right_gap_mm,
                                  int max_height_mm);
+
+/** 返回与上升门禁完全相同的可解释原因，禁止提示层自行复制阈值。 */
+mxtark_tof_block_reason_t mxtark_tof_upward_block_reason(
+    bool height_known, int height_mm,
+    bool right_gap_known, int right_gap_mm,
+    int max_height_mm);
 
 /**
  * Validate one decoded controller height.

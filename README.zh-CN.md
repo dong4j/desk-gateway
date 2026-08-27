@@ -49,6 +49,7 @@ Phase 1 已经完成：网关可以模拟原厂 Mxtark 面板，并在局域网�
 - **Wi-Fi + SoftAP** 与带密码的 **局域网 Web**
 - **BLE Accessory Profile：** 最多三个 Central、单一运动所有者、加密 Client Info、配对窗口、Bond 管理、长按租约、断连停止
 - **高度一致：** Web / REST / BLE / OLED / 原厂面板都用处理后的 TOF400C 距离
+- **本地语音：** 番茄提醒、升降/档位、安全拦截和接近最高高度的变频提示；真机运动并发待验收
 
 主固件用 **ESP-IDF v6.0.2** 构建。Phase 2 透传、异常停止、三客户端并发和双 ToF 安全矩阵已在真桌验收。V1 发布还取决于移动端内测包等剩余门禁，见 [当前状态与任务优先级](docs/status/current-status-and-priorities.md)。
 

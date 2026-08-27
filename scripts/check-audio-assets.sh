@@ -7,7 +7,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ASSET_DIR="${SCRIPT_DIR}/../firmware/desk-gateway/audio_assets/zh-CN-default"
-REQUIRED=(focus_done break_done snooze_done attention_chime)
+REQUIRED=(
+    focus_done break_done snooze_done attention_chime
+    motion_up motion_down
+    preset1_start preset1_reached preset4_start preset4_reached
+    height_preset_start height_preset_reached raise_to_max_start
+    max_height_reached right_gap_blocked sensor_unavailable
+    child_lock_enabled child_lock_disabled preset_saved
+    controller_reset_started controller_reset_completed
+)
 
 if command -v python3 >/dev/null 2>&1; then
     PYTHON=(python3)

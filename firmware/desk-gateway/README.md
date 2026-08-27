@@ -95,6 +95,15 @@ Start at 20% volume for first hardware bring-up. The firmware and automated
 tests are complete, but audio quality, brownout, click/pop and desk-bus EMI stay
 open until the physical amplifier and speaker are tested.
 
+The same local service announces desk motion. A real continuous UP or DOWN
+start is spoken once, while hold/jog renewals stay quiet. Preset 1, preset 4,
+and custom presets announce start and arrival. Child lock, preset save,
+controller reset, ceiling, right-clearance block, and unavailable sensors have
+separate prompts. During UP, `attention_chime` accelerates at `150 / 80 / 30 mm`
+below the configured ceiling to `1.5 / 1 / 0.65 s` intervals. DOWN and ordinary
+release STOP do not use the ceiling chime. Core callbacks only enqueue a small
+event; all WAV and I2S work runs in a lower-priority audio task.
+
 ## Status LEDs
 
 Three discrete LEDs are at-a-glance indicators. Default firmware drives them

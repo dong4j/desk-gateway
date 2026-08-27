@@ -168,10 +168,14 @@ cc -std=c11 -Wall -Wextra -Werror \
     "${AUDIO_DIR}/test/desk_audio_wav_test.c" \
     -o "${TEST_DIR}/audio-wav-test"
 "${TEST_DIR}/audio-wav-test" \
-    "${AUDIO_DIR}/../../audio_assets/zh-CN-default/focus_done.wav" \
-    "${AUDIO_DIR}/../../audio_assets/zh-CN-default/break_done.wav" \
-    "${AUDIO_DIR}/../../audio_assets/zh-CN-default/snooze_done.wav" \
-    "${AUDIO_DIR}/../../audio_assets/zh-CN-default/attention_chime.wav"
+    "${AUDIO_DIR}/../../audio_assets/zh-CN-default/"*.wav
+
+cc -std=c11 -Wall -Wextra -Werror \
+    -I "${AUDIO_DIR}/include" \
+    "${AUDIO_DIR}/desk_motion_audio_logic.c" \
+    "${AUDIO_DIR}/test/desk_motion_audio_logic_test.c" \
+    -o "${TEST_DIR}/motion-audio-logic-test"
+"${TEST_DIR}/motion-audio-logic-test"
 
 cc -std=c11 -Wall -Wextra -Werror \
     -I "${REMINDER_DIR}/include" \

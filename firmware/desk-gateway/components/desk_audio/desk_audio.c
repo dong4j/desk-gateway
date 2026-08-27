@@ -63,6 +63,25 @@ static const char *const PROMPT_NAMES[] = {
     [DESK_AUDIO_PROMPT_BREAK_DONE] = "break_done",
     [DESK_AUDIO_PROMPT_SNOOZE_DONE] = "snooze_done",
     [DESK_AUDIO_PROMPT_ATTENTION_CHIME] = "attention_chime",
+    [DESK_AUDIO_PROMPT_MOTION_UP] = "motion_up",
+    [DESK_AUDIO_PROMPT_MOTION_DOWN] = "motion_down",
+    [DESK_AUDIO_PROMPT_PRESET1_START] = "preset1_start",
+    [DESK_AUDIO_PROMPT_PRESET1_REACHED] = "preset1_reached",
+    [DESK_AUDIO_PROMPT_PRESET4_START] = "preset4_start",
+    [DESK_AUDIO_PROMPT_PRESET4_REACHED] = "preset4_reached",
+    [DESK_AUDIO_PROMPT_HEIGHT_PRESET_START] = "height_preset_start",
+    [DESK_AUDIO_PROMPT_HEIGHT_PRESET_REACHED] = "height_preset_reached",
+    [DESK_AUDIO_PROMPT_RAISE_TO_MAX_START] = "raise_to_max_start",
+    [DESK_AUDIO_PROMPT_MAX_HEIGHT_REACHED] = "max_height_reached",
+    [DESK_AUDIO_PROMPT_RIGHT_GAP_BLOCKED] = "right_gap_blocked",
+    [DESK_AUDIO_PROMPT_SENSOR_UNAVAILABLE] = "sensor_unavailable",
+    [DESK_AUDIO_PROMPT_CHILD_LOCK_ENABLED] = "child_lock_enabled",
+    [DESK_AUDIO_PROMPT_CHILD_LOCK_DISABLED] = "child_lock_disabled",
+    [DESK_AUDIO_PROMPT_PRESET_SAVED] = "preset_saved",
+    [DESK_AUDIO_PROMPT_CONTROLLER_RESET_STARTED] =
+        "controller_reset_started",
+    [DESK_AUDIO_PROMPT_CONTROLLER_RESET_COMPLETED] =
+        "controller_reset_completed",
 };
 
 static SemaphoreHandle_t s_mutex;
@@ -86,7 +105,8 @@ bool desk_audio_prompt_from_name(const char *name, desk_audio_prompt_t *out)
     if (!name || !out) {
         return false;
     }
-    for (size_t i = 0; i < sizeof(PROMPT_NAMES) / sizeof(PROMPT_NAMES[0]); ++i) {
+    /* REST 试听合同保持为原有四项；运动语音只能由设备状态触发。 */
+    for (size_t i = 0; i <= DESK_AUDIO_PROMPT_ATTENTION_CHIME; ++i) {
         if (strcmp(name, PROMPT_NAMES[i]) == 0) {
             *out = (desk_audio_prompt_t)i;
             return true;

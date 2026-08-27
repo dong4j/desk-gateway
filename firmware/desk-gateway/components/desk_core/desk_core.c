@@ -75,6 +75,7 @@ typedef struct {
  */
 #define DESK_CONTROLLER_RESET_HOLD_MS 8000U
 #define DESK_MOTION_WATCH_POLL_MS 100U
+#define DESK_CORE_EVENT_LISTENER_CAPACITY 4U
 
 typedef enum {
     DESK_JOG_NONE = 0,
@@ -100,8 +101,16 @@ static desk_jog_direction_t s_jog_pending_direction;
 static uint32_t s_jog_last_event_ms;
 static atomic_bool s_controller_reset_active;
 static atomic_bool s_controller_reset_recommended;
-static desk_core_event_listener_t s_event_listener;
-static void *s_event_listener_context;
+static atomic_int s_controller_reset_source;
+
+typedef struct {
+    desk_core_event_listener_t listener;
+    void *context;
+} desk_core_event_observer_t;
+
+static desk_core_event_observer_t
+    s_event_observers[DESK_CORE_EVENT_LISTENER_CAPACITY];
+static size_t s_event_observer_count;
 
 static esp_err_t set_child_lock_locked(bool enabled,
                                        desk_child_lock_reason_t reason);
@@ -121,25 +130,71 @@ static void auto_child_lock_tick(void)
     xSemaphoreGive(s_auto_lock_mutex);
 }
 
-static void notify_event(desk_core_event_kind_t kind,
-                         desk_control_source_t source)
+static void notify_event(const desk_core_event_t *event)
 {
-    if (!s_event_listener) {
+    if (!event) {
         return;
     }
+    for (size_t i = 0; i < s_event_observer_count; ++i) {
+        s_event_observers[i].listener(event,
+                                      s_event_observers[i].context);
+    }
+}
+
+static void notify_simple_event(desk_core_event_kind_t kind,
+                                desk_control_source_t source,
+                                bool enabled)
+{
     const desk_core_event_t event = {
         .kind = kind,
         .source = source,
+        .motion = DESK_CORE_MOTION_NONE,
+        .target_height_mm = -1,
+        .result = ESP_OK,
+        .enabled = enabled,
     };
-    s_event_listener(&event, s_event_listener_context);
+    notify_event(&event);
 }
 
-void desk_core_set_event_listener(desk_core_event_listener_t listener,
-                                  void *context)
+/** 通知结果只复制一个小结构；观察者必须自行投递队列，禁止在此播放音频。 */
+static void notify_motion_result(desk_control_source_t source,
+                                 desk_core_motion_action_t motion,
+                                 int target_height_mm,
+                                 esp_err_t result)
 {
-    /* 观察者在系统启动期设置，运行期只读，避免给每次运动入口增加锁。 */
-    s_event_listener = listener;
-    s_event_listener_context = context;
+    const desk_core_event_t event = {
+        .kind = result == ESP_OK ? DESK_CORE_EVENT_MOTION_ACCEPTED
+                                 : DESK_CORE_EVENT_MOTION_REJECTED,
+        .source = source,
+        .motion = motion,
+        .target_height_mm = target_height_mm,
+        .result = result,
+    };
+    notify_event(&event);
+}
+
+esp_err_t desk_core_add_event_listener(desk_core_event_listener_t listener,
+                                       void *context)
+{
+    if (!listener) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    for (size_t i = 0; i < s_event_observer_count; ++i) {
+        if (s_event_observers[i].listener == listener &&
+            s_event_observers[i].context == context) {
+            return ESP_OK;
+        }
+    }
+    if (s_event_observer_count >= DESK_CORE_EVENT_LISTENER_CAPACITY) {
+        return ESP_ERR_NO_MEM;
+    }
+    /* 所有观察者都在联网入口开放前注册，运动路径只进行无锁只读扇出。 */
+    s_event_observers[s_event_observer_count++] =
+        (desk_core_event_observer_t){
+            .listener = listener,
+            .context = context,
+        };
+    return ESP_OK;
 }
 
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
@@ -261,6 +316,10 @@ static void hold_timer_cb(void *arg)
     if (was_controller_reset && stop_err == ESP_OK) {
         /* 先确认 STOP 已写入总线，再允许新的运动请求进入。 */
         atomic_store(&s_controller_reset_active, false);
+        notify_simple_event(
+            DESK_CORE_EVENT_CONTROLLER_RESET_COMPLETED,
+            (desk_control_source_t)atomic_load(&s_controller_reset_source),
+            false);
     } else if (was_controller_reset) {
         ESP_LOGE(TAG, "controller reset STOP failed: %s",
                  esp_err_to_name(stop_err));
@@ -742,6 +801,8 @@ esp_err_t desk_core_init(const desk_driver_t *drv)
     }
     atomic_store(&s_controller_reset_active, false);
     atomic_store(&s_controller_reset_recommended, false);
+    atomic_store(&s_controller_reset_source,
+                 DESK_CONTROL_SOURCE_CONSOLE);
     (void)load_child_lock();
     load_auto_child_lock();
     (void)load_control_sources();
@@ -818,8 +879,8 @@ esp_err_t desk_core_stop(void)
         /* 保持重置占用状态，直到 STOP 确实已经写入驱动总线。 */
         atomic_store(&s_controller_reset_active, false);
         /* STOP 没有来源限制；观察者只需知道任意入口已经安全停机。 */
-        notify_event(DESK_CORE_EVENT_STOP_ACCEPTED,
-                     DESK_CONTROL_SOURCE_CONSOLE);
+        notify_simple_event(DESK_CORE_EVENT_STOP_ACCEPTED,
+                            DESK_CONTROL_SOURCE_CONSOLE, false);
     }
     return err;
 }
@@ -898,6 +959,7 @@ esp_err_t desk_core_hold_up(desk_control_source_t source)
 {
     esp_err_t err = authorize_source(source);
     if (err != ESP_OK) {
+        notify_motion_result(source, DESK_CORE_MOTION_HOLD_UP, -1, err);
         return err;
     }
     s_jog_pending_direction = DESK_JOG_NONE;
@@ -909,9 +971,7 @@ esp_err_t desk_core_hold_up(desk_control_source_t source)
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
     log_hold_result(source, true, err);
 #endif
-    if (err == ESP_OK) {
-        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
-    }
+    notify_motion_result(source, DESK_CORE_MOTION_HOLD_UP, -1, err);
     return err;
 }
 
@@ -919,6 +979,7 @@ esp_err_t desk_core_hold_down(desk_control_source_t source)
 {
     esp_err_t err = authorize_source(source);
     if (err != ESP_OK) {
+        notify_motion_result(source, DESK_CORE_MOTION_HOLD_DOWN, -1, err);
         return err;
     }
     s_jog_pending_direction = DESK_JOG_NONE;
@@ -930,9 +991,7 @@ esp_err_t desk_core_hold_down(desk_control_source_t source)
 #if CONFIG_DESK_MOTION_DIAGNOSTICS
     log_hold_result(source, false, err);
 #endif
-    if (err == ESP_OK) {
-        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
-    }
+    notify_motion_result(source, DESK_CORE_MOTION_HOLD_DOWN, -1, err);
     return err;
 }
 
@@ -940,6 +999,8 @@ esp_err_t desk_core_raise_to_max(desk_control_source_t source)
 {
     esp_err_t err = authorize_source(source);
     if (err != ESP_OK) {
+        notify_motion_result(source, DESK_CORE_MOTION_RAISE_TO_MAX,
+                             s_max_height_mm, err);
         return err;
     }
 
@@ -949,7 +1010,10 @@ esp_err_t desk_core_raise_to_max(desk_control_source_t source)
         caps = drv->get_caps();
     }
     if (!drv || !drv->raise_to_max || !caps.raise_to_max) {
-        return ESP_ERR_NOT_SUPPORTED;
+        err = ESP_ERR_NOT_SUPPORTED;
+        notify_motion_result(source, DESK_CORE_MOTION_RAISE_TO_MAX,
+                             s_max_height_mm, err);
+        return err;
     }
 
     /*
@@ -962,8 +1026,9 @@ esp_err_t desk_core_raise_to_max(desk_control_source_t source)
     if (err == ESP_OK) {
         s_jog_pending_direction = DESK_JOG_NONE;
         cancel_hold_timer();
-        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
     }
+    notify_motion_result(source, DESK_CORE_MOTION_RAISE_TO_MAX,
+                         s_max_height_mm, err);
     return err;
 }
 
@@ -996,10 +1061,13 @@ esp_err_t desk_core_reset_controller(desk_control_source_t source)
         return err;
     }
     atomic_store(&s_controller_reset_recommended, false);
+    atomic_store(&s_controller_reset_source, source);
     arm_hold_ms(DESK_CONTROLLER_RESET_HOLD_MS);
     ESP_LOGW(TAG, "controller reset source=%s hold=%u ms",
              desk_control_source_name(source),
              (unsigned)DESK_CONTROLLER_RESET_HOLD_MS);
+    notify_simple_event(DESK_CORE_EVENT_CONTROLLER_RESET_STARTED,
+                        source, true);
     return ESP_OK;
 }
 
@@ -1079,12 +1147,11 @@ esp_err_t desk_core_jog_up(desk_control_source_t source)
 {
     esp_err_t err = authorize_source(source);
     if (err != ESP_OK) {
+        notify_motion_result(source, DESK_CORE_MOTION_JOG_UP, -1, err);
         return err;
     }
     err = jog_event(DESK_JOG_UP, source);
-    if (err == ESP_OK) {
-        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
-    }
+    notify_motion_result(source, DESK_CORE_MOTION_JOG_UP, -1, err);
     return err;
 }
 
@@ -1092,25 +1159,32 @@ esp_err_t desk_core_jog_down(desk_control_source_t source)
 {
     esp_err_t err = authorize_source(source);
     if (err != ESP_OK) {
+        notify_motion_result(source, DESK_CORE_MOTION_JOG_DOWN, -1, err);
         return err;
     }
     err = jog_event(DESK_JOG_DOWN, source);
-    if (err == ESP_OK) {
-        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
-    }
+    notify_motion_result(source, DESK_CORE_MOTION_JOG_DOWN, -1, err);
     return err;
 }
 
 esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
 {
+    desk_core_motion_action_t motion =
+        n == 1 ? DESK_CORE_MOTION_PRESET_1 :
+        n == 4 ? DESK_CORE_MOTION_PRESET_4 : DESK_CORE_MOTION_NONE;
+    int target_mm = n == 1 ? s_preset1_height_mm :
+                    n == 4 ? s_preset4_height_mm : -1;
     esp_err_t auth_err = authorize_source(source);
     if (auth_err != ESP_OK) {
+        notify_motion_result(source, motion, target_mm, auth_err);
         return auth_err;
     }
     s_jog_pending_direction = DESK_JOG_NONE;
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->goto_preset) {
-        return ESP_ERR_NOT_SUPPORTED;
+        esp_err_t err = ESP_ERR_NOT_SUPPORTED;
+        notify_motion_result(source, motion, target_mm, err);
+        return err;
     }
 
     /*
@@ -1122,8 +1196,6 @@ esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
     if (drv->get_height_mm && (n == 1 || n == 4)) {
         int current_mm = -1;
         if (drv->get_height_mm(&current_mm) == ESP_OK) {
-            int target_mm =
-                n == 1 ? s_preset1_height_mm : s_preset4_height_mm;
             preset_moves_up = current_mm < target_mm;
         }
     }
@@ -1143,8 +1215,8 @@ esp_err_t desk_core_goto_preset(desk_control_source_t source, uint8_t n)
             s_sim_mm = s_preset4_height_mm;
         }
 #endif
-        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
     }
+    notify_motion_result(source, motion, target_mm, err);
     return err;
 }
 
@@ -1153,16 +1225,24 @@ static esp_err_t goto_height_mm(desk_control_source_t source, int target_mm)
 {
     esp_err_t auth_err = authorize_source(source);
     if (auth_err != ESP_OK) {
+        notify_motion_result(source, DESK_CORE_MOTION_HEIGHT_PRESET,
+                             target_mm, auth_err);
         return auth_err;
     }
     if (target_mm < s_min_height_mm ||
         target_mm > DESK_HEIGHT_MM_MAX) {
-        return ESP_ERR_INVALID_ARG;
+        esp_err_t err = ESP_ERR_INVALID_ARG;
+        notify_motion_result(source, DESK_CORE_MOTION_HEIGHT_PRESET,
+                             target_mm, err);
+        return err;
     }
     s_jog_pending_direction = DESK_JOG_NONE;
     const desk_driver_t *drv = desk_driver_get_active();
     if (!drv || !drv->goto_height_mm) {
-        return ESP_ERR_NOT_SUPPORTED;
+        esp_err_t err = ESP_ERR_NOT_SUPPORTED;
+        notify_motion_result(source, DESK_CORE_MOTION_HEIGHT_PRESET,
+                             target_mm, err);
+        return err;
     }
 
     bool moves_up = false;
@@ -1177,8 +1257,9 @@ static esp_err_t goto_height_mm(desk_control_source_t source, int target_mm)
 #if CONFIG_DESK_SIM_HEIGHT
         s_sim_mm = target_mm;
 #endif
-        notify_event(DESK_CORE_EVENT_MOTION_ACCEPTED, source);
     }
+    notify_motion_result(source, DESK_CORE_MOTION_HEIGHT_PRESET,
+                         target_mm, err);
     return err;
 }
 
@@ -1222,6 +1303,16 @@ esp_err_t desk_core_save_preset(desk_control_source_t source, uint8_t n)
                 s_preset1_height_mm, s_sim_mm);
         }
 #endif
+        const desk_core_event_t event = {
+            .kind = DESK_CORE_EVENT_PRESET_SAVED,
+            .source = source,
+            .motion = n == 1 ? DESK_CORE_MOTION_PRESET_1 :
+                      n == 4 ? DESK_CORE_MOTION_PRESET_4 :
+                               DESK_CORE_MOTION_NONE,
+            .target_height_mm = -1,
+            .result = ESP_OK,
+        };
+        notify_event(&event);
     }
     return err;
 }
@@ -1251,6 +1342,8 @@ static esp_err_t set_child_lock_locked(bool enabled,
         esp_err_t persist_err = save_child_lock();
         ESP_LOGI(TAG, "child_lock -> 1 reason=%s",
                  desk_child_lock_reason_name(reason));
+        notify_simple_event(DESK_CORE_EVENT_CHILD_LOCK_CHANGED,
+                            DESK_CONTROL_SOURCE_CONSOLE, true);
         return persist_err != ESP_OK ? persist_err : stop_err;
     }
 
@@ -1274,6 +1367,8 @@ static esp_err_t set_child_lock_locked(bool enabled,
         }
     }
     ESP_LOGI(TAG, "child_lock -> 0");
+    notify_simple_event(DESK_CORE_EVENT_CHILD_LOCK_CHANGED,
+                        DESK_CONTROL_SOURCE_CONSOLE, false);
     return err;
 }
 
@@ -1655,6 +1750,7 @@ desk_core_snapshot_t desk_core_snapshot(void)
         .auto_child_lock_detector_online = false,
         .auto_child_lock_device_id = {0},
         .upward_blocked = false,
+        .upward_block_reason = DESK_UPWARD_BLOCK_NONE,
         .raise_to_max_supported = false,
         .controller_reset_supported = false,
         .controller_reset_active =
@@ -1692,8 +1788,15 @@ desk_core_snapshot_t desk_core_snapshot(void)
     if (drv->get_status) {
         s.status = drv->get_status();
     }
-    if (drv->is_upward_blocked) {
+    if (drv->get_upward_block_reason) {
+        s.upward_block_reason = drv->get_upward_block_reason();
+        s.upward_blocked =
+            s.upward_block_reason != DESK_UPWARD_BLOCK_NONE;
+    } else if (drv->is_upward_blocked) {
         s.upward_blocked = drv->is_upward_blocked();
+        if (s.upward_blocked) {
+            s.upward_block_reason = DESK_UPWARD_BLOCK_OTHER;
+        }
     }
     if (drv->get_height_mm) {
         int mm = 0;

@@ -1962,7 +1962,12 @@ esp_err_t desk_ble_start(void)
                          nimble_port_get_dflt_eventq(),
                          delete_timeout_event_cb, NULL);
     ble_npl_event_init(&s_core_event, core_event_cb, NULL);
-    desk_core_set_event_listener(core_event_listener, NULL);
+    err = desk_core_add_event_listener(core_event_listener, NULL);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "register core event listener failed: %s",
+                 esp_err_to_name(err));
+        return err;
+    }
 
     ble_svc_gap_init();
     ble_svc_gatt_init();

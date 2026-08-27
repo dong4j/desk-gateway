@@ -24,6 +24,16 @@ typedef enum {
     DESK_STATUS_ERROR,
 } desk_status_t;
 
+/** 厂商无关的上升保护原因，供提示层解释“为什么不能继续上升”。 */
+typedef enum {
+    DESK_UPWARD_BLOCK_NONE = 0,
+    DESK_UPWARD_BLOCK_HEIGHT_UNKNOWN,
+    DESK_UPWARD_BLOCK_RIGHT_GAP_UNKNOWN,
+    DESK_UPWARD_BLOCK_MAX_HEIGHT,
+    DESK_UPWARD_BLOCK_RIGHT_GAP,
+    DESK_UPWARD_BLOCK_OTHER,
+} desk_upward_block_reason_t;
+
 /* Product control values use the filtered TOF400C distance without calibration. */
 #define DESK_HEIGHT_MM_MIN                 550
 #define DESK_HEIGHT_MM_MAX                 900
@@ -82,6 +92,8 @@ typedef struct desk_driver {
                                        int preset4_height_mm);
     /** 预测或真实触顶后，在重新获得安全下降高度前禁止继续上升。 */
     bool (*is_upward_blocked)(void);
+    /** 返回当前上升保护原因；不支持细分时可省略并沿用布尔结果。 */
+    desk_upward_block_reason_t (*get_upward_block_reason)(void);
     /**
      * 可选的原厂控制面板入口开关。
      *

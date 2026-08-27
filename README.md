@@ -49,6 +49,7 @@ How to use each client: [docs/guides/control-methods.md](docs/guides/control-met
 - **Wi-Fi + SoftAP** and a password-protected **LAN Web UI**
 - **BLE Accessory Profile:** up to three Centrals, one motion owner, encrypted Client Info, pairing windows, Bond management, hold leases, disconnect-stop
 - **Same height everywhere:** Web / REST / BLE / OLED / original panel use the filtered TOF400C distance
+- **Local audio:** Pomodoro, motion/preset, safety-block, and accelerating ceiling cues; real-desk motion concurrency remains unaccepted
 
 The main firmware builds with **ESP-IDF v6.0.2**. Phase 2 pass-through, the abnormal-stop matrix, three-client concurrency, and the dual-ToF safety matrix have been accepted on the real desk. V1 release still depends on remaining gates such as mobile beta builds; see [docs/status/current-status-and-priorities.md](docs/status/current-status-and-priorities.md).
 

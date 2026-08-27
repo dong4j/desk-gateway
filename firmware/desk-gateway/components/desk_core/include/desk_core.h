@@ -31,6 +31,7 @@ typedef struct {
     bool auto_child_lock_detector_online;
     char auto_child_lock_device_id[DESK_AUTO_LOCK_DEVICE_ID_LENGTH];
     bool upward_blocked;
+    desk_upward_block_reason_t upward_block_reason;
     bool raise_to_max_supported;
     bool controller_reset_supported;
     bool controller_reset_active;
@@ -63,11 +64,33 @@ typedef struct {
 typedef enum {
     DESK_CORE_EVENT_STOP_ACCEPTED = 0,
     DESK_CORE_EVENT_MOTION_ACCEPTED,
+    DESK_CORE_EVENT_MOTION_REJECTED,
+    DESK_CORE_EVENT_PRESET_SAVED,
+    DESK_CORE_EVENT_CHILD_LOCK_CHANGED,
+    DESK_CORE_EVENT_CONTROLLER_RESET_STARTED,
+    DESK_CORE_EVENT_CONTROLLER_RESET_COMPLETED,
 } desk_core_event_kind_t;
+
+/** 运动语义独立于入口，保证 Web、BLE、旋钮和面板使用同一套提示。 */
+typedef enum {
+    DESK_CORE_MOTION_NONE = 0,
+    DESK_CORE_MOTION_HOLD_UP,
+    DESK_CORE_MOTION_HOLD_DOWN,
+    DESK_CORE_MOTION_JOG_UP,
+    DESK_CORE_MOTION_JOG_DOWN,
+    DESK_CORE_MOTION_RAISE_TO_MAX,
+    DESK_CORE_MOTION_PRESET_1,
+    DESK_CORE_MOTION_PRESET_4,
+    DESK_CORE_MOTION_HEIGHT_PRESET,
+} desk_core_motion_action_t;
 
 typedef struct {
     desk_core_event_kind_t kind;
     desk_control_source_t source;
+    desk_core_motion_action_t motion;
+    int target_height_mm;
+    esp_err_t result;
+    bool enabled;
 } desk_core_event_t;
 
 /**
@@ -80,9 +103,9 @@ typedef void (*desk_core_event_listener_t)(const desk_core_event_t *event,
                                            void *context);
 
 esp_err_t desk_core_init(const desk_driver_t *drv);
-/** 启动阶段注册单一观察者；传 NULL 可取消注册。 */
-void desk_core_set_event_listener(desk_core_event_listener_t listener,
-                                  void *context);
+/** 启动阶段追加非阻塞观察者；容量固定，运行期不允许移除或替换。 */
+esp_err_t desk_core_add_event_listener(desk_core_event_listener_t listener,
+                                       void *context);
 /** STOP 是安全操作，不受童锁或来源开关限制。 */
 esp_err_t desk_core_stop(void);
 esp_err_t desk_core_hold_up(desk_control_source_t source);
