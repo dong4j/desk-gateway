@@ -12,7 +12,7 @@
     "ws": "8.21.3"
   },
   "devDependencies": {
-    "webpack": "5.109.2",
+    "webpack": "5.112.2",
     "webpack-cli": "5.1.4"
   }
 }
